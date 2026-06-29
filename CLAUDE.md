@@ -11,8 +11,13 @@ reel-gen-agent is an open-source CLI that generates a one-person, product-focuse
 vertical short for Instagram Reels, TikTok, and YouTube Shorts. A user supplies a
 product and a reference style; the agent returns a post-ready mp4 with a model,
 captions, and music. It targets solo creators and small brands doing short-form
-promotion and brand awareness, with beauty and skincare channels as the primary
-vertical.
+promotion and brand awareness.
+
+Product fit is broad: anything a single person can show being worn or used on
+camera in an indoor room. Beauty and skincare is the most common example (and the
+one used most across the docs and references), but the same flow covers apparel,
+accessories, bags, shoes and sneakers, eyewear, other fashion items, and simple
+home decor props.
 
 The guiding principle: do not hardcode a style. Measure it from a reference,
 express it as reusable data, and drive generation from that data. The same engine

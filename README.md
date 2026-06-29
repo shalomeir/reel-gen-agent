@@ -4,8 +4,12 @@ An AI agent CLI that turns a single product into a ready-to-post vertical short
 for Instagram Reels, TikTok, and YouTube Shorts. Point it at a product, pick a
 reference style, and it produces a one-person short-form clip with a model,
 subtitles, and music. It is built for solo creators and small brands doing
-short-form promotion and brand awareness, with beauty channels as the primary
-use case.
+short-form promotion and brand awareness.
+
+It fits any product a single person can show being worn or used on camera in an
+indoor room. Beauty and skincare is the most common example, but the same flow
+covers apparel, accessories, bags, shoes and sneakers, eyewear, other fashion
+items, and simple home decor props.
 
 Bring your own API key and start making shorts for free. No timeline editor, no
 render farm: describe the product, approve a few steps, get an mp4.

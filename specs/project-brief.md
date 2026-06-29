@@ -11,10 +11,16 @@ and a reference style; the agent returns a post-ready mp4 with a model, on-scree
 captions, and music.
 
 Primary audience: solo short-form creators and small DTC brands running product
-promotion and brand-awareness clips. Beauty and skincare channels are the main
-target vertical, since that space leans on a recognizable short-form grammar
-(hook, problem, application, payoff, glow). The tool is not limited to beauty, but
-the defaults and references assume it.
+promotion and brand-awareness clips.
+
+Product fit: anything a single person can show being worn or used on camera in an
+indoor room. Beauty and skincare is the most common example and the one that
+appears most in the docs and references, since that space leans on a recognizable
+short-form grammar (hook, problem, application, payoff, glow). The same flow
+extends to apparel, accessories, bags, shoes and sneakers, eyewear, other fashion
+items, and simple home decor props, where the clip shows a try-on or a short use
+sequence in frame. Heavy industrial goods or anything that cannot be shown in a
+small indoor setting are out of fit.
 
 Distribution: an open-source CLI. Anyone with an API key can run it for the cost of
 their own model usage. No hosted service, no account, no lock-in.
@@ -82,12 +88,17 @@ so the image or video backend can be swapped without rewriting the pipeline. See
    cinematic brand film). The agent produces three distinct edits from one input,
    so the brand can A/B which rhythm performs.
 
-3. **Match a reference's rhythm for a new product.**
+3. **Fashion try-on, different vertical.**
+   Input: a pair of sneakers (or a bag, a jacket, eyewear) and a reference with a
+   clean try-on feel. The agent shows a model putting the item on and moving in an
+   indoor setting, proving the flow is not beauty-only.
+
+4. **Match a reference's rhythm for a new product.**
    Analyze a reel that performed well, then generate a new clip for a different
    product that reproduces its cut count and pacing. The storyboard panel count
    and timing come straight from the analyzed profile.
 
-4. **One-shot run mode.**
+5. **One-shot run mode.**
    A user who trusts the defaults runs generation with all gates passed and gets a
    finished mp4 from a single input file, no prompts. The interactive gates exist
    for when they want control, not as a requirement.
