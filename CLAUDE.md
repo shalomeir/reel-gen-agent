@@ -99,13 +99,24 @@ When adding a stage:
 3. Wire its gate (ask / pass / run) into the graph.
 4. Write a deterministic test; mock external model calls.
 
-## Specs folder discipline
+## Source of truth: specs over docs
 
-- `specs/project-brief.md` is the root. Keep it current when scope shifts.
-- New design work lands as a new `specs/` file, dated in the body, referenced from
-  the brief or the relevant doc.
-- `docs/` holds stable architecture and usage docs; `specs/` holds the planning
-  and design trail. Do not duplicate; link.
+`specs/` is the only authority for what gets built. `docs/` is a reference
+library, not a contract.
+
+- **`specs/` is binding.** Implementation follows what `specs/` defines and
+  nothing else. If code and a `specs/` file disagree, the spec wins (or the spec
+  is wrong and gets fixed first). `specs/project-brief.md` is the root vision and
+  `specs/prd.md` is the product requirements; each feature or stage gets its own
+  dated `specs/<topic>.md` describing intent, interface, and done-criteria before
+  code.
+- **`docs/` is reference material only.** Architecture notes, analysis write-ups,
+  pipeline explorations, and usage guides live here as background and rationale.
+  They inform decisions but do not by themselves authorize implementation. When a
+  `docs/` design is accepted as the plan, promote the binding parts into a
+  `specs/` file and let `docs/` keep the longer explanation.
+- When `specs/` and `docs/` conflict, resolve it in `specs/`. Do not duplicate
+  content across the two; link instead.
 
 ## Conventions and code quality
 

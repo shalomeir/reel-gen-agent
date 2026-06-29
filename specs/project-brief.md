@@ -1,126 +1,115 @@
-# Project brief
+# 프로젝트 개요
 
-The source-of-truth document for what reel-gen-agent is, why it exists, and what
-"done" looks like. Other docs in `specs/` build on this one.
+reel-gen-agent가 무엇이고 왜 존재하며 "완성"이 어떤 모습인지를 정하는 상위 비전 문서다.
+`specs/`의 다른 문서는 모두 이 문서 위에 쌓는다. 구현 기준으로 푼 요구사항은
+[prd.md](prd.md)에 있다. 둘이 어긋나면 더 구체적인 PRD를 따른다.
 
-## Purpose
+## 목적
 
-Let one person produce a polished, product-focused vertical short for Instagram
-Reels, TikTok, or YouTube Shorts without a video team. The user supplies a product
-and a reference style; the agent returns a post-ready mp4 with a model, on-screen
-captions, and music.
+영상 팀 없이 한 사람이 인스타그램 릴스, 틱톡, 유튜브 쇼츠용 세로 숏폼을 만들 수 있게
+한다. 제품 하나와 참고할 스타일을 주면, 에이전트가 모델과 화면 자막과 음악이 들어간
+바로 올릴 수 있는 mp4를 돌려준다.
 
-Primary audience: solo short-form creators and small DTC brands running product
-promotion and brand-awareness clips.
+주 사용자는 여성 라이프스타일 소비재(뷰티 중심) DTC 브랜드의 마케터, 그리고 그런
+브랜드의 콘텐츠를 대신 만드는 개발 친화적인 크리에이터다. 주 소비자가 10~30대 여성인
+제품을 다룬다. 순수 개인 채널만 운영하는 일반 크리에이터는 부차적이다. (자세한 ICP는
+[prd.md](prd.md) 3장.)
 
-Product fit: anything a single person can show worn or used on camera in an indoor
-room, as a try-on or a short use sequence in frame. The default model, styling,
-palette, and voice lean feminine, since that is where short-form product PPL
-concentrates.
+맞는 제품군은 한 사람이 실내에서 몸에 걸치거나 쓰는 모습을 카메라에 담을 수 있는 것,
+착용 샷이나 짧은 사용 시퀀스로 보여줄 수 있는 것이다. 기본 모델, 스타일링, 팔레트,
+보이스는 여성향으로 잡는다. 숏폼 제품 PPL이 거기에 몰려 있기 때문이다.
 
-Categories, most frequent first:
+빈도순 카테고리:
 
-- **Skincare (the top category).** Serums and ampoules (anti-aging, brightening,
-  soothing), sunscreen (a GRWM staple), toner / essence / moisturizer (barrier and
-  hydration), cleansers and cleansing foam (gentle, derm-recommended positioning),
-  patches (acne, under-eye, stick-on masks). This space has a clear short-form
-  grammar (hook, problem, application, payoff, glow), so it appears most across the
-  docs and references.
-- **Makeup.** Cushion and foundation (easy before/after, very high PPL frequency),
-  lip products (lipstick, tint, gloss), eyeshadow palettes, fixer and setting spray.
-- **Adjacent beauty and wellness.** Supplements and diet products, dermatology and
-  clinic treatments, innerwear and athleisure.
-- **Broader extension.** Apparel, accessories, bags, shoes and sneakers, eyewear,
-  and simple home decor props, kept in the same feminine-leaning try-on or use
-  format.
+- **스킨케어(가장 큰 카테고리).** 세럼과 앰플(안티에이징, 브라이트닝, 진정), 선크림
+  (GRWM 단골), 토너와 에센스와 모이스처라이저(장벽, 보습), 클렌저와 클렌징폼(순한,
+  더마 추천 포지셔닝), 패치(트러블, 아이, 부착 마스크). 이 영역은 숏폼 문법이 뚜렷해서
+  (훅, 문제, 도포, 결과, 광채) 문서와 레퍼런스 전반에 가장 자주 등장한다.
+- **메이크업.** 쿠션과 파운데이션(before/after가 쉽고 PPL 빈도가 아주 높음), 립 제품
+  (립스틱, 틴트, 글로스), 아이섀도 팔레트, 픽서와 세팅 스프레이.
+- **인접 뷰티, 웰니스.** 영양제와 다이어트 제품, 피부과와 클리닉 시술, 이너웨어와
+  애슬레저.
+- **확장 영역.** 의류, 액세서리, 가방, 신발과 스니커즈, 안경, 간단한 홈 데코 소품.
+  같은 여성향 착용/사용 포맷 안에서 다룬다.
 
-Out of fit: heavy industrial goods or anything that cannot be shown in a small
-indoor setting.
+맞지 않는 것은 중장비 같은 산업재나 좁은 실내에서 보여줄 수 없는 제품이다.
 
-Distribution: an open-source CLI. Anyone with an API key can run it for the cost of
-their own model usage. No hosted service, no account, no lock-in.
+배포 형태는 오픈소스 CLI다. API 키만 있으면 누구나 자기 모델 사용료만 내고 돌릴 수
+있다. 호스팅 서비스도, 계정도, 종속도 없다.
 
-## Core development content
+## 핵심 개발 내용
 
-1. **Analysis (built).** Turn a reference short into a reusable `VideoProfile`
-   (JSON). A deterministic layer measures cut rhythm, audio dynamics, and color;
-   a Gemini layer reads tone, voice, subtitle style, hook, and narrative arc.
-2. **Generation pipeline (designed).** From a `generation_input.json`:
-   - an **asset bible** (consistent character and product reference images),
-   - a **storyboard** (panels with per-panel timing seeded from the analyzed cut
-     rhythm),
-   - a **video** assembled from per-panel image-to-video plus ffmpeg (subtitles,
-     music, watermark).
-3. **Human-in-the-loop gates.** Each important step can confirm and edit; a
-   `--force-step-pass` flag skips chosen steps; a run mode passes everything for
-   one-shot generation.
-4. **Gate scoring.** The analyzer re-profiles the generated clip and scores it
-   against the target style profile, closing the loop.
+1. **분석(완성).** 레퍼런스 숏폼을 재사용 가능한 `VideoProfile`(JSON)로 바꾼다. 정형
+   계층이 컷 리듬, 오디오 다이내믹, 색을 측정하고, Gemini 계층이 톤, 보이스, 자막
+   스타일, 훅, 내러티브 아크를 읽는다.
+2. **생성 파이프라인(설계됨).** `generation_input.json`에서 출발해 다음을 만든다.
+   - **에셋 바이블**(일관된 캐릭터, 제품 레퍼런스 이미지),
+   - **스토리보드**(분석된 컷 리듬을 씨앗으로 삼은 패널별 타이밍),
+   - **영상**(패널별 image-to-video와 ffmpeg로 조립, 자막과 음악과 워터마크 포함).
+3. **휴먼 인 더 루프 게이트.** 중요한 단계마다 확인하고 수정할 수 있다.
+   `--force-step-pass` 플래그로 고른 단계를 건너뛰고, 런 모드는 전 단계를 통과시켜 한
+   번에 생성한다.
+4. **게이트 채점.** 분석기가 생성된 클립을 다시 프로파일링해 목표 스타일 프로파일과
+   비교 채점하면서 루프를 닫는다.
 
-The architecture keeps analysis and generation separate behind pydantic schemas
-so the image or video backend can be swapped without rewriting the pipeline. See
-[../docs/architecture.md](../docs/architecture.md) and
-[../docs/pipeline-design.md](../docs/pipeline-design.md).
+아키텍처는 분석과 생성을 pydantic 스키마 뒤에 분리해 둔다. 그래서 이미지나 영상
+백엔드를 바꿔도 파이프라인을 다시 쓸 필요가 없다.
+[../docs/architecture.md](../docs/architecture.md)와
+[../docs/pipeline-design.md](../docs/pipeline-design.md)를 참고.
 
-## Constraints
+## 제약
 
-- **Local-first CLI.** Runs on a laptop. No web frontend, no serverless deploy
-  (an ffmpeg video pipeline does not fit serverless limits). The core is a
-  package the CLI calls in-process, so a future web layer could wrap the same
-  core.
-- **Bring your own keys.** A single required key (`GEMINI_API_KEY`) covers
-  analysis and image generation. Video and music models are optional and add
-  keys only when used.
-- **Cost-aware.** Image and analysis default to flash-tier models. The video step
-  has a stills-plus-motion fallback so the pipeline runs end to end without a
-  video-model budget.
-- **No talking-head lip-sync.** The primary output is music bed plus subtitles.
-  Voiceover is an optional, off-by-default demo path.
-- **Vertical 9:16, roughly 10 to 60 seconds.** The format short-form platforms
-  expect.
+- **로컬 우선 CLI.** 노트북에서 돈다. 웹 프런트엔드도, 서버리스 배포도 없다(ffmpeg
+  영상 파이프라인은 서버리스 제한에 맞지 않는다). 코어는 CLI가 인프로세스로 호출하는
+  패키지라, 나중에 웹 계층이 같은 코어를 감쌀 수 있다.
+- **자기 키 사용.** 필수 키는 하나(`GEMINI_API_KEY`)로 분석과 이미지 생성을 덮는다.
+  영상, 음악 모델은 선택이고, 쓸 때만 키를 추가한다.
+- **비용 의식.** 이미지와 분석은 기본을 flash급 모델로 둔다. 영상 단계에는 스틸 더하기
+  모션 폴백이 있어서 영상 모델 예산 없이도 파이프라인이 끝까지 돈다.
+- **토킹헤드 립싱크 없음.** 주 산출물은 뮤직 베드 더하기 자막이다. 보이스오버는 기본
+  꺼짐인 선택 데모 경로다.
+- **세로 9:16, 대략 10초에서 60초.** 숏폼 플랫폼이 기대하는 포맷이다.
 
-## Expected final deliverable
+## 최종 산출물
 
-- A `reel-gen` CLI with two main commands:
-  - `analyze <video>` — reference to `VideoProfile` JSON. (built)
-  - `generate <input.json>` — input to finished mp4 through the gated pipeline.
-- Reproducible runs under `outputs/<run_id>/` holding the input, asset bible,
-  storyboard, panel stills, and `final.mp4`.
-- The same input run through different reference styles yields visibly different
-  results, demonstrating that style is data, not hardcoded.
-- Documentation that lets a new contributor install, set a key, and produce a
-  short.
+- 두 가지 주 명령을 가진 `reel-gen` CLI:
+  - `analyze <video>` — 레퍼런스를 `VideoProfile` JSON으로. (완성)
+  - `generate <input.json>` — 입력을 게이트 파이프라인을 거쳐 완성된 mp4로.
+- `outputs/<run_id>/` 아래 재현 가능한 실행 결과. 입력, 에셋 바이블, 스토리보드, 패널
+  스틸, `final.mp4`을 담는다.
+- 같은 입력을 서로 다른 레퍼런스 스타일로 돌리면 눈에 띄게 다른 결과가 나온다. 스타일이
+  하드코딩이 아니라 데이터임을 보여준다.
+- 새 기여자가 설치하고, 키를 넣고, 숏폼 하나를 뽑을 수 있게 하는 문서.
 
-## Success use cases
+## 성공 사용 사례
 
-1. **Solo beauty creator, one product.**
-   Input: a serum, its one-line benefit, and a reference reel with a fast-cut UGC
-   feel. Approve the model and product art, approve the storyboard, get a 15s
-   vertical clip with keyword captions and an upbeat bed. Post it the same day.
+1. **뷰티 브랜드 마케터, 제품 하나.**
+   입력: 세럼 하나, 한 줄 효능, 빠른 컷 UGC 느낌의 레퍼런스 릴. 모델과 제품 아트를
+   승인하고, 스토리보드를 승인하면, 키워드 자막과 경쾌한 베드가 깔린 15초 세로 클립이
+   나온다. 그날 바로 올린다.
 
-2. **Small brand, three variations.**
-   Same product, three different reference styles (fast UGC, slow clinical demo,
-   cinematic brand film). The agent produces three distinct edits from one input,
-   so the brand can A/B which rhythm performs.
+2. **소규모 브랜드, 세 가지 변형.**
+   같은 제품, 서로 다른 레퍼런스 스타일 셋(빠른 UGC, 느린 클리니컬 데모, 시네마틱
+   브랜드 필름). 에이전트가 한 입력에서 뚜렷이 다른 편집 셋을 만들어, 브랜드가 어떤
+   리듬이 잘 먹히는지 A/B로 본다.
 
-3. **Fashion try-on, different vertical.**
-   Input: a handbag (or sneakers, a knit, eyewear) and a reference with a clean
-   try-on feel. The agent shows a model styling the item in an indoor setting, in
-   the same feminine-leaning format, proving the flow is not beauty-only.
+3. **패션 착용 샷, 다른 카테고리.**
+   입력: 핸드백(또는 스니커즈, 니트, 안경)과 깔끔한 착용 느낌의 레퍼런스. 에이전트가
+   실내에서 모델이 제품을 스타일링하는 모습을 같은 여성향 포맷으로 보여준다. 흐름이
+   뷰티 전용이 아님을 증명한다.
 
-4. **Match a reference's rhythm for a new product.**
-   Analyze a reel that performed well, then generate a new clip for a different
-   product that reproduces its cut count and pacing. The storyboard panel count
-   and timing come straight from the analyzed profile.
+4. **새 제품에 레퍼런스의 리듬 맞추기.**
+   잘된 릴을 분석한 다음, 다른 제품용 새 클립을 만들면서 그 컷 수와 페이싱을 재현한다.
+   스토리보드 패널 수와 타이밍은 분석된 프로파일에서 그대로 온다.
 
-5. **One-shot run mode.**
-   A user who trusts the defaults runs generation with all gates passed and gets a
-   finished mp4 from a single input file, no prompts. The interactive gates exist
-   for when they want control, not as a requirement.
+5. **원샷 런 모드.**
+   기본값을 믿는 사용자가 모든 게이트를 통과시킨 채 생성을 돌리면, 입력 파일 하나에서
+   프롬프트 없이 완성된 mp4를 받는다. 인터랙티브 게이트는 통제하고 싶을 때 쓰라고 있는
+   것이지 필수가 아니다.
 
-## Out of scope (for now)
+## 범위 밖(지금은)
 
-- Hosted SaaS, accounts, billing.
-- Lip-synced talking avatars.
-- Non-vertical or long-form formats.
-- A GUI. The CLI is the product surface; a web layer can wrap the core later.
+- 호스팅 SaaS, 계정, 결제.
+- 립싱크 토킹 아바타.
+- 세로가 아니거나 롱폼인 포맷.
+- GUI. 제품 표면은 CLI다. 웹 계층은 나중에 코어를 감싸면 된다.
