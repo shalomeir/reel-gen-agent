@@ -65,11 +65,34 @@ edit rhythm is reproduced as a parameter, not a constant.
   character and product reference images for consistency. A higher-tier image
   model is a later option.
 - **Video**: per-panel image-to-video (`VEO_MODEL`), then ffmpeg concat, subtitle
-  burn (ASS, timed per panel), background music mux (`LYRIA_MODEL` or provided),
-  and watermark.
+  overlay (see below), background music mux (`LYRIA_MODEL` or provided), and
+  watermark.
 - **Low-cost fallback** (Stage C config): when the video model is off, render
   stills with Ken Burns motion through the same assembly path. The system runs
   end to end without a video-model budget.
+
+## Subtitles and emoji
+
+Emoji in captions (sparkle, heart, glow marks) are part of the hook in this
+space, so color emoji must render correctly. Two common routes do not handle this
+well:
+
+- ffmpeg ASS burn via libass has poor color-emoji support (COLR/CBDT fonts render
+  as monochrome glyphs or tofu).
+- Plain Pillow has no automatic font fallback, so it draws latin/Korean text and
+  emoji only if the string is manually split into text and emoji runs.
+
+Approach: render each subtitle line to a transparent PNG with **pilmoji on top of
+Pillow** (emoji composited from a bundled color set such as Noto Color Emoji or
+Twemoji), then overlay the PNG onto the video at the panel's timing with ffmpeg.
+This keeps color emoji intact, gives full control over font, outline, and
+position, and adds no heavy system dependencies (unlike a pycairo/Pango stack,
+which would add cairo and pango system libraries and install friction). pilmoji
+handles the text/emoji run splitting that plain Pillow would require by hand.
+
+Subtitle text and timing come from the storyboard panels, so no speech-to-text or
+forced alignment is needed. pycairo/Pango stays a fallback only if complex text
+shaping ever demands it.
 
 ## Module layout (to build)
 
@@ -78,7 +101,8 @@ src/reel_gen_agent/generate/
   schema.py        # present
   asset_bible.py   # image model -> character + product assets
   storyboard.py    # input + style_profile -> storyboard.json -> panel stills
-  video.py         # image-to-video per panel + ffmpeg assembly (+ Ken Burns fallback)
+  subtitles.py     # pilmoji -> transparent subtitle PNGs (color emoji preserved)
+  video.py         # image-to-video per panel + ffmpeg assembly (subtitle overlay, Ken Burns fallback)
   gates.py         # GateConfig + confirm / edit / pass logic
   graph.py         # nodes + interrupt wiring
 outputs/<run_id>/  # generation_input.json, assets/, storyboard/, panels/, final.mp4

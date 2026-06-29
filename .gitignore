@@ -15,8 +15,8 @@ dist/
 
 # 생성/분석 산출물(재생성 가능)
 outputs/
+reference_video/*
 profiles/*.json
-reference_video/*.mp4
 *.mp4
 
 # OS/IDE
