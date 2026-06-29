@@ -1,17 +1,63 @@
 # CLAUDE.md
 
-Working guide for Claude Code (and other coding agents) in this repository. The
-shared project description, layout, and conventions live in
-[AGENTS.md](AGENTS.md) and [specs/project-brief.md](specs/project-brief.md). Read
-those first. This file adds how the codebase is meant to grow over many
-iterations.
+Working guide for humans and coding agents (Claude Code and others) in this
+repository. `AGENTS.md` is a symlink to this file, so both names resolve to the
+same content. Read this before making changes. The product intent and success
+criteria live in [specs/project-brief.md](specs/project-brief.md).
 
-## What we are building
+## What this project is
 
-An open-source CLI that generates a one-person, product-focused vertical short for
-Instagram Reels, TikTok, and YouTube Shorts, aimed at solo creators and small
-brands, beauty channels first. Analysis is built; the generation pipeline is
-designed and being implemented stage by stage.
+reel-gen-agent is an open-source CLI that generates a one-person, product-focused
+vertical short for Instagram Reels, TikTok, and YouTube Shorts. A user supplies a
+product and a reference style; the agent returns a post-ready mp4 with a model,
+captions, and music. It targets solo creators and small brands doing short-form
+promotion and brand awareness, with beauty and skincare channels as the primary
+vertical.
+
+The guiding principle: do not hardcode a style. Measure it from a reference,
+express it as reusable data, and drive generation from that data. The same engine
+that profiles a reference also scores a generated clip, so references and outputs
+are judged on one ruler.
+
+Analysis is built; the generation pipeline is designed and being implemented stage
+by stage.
+
+## Repository layout
+
+```
+src/reel_gen_agent/
+  analysis/        # reference video -> VideoProfile (implemented)
+    profile.py         # VideoProfile schema (pydantic)
+    media_probe.py     # ffprobe: container metadata
+    cut_detector.py    # PySceneDetect: cut distribution
+    audio_features.py  # librosa: audio dynamics
+    visual_features.py # OpenCV: palette, brightness
+    gemini_describe.py # Gemini: perceptual fields
+    list_writer.py     # profile -> reference catalog entry
+    analyze.py         # orchestrator: analyze_video(path)
+  generate/        # generation pipeline (schema present; stages designed)
+    schema.py          # generation_input / asset bible / storyboard schemas
+  cli.py           # typer CLI (analyze works, generate is a stub)
+specs/             # planning docs: project-brief.md and future feature specs
+docs/              # architecture and usage docs
+tests/             # pytest
+utils/             # add-reference.sh and helper scripts
+outputs/           # generated runs (gitignored)
+profiles/          # analysis output JSON (gitignored)
+```
+
+## The architecture invariant
+
+Analysis and generation communicate only through the pydantic schemas
+(`src/reel_gen_agent/analysis/profile.py`, `src/reel_gen_agent/generate/schema.py`).
+The image and video backends are the parts most likely to change; holding the
+schemas fixed means a backend swap touches one stage, not the system. If a change
+blurs that boundary or couples a generation stage to analysis internals,
+reconsider it.
+
+Two-layer analysis: a deterministic local layer (ffprobe, PySceneDetect, librosa,
+OpenCV) produces reproducible numbers; a Gemini layer adds perceptual description.
+Deterministic measurements are never overwritten by the perceptual layer.
 
 ## How development is managed
 
@@ -30,21 +76,20 @@ rewrites. The loop:
 4. **One change, one focus.** Keep changes scoped to a single stage or concern so
    they stay reviewable and the schemas stay clean.
 
-## The invariant to protect
-
-Analysis and generation communicate only through the pydantic schemas
-(`src/reel_gen_agent/analysis/profile.py`, `src/reel_gen_agent/generate/schema.py`).
-The image and video backends are the parts most likely to change; holding the
-schemas fixed means a backend swap touches one stage, not the system. Do not let a
-convenience shortcut couple a generation stage to analysis internals.
-
 ## Stages and gates
 
 The generation pipeline is a sequence of stages, each behind its schema and a
 human-in-the-loop gate. A gate behaves as **ask** (confirm/edit), **pass**
 (`--force-step-pass <step>`), or **run mode** (all gates pass). When adding a
 stage, wire its gate the same way so chat mode and run mode stay consistent. The
-stage plan is in [docs/pipeline-design.md](docs/pipeline-design.md).
+stage plan and intended first slice (walking skeleton) are in
+[docs/pipeline-design.md](docs/pipeline-design.md).
+
+When adding a stage:
+1. Define or reuse its schema in `generate/schema.py`.
+2. Implement the stage as a focused module with a single entry function.
+3. Wire its gate (ask / pass / run) into the graph.
+4. Write a deterministic test; mock external model calls.
 
 ## Specs folder discipline
 
@@ -54,14 +99,44 @@ stage plan is in [docs/pipeline-design.md](docs/pipeline-design.md).
 - `docs/` holds stable architecture and usage docs; `specs/` holds the planning
   and design trail. Do not duplicate; link.
 
-## Code quality
+## Conventions and code quality
 
-- Follow the conventions in AGENTS.md (PEP 8, docstrings on public functions,
-  comments explain "why", one responsibility per module, trailing newline, UTF-8).
+- Python 3.10+, four-space indent, PEP 8 (`snake_case` functions and variables,
+  `PascalCase` classes, `UPPER_SNAKE_CASE` constants). Filenames are `kebab-case`
+  for scripts and docs, `snake_case` for Python modules.
+- Comments explain the "why", not the "what". Public functions get docstrings.
+- Each module has one clear responsibility and communicates through the schemas.
+  When a file grows past its one job, split it.
+- End files with a trailing newline. UTF-8 throughout.
 - Typecheck and run `pytest -q` after a series of changes. Prefer running the
   specific test over the whole suite while iterating.
 - Tests are independent and generate their own data. Mock external model calls;
   keep the deterministic layer covered by real assertions.
+
+## Running and testing
+
+```bash
+pip install -e ".[dev]"          # editable install + dev deps
+cp .env.example .env             # then fill GEMINI_API_KEY
+
+reel-gen analyze video.mp4               # analyze a reference
+reel-gen analyze video.mp4 --no-gemini   # deterministic only, no key needed
+
+pytest -q                        # run tests (video tests skip if no sample)
+```
+
+Add a reference video for local testing (downloads to `reference_video/`, which
+the deterministic tests pick up automatically):
+
+```bash
+utils/add-reference.sh "https://www.youtube.com/shorts/..."
+```
+
+## Reference curation
+
+References drive the style. Keep a short note of why each reference was added
+(what axis of variation it covers), not just the file. This keeps the reference
+set intentional rather than a random pile.
 
 ## Version control
 
@@ -77,3 +152,10 @@ stage plan is in [docs/pipeline-design.md](docs/pipeline-design.md).
   Other model keys are optional and added only when a stage needs them.
 - Keys live in `.env` (gitignored). `.env.example` lists names, sources, and
   purposes with no values, so anyone can inject their own key and run.
+
+## Do not
+
+- Hardcode style constants that should be parameters.
+- Commit secrets. Keys live in `.env`; `.env.example` lists names only.
+- Commit large media or generated output. `outputs/`, `profiles/*.json`, and
+  `*.mp4` are gitignored.
