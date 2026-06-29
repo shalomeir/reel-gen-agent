@@ -1,10 +1,18 @@
 # reel-gen-agent
 
-A CLI harness that analyzes reference short-form videos and generates new
-vertical ad reels. It separates **analysis** from **generation** through a stable
-JSON interface, so the generation backend can change without touching the rest.
+An AI agent CLI that turns a single product into a ready-to-post vertical short
+for Instagram Reels, TikTok, and YouTube Shorts. Point it at a product, pick a
+reference style, and it produces a one-person short-form clip with a model,
+subtitles, and music. It is built for solo creators and small brands doing
+short-form promotion and brand awareness, with beauty channels as the primary
+use case.
 
-The core idea: do not hardcode a style. Measure it from references, express it as
+Bring your own API key and start making shorts for free. No timeline editor, no
+render farm: describe the product, approve a few steps, get an mp4.
+
+Under the hood it separates **analysis** from **generation** through a stable JSON
+interface, so the generation backend can change without touching the rest. The
+core idea: do not hardcode a style. Measure it from references, express it as
 reusable data, and drive generation from that data. The same engine that profiles
 a reference also scores a generated clip, so references and outputs are judged on
 one ruler.
