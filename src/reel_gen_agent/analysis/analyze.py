@@ -1,7 +1,7 @@
 """analyze_video: 정형 계층 + 비정형 계층을 묶어 VideoProfile을 만든다.
 
 세 소비처(레퍼런스 분석, URL 큐레이션, 생성물 Gate)가 호출하는 공통 엔진.
-CLI로도 쓴다: python -m harness.analysis.analyze <video> [--out profiles/x.json]
+CLI로는 `reel-gen analyze <video> [--out profiles/x.json]` 로 호출한다.
 """
 
 from __future__ import annotations
