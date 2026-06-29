@@ -14,9 +14,9 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from .analyze import analyze_video
 from .list_writer import to_list_entry
