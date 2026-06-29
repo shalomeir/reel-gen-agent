@@ -13,14 +13,29 @@ captions, and music.
 Primary audience: solo short-form creators and small DTC brands running product
 promotion and brand-awareness clips.
 
-Product fit: anything a single person can show being worn or used on camera in an
-indoor room. Beauty and skincare is the most common example and the one that
-appears most in the docs and references, since that space leans on a recognizable
-short-form grammar (hook, problem, application, payoff, glow). The same flow
-extends to apparel, accessories, bags, shoes and sneakers, eyewear, other fashion
-items, and simple home decor props, where the clip shows a try-on or a short use
-sequence in frame. Heavy industrial goods or anything that cannot be shown in a
-small indoor setting are out of fit.
+Product fit: anything a single person can show worn or used on camera in an indoor
+room, as a try-on or a short use sequence in frame. The default model, styling,
+palette, and voice lean feminine, since that is where short-form product PPL
+concentrates.
+
+Categories, most frequent first:
+
+- **Skincare (the top category).** Serums and ampoules (anti-aging, brightening,
+  soothing), sunscreen (a GRWM staple), toner / essence / moisturizer (barrier and
+  hydration), cleansers and cleansing foam (gentle, derm-recommended positioning),
+  patches (acne, under-eye, stick-on masks). This space has a clear short-form
+  grammar (hook, problem, application, payoff, glow), so it appears most across the
+  docs and references.
+- **Makeup.** Cushion and foundation (easy before/after, very high PPL frequency),
+  lip products (lipstick, tint, gloss), eyeshadow palettes, fixer and setting spray.
+- **Adjacent beauty and wellness.** Supplements and diet products, dermatology and
+  clinic treatments, innerwear and athleisure.
+- **Broader extension.** Apparel, accessories, bags, shoes and sneakers, eyewear,
+  and simple home decor props, kept in the same feminine-leaning try-on or use
+  format.
+
+Out of fit: heavy industrial goods or anything that cannot be shown in a small
+indoor setting.
 
 Distribution: an open-source CLI. Anyone with an API key can run it for the cost of
 their own model usage. No hosted service, no account, no lock-in.
@@ -89,9 +104,9 @@ so the image or video backend can be swapped without rewriting the pipeline. See
    so the brand can A/B which rhythm performs.
 
 3. **Fashion try-on, different vertical.**
-   Input: a pair of sneakers (or a bag, a jacket, eyewear) and a reference with a
-   clean try-on feel. The agent shows a model putting the item on and moving in an
-   indoor setting, proving the flow is not beauty-only.
+   Input: a handbag (or sneakers, a knit, eyewear) and a reference with a clean
+   try-on feel. The agent shows a model styling the item in an indoor setting, in
+   the same feminine-leaning format, proving the flow is not beauty-only.
 
 4. **Match a reference's rhythm for a new product.**
    Analyze a reel that performed well, then generate a new clip for a different

@@ -6,10 +6,14 @@ reference style, and it produces a one-person short-form clip with a model,
 subtitles, and music. It is built for solo creators and small brands doing
 short-form promotion and brand awareness.
 
-It fits any product a single person can show being worn or used on camera in an
-indoor room. Beauty and skincare is the most common example, but the same flow
-covers apparel, accessories, bags, shoes and sneakers, eyewear, other fashion
-items, and simple home decor props.
+It fits any product a single person can show worn or used on camera in an indoor
+room. Skincare is the top category (serums and ampoules, sunscreen, toner and
+moisturizer, cleansers, patches), followed by makeup (cushion and foundation, lip,
+eyeshadow, setting spray). It also covers adjacent beauty and wellness
+(supplements and diet, clinic treatments, innerwear and athleisure) and extends to
+apparel, accessories, bags, shoes, eyewear, and simple home decor props. The
+defaults lean toward a female creator and audience, where short-form product PPL
+concentrates.
 
 Bring your own API key and start making shorts for free. No timeline editor, no
 render farm: describe the product, approve a few steps, get an mp4.

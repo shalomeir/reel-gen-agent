@@ -13,11 +13,14 @@ product and a reference style; the agent returns a post-ready mp4 with a model,
 captions, and music. It targets solo creators and small brands doing short-form
 promotion and brand awareness.
 
-Product fit is broad: anything a single person can show being worn or used on
-camera in an indoor room. Beauty and skincare is the most common example (and the
-one used most across the docs and references), but the same flow covers apparel,
-accessories, bags, shoes and sneakers, eyewear, other fashion items, and simple
-home decor props.
+Product fit: anything a single person can show worn or used on camera in an indoor
+room. The default model, styling, palette, and voice lean feminine, since that is
+where short-form product PPL concentrates. Skincare is the top category (serums,
+sunscreen, toner and moisturizer, cleansers, patches), followed by makeup (cushion
+and foundation, lip, eyeshadow). It also covers adjacent beauty and wellness
+(supplements and diet, clinic treatments, innerwear and athleisure) and extends to
+apparel, accessories, bags, shoes, eyewear, and simple home decor props. Keep this
+feminine-leaning default in generation defaults (model, palette, voice, tone).
 
 The guiding principle: do not hardcode a style. Measure it from a reference,
 express it as reusable data, and drive generation from that data. The same engine
