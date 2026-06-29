@@ -9,10 +9,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
-
 
 # --- Stage B 출력: 생성 입력 ---------------------------------------------------
 
@@ -27,43 +24,43 @@ class InputMeta(BaseModel):
 
 class ProductSpec(BaseModel):
     name: str
-    usp: Optional[str] = None  # 가장 어필할 한 줄
-    spec: Optional[str] = None  # 크기/제형/구성 등
-    packaging_desc: Optional[str] = None  # 패키지 외형 묘사
+    usp: str | None = None  # 가장 어필할 한 줄
+    spec: str | None = None  # 크기/제형/구성 등
+    packaging_desc: str | None = None  # 패키지 외형 묘사
 
 
 class ModelSpec(BaseModel):
-    name: Optional[str] = None
-    age: Optional[str] = None  # 예: "mid-20s"
-    gender: Optional[str] = None
-    look: Optional[str] = None  # 외모/분위기
-    body: Optional[str] = None  # 체형
-    wardrobe: Optional[str] = None  # 착장
+    name: str | None = None
+    age: str | None = None  # 예: "mid-20s"
+    gender: str | None = None
+    look: str | None = None  # 외모/분위기
+    body: str | None = None  # 체형
+    wardrobe: str | None = None  # 착장
 
 
 class StyleSpec(BaseModel):
-    tone: List[str] = Field(default_factory=list)
-    pacing: Optional[str] = None  # fast / medium / slow
-    cut_mode: Optional[str] = None  # fast_montage / slow_demo / mixed
-    palette: List[str] = Field(default_factory=list)
+    tone: list[str] = Field(default_factory=list)
+    pacing: str | None = None  # fast / medium / slow
+    cut_mode: str | None = None  # fast_montage / slow_demo / mixed
+    palette: list[str] = Field(default_factory=list)
     realism: str = "hyper_realistic"
 
 
 class VoiceSpec(BaseModel):
     enabled: bool = False  # 기본 off(music_bed), 옵션 데모에서만 on
-    type: Optional[str] = None
-    accent: Optional[str] = None
+    type: str | None = None
+    accent: str | None = None
 
 
 class MusicSpec(BaseModel):
-    mood: Optional[str] = None
-    dynamics: Optional[str] = None  # flat / build
+    mood: str | None = None
+    dynamics: str | None = None  # flat / build
 
 
 class SubtitleSpec(BaseModel):
-    style: Optional[str] = None
-    position: Optional[str] = None  # top / center / bottom / mixed
-    density: Optional[str] = None  # keyword / full_transcript
+    style: str | None = None
+    position: str | None = None  # top / center / bottom / mixed
+    density: str | None = None  # keyword / full_transcript
 
 
 class GenerationInput(BaseModel):
@@ -76,10 +73,10 @@ class GenerationInput(BaseModel):
     voice: VoiceSpec = Field(default_factory=VoiceSpec)
     music: MusicSpec = Field(default_factory=MusicSpec)
     subtitle: SubtitleSpec = Field(default_factory=SubtitleSpec)
-    narrative_arc: List[str] = Field(default_factory=list)
-    watermark: Optional[str] = None
+    narrative_arc: list[str] = Field(default_factory=list)
+    watermark: str | None = None
     # 컷 리듬을 따올 스타일 프로필 경로(분석기 출력). 패널 수/타이밍 시딩에 쓴다.
-    style_profile_ref: Optional[str] = None
+    style_profile_ref: str | None = None
 
 
 # --- 에셋 바이블 --------------------------------------------------------------
@@ -88,19 +85,19 @@ class GenerationInput(BaseModel):
 class CharacterProfile(BaseModel):
     """캐릭터 에셋. 다각도 시트 한 장 + 키샷 한 장으로 일관성을 고정한다."""
 
-    name: Optional[str] = None
-    prompt_used: Optional[str] = None
-    sheet_image: Optional[str] = None  # 다각도(턴테이블) 한 장
-    key_shot_image: Optional[str] = None  # 히어로 클로즈업
+    name: str | None = None
+    prompt_used: str | None = None
+    sheet_image: str | None = None  # 다각도(턴테이블) 한 장
+    key_shot_image: str | None = None  # 히어로 클로즈업
 
 
 class ProductProfile(BaseModel):
     """제품 에셋. 다뷰 시트 한 장 + 히어로샷 한 장."""
 
-    name: Optional[str] = None
-    prompt_used: Optional[str] = None
-    sheet_image: Optional[str] = None  # 다뷰 한 장
-    hero_image: Optional[str] = None
+    name: str | None = None
+    prompt_used: str | None = None
+    sheet_image: str | None = None  # 다뷰 한 장
+    hero_image: str | None = None
 
 
 class AssetBible(BaseModel):
@@ -115,20 +112,20 @@ class StoryboardPanel(BaseModel):
     """한 컷(패널). 비트, 타이밍, 카메라, 잠금 에셋, 자막, 스틸을 담는다."""
 
     index: int
-    beat: Optional[str] = None  # problem / discovery / use / reaction / proof / cta
+    beat: str | None = None  # problem / discovery / use / reaction / proof / cta
     t_start: float = 0.0
     t_end: float = 0.0
-    shot_type: Optional[str] = None  # wide / medium / macro CU ...
-    camera: Optional[str] = None  # handheld / locked-off / push-in ...
+    shot_type: str | None = None  # wide / medium / macro CU ...
+    camera: str | None = None  # handheld / locked-off / push-in ...
     subject_lock: bool = True  # 캐릭터 에셋 참조 여부
     product_lock: bool = False  # 제품 에셋 참조 여부
-    prompt: Optional[str] = None  # 패널 스틸 생성 프롬프트
-    subtitle_text: Optional[str] = None
-    cta_text: Optional[str] = None
-    still_image: Optional[str] = None  # 생성된 스틸 경로
+    prompt: str | None = None  # 패널 스틸 생성 프롬프트
+    subtitle_text: str | None = None
+    cta_text: str | None = None
+    still_image: str | None = None  # 생성된 스틸 경로
 
 
 class Storyboard(BaseModel):
     """컷 단위 패널 목록. 패널 수/타이밍은 style_profile.cut에서 시딩한다."""
 
-    panels: List[StoryboardPanel] = Field(default_factory=list)
+    panels: list[StoryboardPanel] = Field(default_factory=list)

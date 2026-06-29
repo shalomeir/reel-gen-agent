@@ -6,8 +6,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import numpy as np
 import librosa
+import numpy as np
 from librosa.feature.rhythm import tempo as librosa_tempo
 
 from .profile import Music
@@ -18,8 +18,8 @@ BUILD_RATIO_THRESHOLD = 1.4
 SILENCE_AMPLITUDE = 0.01
 
 
-def _intro_silence_sec(y: np.ndarray, sr: int) -> float:
-    """시작부터 첫 유의미한 소리가 날 때까지의 무음 길이(초)."""
+def _intro_silence_sec(y: np.ndarray, sr: float) -> float:
+    """시작부터 첫 유의미한 소리가 날 때까지의 무음 길이(초). sr은 librosa가 int/float로 준다."""
     above = np.where(np.abs(y) >= SILENCE_AMPLITUDE)[0]
     if len(above) == 0:
         return 0.0
@@ -46,9 +46,17 @@ def _extract_wav(path: str, out_path: str) -> bool:
     오디오 스트림이 없으면 ffmpeg가 실패하고 False를 반환한다.
     """
     cmd = [
-        "ffmpeg", "-v", "error", "-y",
-        "-i", path,
-        "-vn", "-ac", "1", "-ar", "22050",
+        "ffmpeg",
+        "-v",
+        "error",
+        "-y",
+        "-i",
+        path,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "22050",
         out_path,
     ]
     return subprocess.run(cmd, capture_output=True).returncode == 0

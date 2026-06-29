@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -26,8 +25,8 @@ app = typer.Typer(
 @app.command()
 def analyze(
     video: str = typer.Argument(..., help="분석할 영상 파일 경로"),
-    url: Optional[str] = typer.Option(None, help="원본 URL(출처 기록용)"),
-    out: Optional[str] = typer.Option(None, help="JSON 저장 경로(미지정 시 stdout)"),
+    url: str | None = typer.Option(None, help="원본 URL(출처 기록용)"),
+    out: str | None = typer.Option(None, help="JSON 저장 경로(미지정 시 stdout)"),
     no_gemini: bool = typer.Option(
         False, "--no-gemini", help="비정형 계층(Gemini) 없이 정형 수치만"
     ),

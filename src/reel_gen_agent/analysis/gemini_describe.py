@@ -15,7 +15,6 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import List, Optional
 
 from .profile import GeminiDescription
 
@@ -61,9 +60,7 @@ def _get_client(api_key: str):
     try:
         from google import genai
     except ImportError as exc:  # pragma: no cover - 환경 문제
-        raise RuntimeError(
-            "google-genai 패키지가 필요합니다: pip install google-genai"
-        ) from exc
+        raise RuntimeError("google-genai 패키지가 필요합니다: pip install google-genai") from exc
     return genai.Client(api_key=api_key)
 
 
@@ -90,14 +87,14 @@ def _upload_and_wait(client, path: str):
     return uploaded
 
 
-def _frame_parts(path: str, types) -> List:
+def _frame_parts(path: str, types) -> list:
     """영상에서 균등 간격 키프레임을 JPEG Part 리스트로 만든다."""
     import cv2
     import numpy as np
 
     cap = cv2.VideoCapture(path)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    parts: List = []
+    parts: list = []
     if total > 0:
         for idx in np.linspace(0, total - 1, num=FALLBACK_FRAMES, dtype=int):
             cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
@@ -106,22 +103,18 @@ def _frame_parts(path: str, types) -> List:
                 continue
             ok, buf = cv2.imencode(".jpg", frame)
             if ok:
-                parts.append(
-                    types.Part.from_bytes(data=buf.tobytes(), mime_type="image/jpeg")
-                )
+                parts.append(types.Part.from_bytes(data=buf.tobytes(), mime_type="image/jpeg"))
     cap.release()
     return parts
 
 
-def _generate(client, types, model, contents) -> Optional[GeminiDescription]:
+def _generate(client, types, model, contents) -> GeminiDescription | None:
     """구조화 출력으로 한 번 호출한다. 블록/빈 응답이면 None을 반환한다."""
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=GeminiDescription,
     )
-    response = client.models.generate_content(
-        model=model, contents=contents, config=config
-    )
+    response = client.models.generate_content(model=model, contents=contents, config=config)
     parsed = response.parsed
     if isinstance(parsed, GeminiDescription):
         return parsed
@@ -132,9 +125,9 @@ def _generate(client, types, model, contents) -> Optional[GeminiDescription]:
 
 def describe(
     path: str,
-    duration_sec: Optional[float],
-    api_key: Optional[str] = None,
-    model: Optional[str] = None,
+    duration_sec: float | None,
+    api_key: str | None = None,
+    model: str | None = None,
 ) -> GeminiDescription:
     """영상을 Gemini로 분석해 비정형 묘사를 반환한다.
 
@@ -170,9 +163,7 @@ def describe(
             # 2순위: 키프레임 이미지 폴백
             frames = _frame_parts(path, types)
             if frames:
-                result = _generate(
-                    client, types, model, frames + [PROMPT_FRAMES]
-                )
+                result = _generate(client, types, model, frames + [PROMPT_FRAMES])
                 if result is not None:
                     return result
 

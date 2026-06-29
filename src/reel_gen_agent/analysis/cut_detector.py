@@ -38,9 +38,7 @@ def detect_cuts(path: str, threshold: float = 27.0) -> Cut:
 
     # 각 씬의 시작 타임스탬프(초)와 길이(초)를 구한다.
     starts = [scene[0].get_seconds() for scene in scene_list]
-    durations = [
-        scene[1].get_seconds() - scene[0].get_seconds() for scene in scene_list
-    ]
+    durations = [scene[1].get_seconds() - scene[0].get_seconds() for scene in scene_list]
 
     if not durations:
         # 컷이 하나도 안 잡히면(단일 롱테이크) 전체를 1컷으로 본다.

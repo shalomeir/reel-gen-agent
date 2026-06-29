@@ -10,7 +10,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -42,7 +41,7 @@ def _load_env() -> None:
 
 def analyze_video(
     path: str,
-    url: Optional[str] = None,
+    url: str | None = None,
     use_gemini: bool = True,
 ) -> VideoProfile:
     """영상 한 편을 분석해 VideoProfile을 반환한다.
@@ -106,14 +105,10 @@ def _merge_gemini(profile: VideoProfile, desc) -> None:
 
 
 def _main() -> int:
-    parser = argparse.ArgumentParser(
-        description="영상을 분석해 VideoProfile JSON을 출력한다."
-    )
+    parser = argparse.ArgumentParser(description="영상을 분석해 VideoProfile JSON을 출력한다.")
     parser.add_argument("video", help="분석할 영상 파일 경로")
     parser.add_argument("--url", default=None, help="원본 URL(있으면 출처에 기록)")
-    parser.add_argument(
-        "--out", default=None, help="JSON 저장 경로(미지정 시 stdout)"
-    )
+    parser.add_argument("--out", default=None, help="JSON 저장 경로(미지정 시 stdout)")
     parser.add_argument(
         "--no-gemini",
         action="store_true",
@@ -125,12 +120,8 @@ def _main() -> int:
         print(f"파일 없음: {args.video}", file=sys.stderr)
         return 1
 
-    profile = analyze_video(
-        args.video, url=args.url, use_gemini=not args.no_gemini
-    )
-    payload = json.dumps(
-        profile.model_dump(), ensure_ascii=False, indent=2
-    )
+    profile = analyze_video(args.video, url=args.url, use_gemini=not args.no_gemini)
+    payload = json.dumps(profile.model_dump(), ensure_ascii=False, indent=2)
 
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)

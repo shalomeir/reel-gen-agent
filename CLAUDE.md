@@ -131,6 +131,9 @@ reel-gen analyze video.mp4               # analyze a reference
 reel-gen analyze video.mp4 --no-gemini   # deterministic only, no key needed
 
 pytest -q                        # run tests (video tests skip if no sample)
+ruff check src tests             # lint
+ruff format src tests            # format
+mypy                             # type check
 ```
 
 Add a reference video for local testing (downloads to `reference_video/`, which
