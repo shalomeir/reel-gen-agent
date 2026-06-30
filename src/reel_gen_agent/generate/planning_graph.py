@@ -10,10 +10,20 @@ from __future__ import annotations
 from pathlib import Path
 
 from .gates import GateConfig
+from .image_client import ImageClient
 from .intake import intake
 from .profile_assembly import assemble_profile, write_profile
 from .run_paths import create_run_dir, make_run_id
-from .schema import HookRequest, ProductSpec, Provenance, StyleDimensions
+from .schema import (
+    EnvironmentSpec,
+    HookRequest,
+    InputMeta,
+    ModelSpec,
+    ProductSpec,
+    Provenance,
+    StyleDimensions,
+)
+from .storyboard import build_storyboard, generate_panel_images, needs_panel_images
 from .text_client import TextClient
 
 
@@ -23,12 +33,16 @@ def run_planning(
     *,
     gate: GateConfig,
     text_client: TextClient | None = None,
+    image_client: ImageClient | None = None,
 ) -> Path:
     result = intake(raw)
     if result.objective is None:
         raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
 
     product = ProductSpec(name=(result.product.source or "product"))
+    character = ModelSpec()
+    environment = EnvironmentSpec()
+    meta = InputMeta()
     style = StyleDimensions()
     provenance = Provenance(
         style_source="reference" if result.reference_ref else "llm",
@@ -39,21 +53,45 @@ def run_planning(
         from .hook import generate_hooks
 
         hooks = generate_hooks(
-            HookRequest(product=product, tone=style.tone, duration_sec=18.0, count=2),
+            HookRequest(product=product, tone=style.tone, duration_sec=meta.duration_sec, count=2),
             text_client,
         )
         if hooks.candidates:
             style.hook = hooks.candidates[0]
 
+    # 스토리보드/콘티는 항상 채운다(텍스트 패널). 컷별 이미지는 복잡한 멀티컷일 때만.
+    storyboard = build_storyboard(
+        meta=meta,
+        style=style,
+        product=product,
+        character=character,
+        environment=environment,
+        category=None,  # 카테고리 추론은 concept 노드(추후)가 채운다
+    )
+    narrative_arc = [p.beat for p in storyboard.panels if p.beat]
+
+    run_id = make_run_id(result.objective.goal)
+    out_dir = create_run_dir(outputs_root, run_id)
+
+    if image_client is not None and needs_panel_images(storyboard):
+        generate_panel_images(
+            storyboard,
+            character_image=None,
+            product_image=None,
+            image_client=image_client,
+            out_dir=str(out_dir),
+        )
+
     profile = assemble_profile(
         {
             "objective": result.objective,
             "product": product,
+            "character": character,
             "style": style,
+            "narrative_arc": narrative_arc,
+            "storyboard": storyboard,
             "provenance": provenance,
         }
     )
 
-    run_id = make_run_id(result.objective.goal)
-    out_dir = create_run_dir(outputs_root, run_id)
     return write_profile(profile, out_dir, run_id)
