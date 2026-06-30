@@ -42,9 +42,7 @@ def intake(raw: str) -> IntakeResult:
             if tok.lower().endswith(_VIDEO_EXT):
                 ref_src = tok
                 break
-    product = AssetInput(
-        kind="product", source=product_src, present=product_src is not None
-    )
+    product = AssetInput(kind="product", source=product_src, present=product_src is not None)
     character = AssetInput(
         kind="character", source=character_src, present=character_src is not None
     )

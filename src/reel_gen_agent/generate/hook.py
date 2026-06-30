@@ -14,7 +14,7 @@ from .text_client import TextClient
 _PROMPT = (
     "역할: 20~30초 세로 뷰티 숏폼의 첫 1~3초 후크 {count}개를 생성한다.\n"
     "제품: {product}. 카테고리: {category}. 톤: {tone}.\n"
-    "출력: JSON {{\"candidates\": [{{hook_type, headline, bottom_caption, "
+    '출력: JSON {{"candidates": [{{hook_type, headline, bottom_caption, '
     "no_text_visual, visual_direction, opening_beat, bridge, variant, rationale}}]}}.\n"
     "유형은 H1~H12 중에서 고른다. count>=2면 질문형·명령형을 섞는다."
 )
