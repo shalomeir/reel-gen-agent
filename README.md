@@ -124,8 +124,10 @@ uv sync
 
 `.env.example`을 `.env`로 복사한 뒤 필요한 키를 채운다. 현재 실행에 필수인 API 키는
 `GEMINI_API_KEY` 하나다. 이 키는 레퍼런스 영상의 비정형 분석과 Gemini 이미지 생성에 쓰인다.
-키가 없으면 `reel-gen analyze --no-gemini` 같은 정형 분석만 가능하고, Gemini 기반 분석과
-생성 단계는 돌릴 수 없다.
+GCP 자격(`GOOGLE_CLOUD_PROJECT`와 서비스계정 JSON)을 함께 채우면 비정형 분석과 멀티모달
+호출이 `GENAI_BACKEND=auto` 규칙대로 Vertex AI로 돌아 Google Cloud 크레딧을 쓰고, 자격이
+없으면 `GEMINI_API_KEY`로 내려간다. 키가 없으면 `reel-gen analyze --no-gemini` 같은 정형
+분석만 가능하고, Gemini 기반 분석과 생성 단계는 돌릴 수 없다.
 
 ```bash
 cp .env.example .env
@@ -149,6 +151,7 @@ lane과 `FAL_KEY`를 쓰는 fal.ai Seedance/Kling lane은 폴백이나 실험 pr
 |---|---|---|
 | `GEMINI_API_KEY` | 예 | 멀티모달 분석 + 이미지 생성. [Google AI Studio](https://aistudio.google.com/apikey)에서 발급. |
 | `ANTHROPIC_API_KEY` | 아니오 | Claude API 키. 스토리보드, 대사 스크립트, 톤 생성 옵션. |
+| `GENAI_BACKEND` | 아니오 | 멀티모달 호출 백엔드. `auto`(기본)는 Vertex 자격이 있으면 Vertex, 없으면 `GEMINI_API_KEY`. `vertex`/`gemini`로 강제 가능. |
 | `GEMINI_ANALYSIS_MODEL` | 아니오 | 분석 모델. 기본 `gemini-2.5-flash`. |
 | `GEMINI_TEXT_MODEL` | 아니오 | Gemini 텍스트 모델. 기본 `gemini-3.1-pro-preview`. |
 | `CLAUDE_MODEL` | 아니오 | Claude 텍스트 모델. 기본 `claude-opus-4-8`. |
@@ -164,7 +167,7 @@ lane과 `FAL_KEY`를 쓰는 fal.ai Seedance/Kling lane은 폴백이나 실험 pr
 | `IMAGEN_MODEL` | 아니오 | Imagen 텍스트-투-이미지 폴백. 기본 `imagen-4.0-fast-generate-001`. |
 | `FAL_KEY`, `FAL_IMAGE_MODEL` | 아니오 | fal.ai 이미지 provider. Flux 후보를 쓸 때 설정. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | 아니오 | Vertex AI image-to-video 모델과 단일 GCS 출력 prefix. 기본 `veo-3.1-lite-generate-001`. |
-| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | 아니오 | Vertex Veo lane을 쓸 때 필요한 GCP 프로젝트와 서비스 계정 JSON 절대경로. |
+| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | 아니오 | Vertex AI lane(영상 Veo + 분석 멀티모달)을 쓸 때 필요한 GCP 프로젝트와 서비스 계정 JSON 절대경로. |
 | `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 폴백 모델. 기본 `veo-3.1-lite-generate-preview`. |
 | `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. Seedance/Kling image-to-video 후보를 쓸 때 설정. |
 | `LYRIA_MODEL` | 아니오 | 배경 음악 모델(생성 단계). |
@@ -172,8 +175,8 @@ lane과 `FAL_KEY`를 쓰는 fal.ai Seedance/Kling lane은 폴백이나 실험 pr
 | `FIRECRAWL_API_KEY` | 아니오 | 제품 URL 정보 추출. |
 | `LANGFUSE_*` | 아니오 | 실행 트레이싱과 관측. |
 
-분석기는 `GEMINI_API_KEY`만으로 돈다. 키가 없으면 정형 계층이 부분 프로파일을 만들고,
-지각 필드는 비워 둔다.
+비정형 분석은 `GENAI_BACKEND`가 고른 백엔드(Vertex 또는 `GEMINI_API_KEY`)로 돈다. 둘 다
+자격이 없으면 정형 계층이 부분 프로파일을 만들고, 지각 필드는 비워 둔다.
 
 ## 사용법
 
@@ -482,6 +485,7 @@ cp .env.example .env
 |---|---|---|
 | `GEMINI_API_KEY` | yes | Multimodal analysis + image generation. Get one at [Google AI Studio](https://aistudio.google.com/apikey). |
 | `ANTHROPIC_API_KEY` | no | Claude API key for optional storyboard, dialogue script, and tone generation. |
+| `GENAI_BACKEND` | no | Backend for multimodal calls. `auto` (default) uses Vertex when its credentials are set, otherwise `GEMINI_API_KEY`. Force with `vertex` or `gemini`. |
 | `GEMINI_ANALYSIS_MODEL` | no | Analysis model. Default `gemini-2.5-flash`. |
 | `GEMINI_TEXT_MODEL` | no | Gemini text model. Default `gemini-3.1-pro-preview`. |
 | `CLAUDE_MODEL` | no | Claude text model. Default `claude-opus-4-8`. |
@@ -493,14 +497,15 @@ cp .env.example .env
 | `FAL_KEY`, `FAL_IMAGE_MODEL` | no | Optional fal.ai image provider for Flux. |
 | `VIDEO_PROVIDER` | no | Preferred video provider. `vertex`, `gemini`, or `fal`; blank defaults to `vertex`. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | no | Vertex AI image-to-video model and GCS output path. Default `veo-3.1-lite-generate-001`. |
-| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | no | GCP project and service-account JSON path for the Vertex Veo lane. |
+| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | no | GCP project and service-account JSON path for the Vertex AI lane (video Veo + analysis multimodal). |
 | `GEMINI_VEO_MODEL` | no | Gemini API image-to-video fallback model. Default `veo-3.1-lite-generate-preview`. |
 | `FAL_VIDEO_MODEL` | no | Optional fal.ai video provider for Seedance/Kling image-to-video. |
 | `LYRIA_MODEL` | no | Background music model (generation stage). |
 | `ELEVENLABS_API_KEY` | no | Optional voiceover demo. |
 
-The analyzer runs with `GEMINI_API_KEY` alone. Without it, the deterministic layer
-still produces a partial profile and the perceptual fields stay empty.
+The perceptual layer runs on whichever backend `GENAI_BACKEND` selects (Vertex or
+`GEMINI_API_KEY`). With neither set, the deterministic layer still produces a
+partial profile and the perceptual fields stay empty.
 
 ## Usage
 

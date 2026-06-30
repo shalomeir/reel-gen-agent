@@ -40,7 +40,8 @@ reel-gen analyze video.mp4 --no-gemini             # 정형 계층만
 
 ## 메모
 
-- 분석기는 `GEMINI_API_KEY`만으로 돈다. 키가 없으면 정형 계층이 부분 프로파일을
-  만들어 낸다.
+- 비정형 계층은 `GENAI_BACKEND`가 고른 백엔드로 돈다. 기본은 GCP 자격이 있으면
+  Vertex(GCP 크레딧), 없으면 `GEMINI_API_KEY` lane이다(상세는 specs/trd.md). 둘 다
+  자격이 없으면 정형 계층이 부분 프로파일을 만들어 낸다.
 - 컷 민감도는 파라미터다(PySceneDetect 임계값). 더 빠른 디졸브를 잡으려면 낮춘다.
   핵심은 컷 리듬이 상수가 아니라 데이터라는 점이다.

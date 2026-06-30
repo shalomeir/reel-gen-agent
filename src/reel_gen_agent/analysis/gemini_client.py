@@ -36,13 +36,59 @@ def resolve_model(model: str | None) -> str:
     return model or os.environ.get("GEMINI_ANALYSIS_MODEL", DEFAULT_MODEL)
 
 
-def make_client(api_key: str):
-    """google-genai 클라이언트를 만든다. SDK 미설치 시 명확히 알린다."""
+def select_backend(api_key_override: str | None = None) -> tuple[str, dict] | None:
+    """genai 멀티모달 호출에 쓸 백엔드를 환경에서 고른다.
+
+    `GENAI_BACKEND`로 강제할 수 있다(`vertex`|`gemini`). 기본값 `auto`는 Vertex 자격
+    (`GOOGLE_CLOUD_PROJECT` + 서비스계정/액세스 토큰)이 갖춰졌으면 Vertex를 우선해
+    Google Cloud 크레딧을 쓰고, 자격이 없으면 `GEMINI_API_KEY`로 내려간다. 어느 쪽도
+    자격이 없으면 None을 돌려 호출 측이 결정론 결과만으로 진행하게 한다.
+
+    반환: `("vertex", {"project", "location"})`, `("gemini", {"api_key"})`, 또는 None.
+    """
+    mode = (os.environ.get("GENAI_BACKEND") or "auto").strip().lower()
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    # 서비스계정 JSON 경로가 정본, 액세스 토큰은 짧은 수동 테스트용 대안이다.
+    has_adc = bool(
+        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        or os.environ.get("GOOGLE_CLOUD_ACCESS_TOKEN")
+    )
+    vertex_ready = bool(project and has_adc)
+    api_key = (
+        api_key_override
+        or os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+    )
+
+    def vertex() -> tuple[str, dict]:
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION") or "global"
+        return "vertex", {"project": project, "location": location}
+
+    def gemini() -> tuple[str, dict] | None:
+        return ("gemini", {"api_key": api_key}) if api_key else None
+
+    if mode == "gemini":
+        return gemini()
+    if mode == "vertex":
+        # vertex로 못박았어도 자격이 없으면 Gemini 키로 폴백한다.
+        return vertex() if vertex_ready else gemini()
+    # auto: Vertex 우선, 자격이 없으면 Gemini.
+    return vertex() if vertex_ready else gemini()
+
+
+def make_client(selection: tuple[str, dict]):
+    """선택된 백엔드로 google-genai 클라이언트를 만든다. SDK 미설치 시 명확히 알린다."""
     try:
         from google import genai
     except ImportError as exc:  # pragma: no cover - 환경 문제
         raise RuntimeError("google-genai 패키지가 필요합니다: pip install google-genai") from exc
-    return genai.Client(api_key=api_key)
+    backend, params = selection
+    if backend == "vertex":
+        # GOOGLE_APPLICATION_CREDENTIALS는 ADC가 자동으로 집는다(키 인자 불필요).
+        return genai.Client(
+            vertexai=True, project=params["project"], location=params["location"]
+        )
+    return genai.Client(api_key=params["api_key"])
 
 
 def ascii_safe_path(path: str, tmp_dir: str) -> str:
@@ -119,17 +165,21 @@ def run_multimodal(
     schema에 맞는 인스턴스를 반환한다. 키가 없거나 끝까지 실패하면 None을 반환한다(예외를
     던지지 않는다). 호출 측은 None을 받으면 결정론 결과만으로 진행한다.
     """
-    api_key = api_key or os.environ.get("GEMINI_API_KEY")
     model = resolve_model(model)
 
-    if not api_key:
-        print(f"[{log_prefix}] GEMINI_API_KEY 없음 - 멀티모달 단계 건너뜀", file=sys.stderr)
+    selection = select_backend(api_key)
+    if selection is None:
+        print(
+            f"[{log_prefix}] genai 자격 없음(Vertex/GEMINI) - 멀티모달 단계 건너뜀",
+            file=sys.stderr,
+        )
         return None
 
     try:
         from google.genai import types
 
-        client = make_client(api_key)
+        client = make_client(selection)
+        print(f"[{log_prefix}] 멀티모달 백엔드: {selection[0]}", file=sys.stderr)
         short = duration_sec is None or duration_sec <= WHOLE_UPLOAD_MAX_SEC
 
         with tempfile.TemporaryDirectory() as tmp_dir:
