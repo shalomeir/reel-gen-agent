@@ -20,11 +20,15 @@ class KenBurnsBackend:
         out_path: str,
     ) -> str:
         total = max(1, int(round(duration_sec * fps)))
-        # 스틸을 살짝 줌인하며 width x height로 출력. 무음 오디오 트랙을 붙여 mux 호환.
+        # 클립 내내 1.0 -> 1.18로 연속 선형 줌인하며 중앙을 유지한다. 프레임당 일정하게
+        # 변해 conformance의 not_frozen(인접 프레임 차이) 임계값을 넘긴다. 조기에 줌 상한에
+        # 닿아 정적이 되던 옛 방식(zoom+0.0005, cap 1.1)을 대체한다. 무음 트랙은 mux 호환용.
+        zoom = f"1+0.18*on/{total}"
         vf = (
             f"scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height},"
-            f"zoompan=z='min(zoom+0.0005,1.1)':d={total}:s={width}x{height}:fps={fps}"
+            f"zoompan=z='{zoom}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={total}:s={width}x{height}:fps={fps}"
         )
         cmd = [
             "ffmpeg",
