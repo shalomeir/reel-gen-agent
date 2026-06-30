@@ -22,6 +22,8 @@ from .analysis.reference import _find_project_root, download_via_script
 from .analysis.reference import add_reference as add_reference_flow
 from .analysis.rubric import evaluate_video
 from .generate.conformance import verify_conformance
+from .generate.gates import GateConfig
+from .generate.planning_graph import run_planning
 from .generate.schema import GenerationInput, RunManifest, Storyboard
 
 app = typer.Typer(
@@ -128,8 +130,7 @@ def add_reference(
     if result.rubric_path is not None and result.rubric is not None:
         verdict = "통과" if result.rubric.passed else "미달"
         typer.echo(
-            f"평가:   {result.rubric_path} "
-            f"(gated={result.rubric.gated_score} -> {verdict})",
+            f"평가:   {result.rubric_path} (gated={result.rubric.gated_score} -> {verdict})",
             err=True,
         )
     if result.catalog_path is not None:
@@ -222,6 +223,18 @@ def verify(
         fails = [c.code for c in report.checks if c.status == "fail"]
         typer.echo(f"실패 체크: {', '.join(fails)}", err=True)
         raise typer.Exit(code=1)
+
+
+@app.command()
+def plan(
+    brief: str = typer.Argument(..., help="영상 목적/브리프 또는 입력"),
+    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
+    yes: bool = typer.Option(False, "-y", "--yes", help="모든 게이트 자동 승인"),
+) -> None:
+    """입력에서 ReelProfile을 만들어 outputs/<run_id>/에 저장한다."""
+    cfg = GateConfig(mode="run" if yes else "ask")
+    path = run_planning(brief, outputs, gate=cfg)
+    typer.echo(f"ReelProfile: {path}", err=True)
 
 
 @app.command()
