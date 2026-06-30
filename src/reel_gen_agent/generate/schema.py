@@ -129,3 +129,29 @@ class Storyboard(BaseModel):
     """컷 단위 패널 목록. 패널 수/타이밍은 style_profile.cut에서 시딩한다."""
 
     panels: list[StoryboardPanel] = Field(default_factory=list)
+
+
+# --- 실행 매니페스트 (conformance 게이트가 노드/머지 무결성을 검증하는 계약) -----
+
+
+class NodeRun(BaseModel):
+    """그래프 노드 하나의 실행 기록. status와 산출물 경로를 남긴다."""
+
+    name: str  # concept / asset_bible / storyboard / video / subtitles / music / assembly
+    status: str = "done"  # done / error / skipped
+    artifacts: list[str] = Field(default_factory=list)  # 이 노드가 만든 파일 경로
+    error: str | None = None
+
+
+class RunManifest(BaseModel):
+    """생성 한 회차의 실행 기록. conformance 게이트가 이걸 읽어 노드/머지 무결성을 본다.
+
+    생성 그래프가 단계마다 NodeRun을 append하고 끝에 final_video와 panel_segments를 채운다.
+    """
+
+    run_id: str | None = None
+    input_path: str | None = None  # generation_input.json 경로
+    storyboard_path: str | None = None
+    final_video: str | None = None
+    panel_segments: list[str] = Field(default_factory=list)  # concat 순서대로의 클립 경로
+    nodes: list[NodeRun] = Field(default_factory=list)

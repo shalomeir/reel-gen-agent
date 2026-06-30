@@ -40,18 +40,24 @@ src/reel_gen_agent/
     cut_detector.py    # PySceneDetect: cut distribution
     audio_features.py  # librosa: audio dynamics
     visual_features.py # OpenCV: palette, brightness
+    frame_sampler.py   # uniform frame sampling: black/freeze/flicker metrics
+    loudness.py        # BS.1770 integrated loudness (LUFS) + peak
+    gemini_client.py   # shared Gemini multimodal plumbing (upload/frame fallback)
     gemini_describe.py # Gemini: perceptual fields
+    rubric.py          # driver rubric: VideoProfile + video -> RubricResult (soft gate)
     list_writer.py     # profile -> reference catalog entry
     analyze.py         # orchestrator: analyze_video(path)
   generate/        # generation pipeline (schema present; stages designed)
-    schema.py          # generation_input / asset bible / storyboard schemas
-  cli.py           # typer CLI (analyze works, generate is a stub)
-specs/             # planning docs: project-brief.md and future feature specs
-docs/              # architecture and usage docs
+    schema.py          # generation_input / asset bible / storyboard / RunManifest schemas
+    conformance.py     # conformance gate: video + template/manifest -> ConformanceReport (hard pass/fail)
+  cli.py           # typer CLI (analyze[url|path], add-reference, evaluate, verify work; generate is a stub)
+specs/             # planning docs: project-brief.md, rubric.md, conformance-gate.md, …
+docs/              # architecture and usage docs (incl. rubric.md rationale)
 tests/             # pytest
 utils/             # add-reference.sh and helper scripts
 outputs/           # generated runs (gitignored)
 profiles/          # analysis output JSON (gitignored)
+evals/             # rubric + conformance output JSON (gitignored)
 ```
 
 ## The architecture invariant
@@ -106,8 +112,12 @@ library, not a contract.
 
 - **`specs/` is binding.** Implementation follows what `specs/` defines and
   nothing else. If code and a `specs/` file disagree, the spec wins (or the spec
-  is wrong and gets fixed first). `specs/project-brief.md` is the root vision and
-  `specs/prd.md` is the product requirements; each feature or stage gets its own
+  is wrong and gets fixed first). `specs/project-brief.md` is the root vision,
+  `specs/prd.md` is the product requirements, `specs/product-design.md` is the
+  CLI/UX contract (chatbot CLI, chat/run modes and gates, input forms, and the
+  `execute` direct-render command), and `specs/trd.md` is the technical contract
+  (stack, libraries, external service clients, system layering, and constraints).
+  Every coding step must follow these. Each further feature or stage gets its own
   dated `specs/<topic>.md` describing intent, interface, and done-criteria before
   code.
 - **`docs/` is reference material only.** Architecture notes, analysis write-ups,

@@ -128,9 +128,7 @@ def add_reference(
         AddReferenceResult: 영상/프로필 경로와 카탈로그 인덱스.
     """
     root = project_root or _find_project_root()
-    video_path = downloader(
-        url, root, cookies_from_browser=cookies_from_browser
-    )
+    video_path = downloader(url, root, cookies_from_browser=cookies_from_browser)
     if not video_path.exists():
         raise FileNotFoundError(f"다운로드한 파일을 찾을 수 없음: {video_path}")
 

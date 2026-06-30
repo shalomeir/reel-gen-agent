@@ -61,3 +61,35 @@ def probe_container(path: str) -> Container:
         duration_sec=duration_sec,
         resolution=f"{width}x{height}",
     )
+
+
+def has_audio_stream(path: str) -> bool:
+    """오디오 스트림이 하나라도 있으면 True. conformance의 오디오 존재 체크에 쓴다."""
+    try:
+        data = _run_ffprobe(path)
+    except (subprocess.CalledProcessError, ValueError, json.JSONDecodeError):
+        return False
+    return any(s.get("codec_type") == "audio" for s in data.get("streams", []))
+
+
+def stream_durations(path: str) -> tuple[float | None, float | None]:
+    """(비디오 길이, 오디오 길이)를 초로 반환한다. mux 정렬(av_sync) 체크용.
+
+    스트림에 duration 태그가 없으면 그 자리는 None. 둘 다 못 구하면 (None, None).
+    """
+    try:
+        data = _run_ffprobe(path)
+    except (subprocess.CalledProcessError, ValueError, json.JSONDecodeError):
+        return (None, None)
+
+    def _dur(codec_type: str) -> float | None:
+        stream = next(
+            (s for s in data.get("streams", []) if s.get("codec_type") == codec_type),
+            None,
+        )
+        if stream is None:
+            return None
+        raw = stream.get("duration")
+        return float(raw) if raw else None
+
+    return (_dur("video"), _dur("audio"))
