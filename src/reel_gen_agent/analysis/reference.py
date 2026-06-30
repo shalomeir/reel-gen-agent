@@ -21,6 +21,7 @@ from pathlib import Path
 from .analyze import analyze_video
 from .list_writer import to_list_entry
 from .profile import VideoProfile
+from .rubric import RubricResult, evaluate_video
 
 # list.md가 없을 때 처음 만들어 줄 머리말. 항목은 이 아래로 계속 쌓인다.
 _CATALOG_HEADER = """# 레퍼런스 영상 목록
@@ -53,6 +54,8 @@ class AddReferenceResult:
     profile_path: Path
     catalog_path: Path | None
     catalog_index: int | None
+    rubric: RubricResult | None = None
+    rubric_path: Path | None = None
 
 
 def download_via_script(
@@ -111,21 +114,28 @@ def add_reference(
     cookies_from_browser: str | None = None,
     use_gemini: bool = True,
     write_catalog: bool = True,
+    evaluate: bool = True,
     downloader: Callable[..., Path] = download_via_script,
     analyzer: Callable[..., VideoProfile] = analyze_video,
+    evaluator: Callable[..., RubricResult] = evaluate_video,
 ) -> AddReferenceResult:
-    """URL 하나로 레퍼런스를 추가한다: 다운로드 -> 분석 -> 프로필 저장 -> 카탈로그.
+    """URL 하나로 레퍼런스를 들인다: 다운로드 -> 분석 -> 평가 -> 저장 -> 카탈로그.
+
+    레퍼런스 분석 job은 analyze(프로필)와 evaluate(rubric)를 기본으로 함께 돌린다. 생성
+    과정의 내부 분석은 analyze만 쓰면 되지만, 레퍼런스를 들일 때는 둘 다 기본이다. 단독
+    명령 `analyze`/`evaluate`는 여전히 분리돼 있고, 이 함수가 둘을 조합한다.
 
     Args:
         url: 받을 영상 URL.
         project_root: 레포 루트. 미지정 시 이 파일 기준으로 자동 탐색.
         cookies_from_browser: 로그인 필요 사이트용 브라우저 이름(예: "chrome").
-        use_gemini: 비정형 계층(Gemini) 사용 여부.
+        use_gemini: 비정형 계층(Gemini) 사용 여부. False면 평가도 건너뛴다.
         write_catalog: reference_video/list.md 항목 추가 여부.
-        downloader, analyzer: 테스트용 주입 지점.
+        evaluate: 드라이버 Rubric 평가를 함께 돌릴지(기본 True). use_gemini=False면 무시된다.
+        downloader, analyzer, evaluator: 테스트용 주입 지점.
 
     Returns:
-        AddReferenceResult: 영상/프로필 경로와 카탈로그 인덱스.
+        AddReferenceResult: 영상/프로필/평가 경로와 카탈로그 인덱스.
     """
     root = project_root or _find_project_root()
     video_path = downloader(url, root, cookies_from_browser=cookies_from_browser)
@@ -141,6 +151,17 @@ def add_reference(
     payload = json.dumps(profile.model_dump(), ensure_ascii=False, indent=2)
     profile_path.write_text(payload + "\n", encoding="utf-8")
 
+    # 레퍼런스 분석 기본값: 같은 자(Rubric)로 함께 평가해 evals/에 기준선을 남긴다.
+    rubric: RubricResult | None = None
+    rubric_path: Path | None = None
+    if evaluate and use_gemini:
+        rubric = evaluator(str(video_path), profile=profile, use_gemini=use_gemini)
+        evals_dir = root / "evals"
+        evals_dir.mkdir(parents=True, exist_ok=True)
+        rubric_path = evals_dir / f"{video_path.stem}.json"
+        rubric_payload = json.dumps(rubric.model_dump(), ensure_ascii=False, indent=2)
+        rubric_path.write_text(rubric_payload + "\n", encoding="utf-8")
+
     catalog_path: Path | None = None
     catalog_index: int | None = None
     if write_catalog:
@@ -155,6 +176,8 @@ def add_reference(
         profile_path=profile_path,
         catalog_path=catalog_path,
         catalog_index=catalog_index,
+        rubric=rubric,
+        rubric_path=rubric_path,
     )
 
 

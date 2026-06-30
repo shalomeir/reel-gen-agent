@@ -153,6 +153,7 @@ def test_add_reference_appends_with_incrementing_index(tmp_path):
     result = add_reference(
         "https://example.com/2",
         project_root=tmp_path,
+        evaluate=False,
         downloader=lambda url, root, cookies_from_browser=None: video,
         analyzer=lambda path, url=None, use_gemini=True: _stub_profile(),
     )
@@ -173,6 +174,7 @@ def test_add_reference_can_skip_catalog(tmp_path):
         "https://example.com/3",
         project_root=tmp_path,
         write_catalog=False,
+        evaluate=False,
         downloader=lambda url, root, cookies_from_browser=None: video,
         analyzer=lambda path, url=None, use_gemini=True: _stub_profile(),
     )
@@ -181,3 +183,59 @@ def test_add_reference_can_skip_catalog(tmp_path):
     assert result.catalog_index is None
     assert result.profile_path.exists()
     assert not (tmp_path / "reference_video" / "list.md").exists()
+
+
+def test_add_reference_runs_evaluate_by_default(tmp_path):
+    """레퍼런스 분석은 analyze에 더해 evaluate를 기본으로 돌려 evals/에 저장한다."""
+    from reel_gen_agent.analysis.rubric import RubricResult
+
+    video = tmp_path / "reference_video" / "Eval [Demo-e1].mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"fake")
+
+    captured = {}
+
+    def fake_evaluator(path, profile=None, use_gemini=True):
+        captured["eval_path"] = path
+        captured["eval_profile"] = profile
+        return RubricResult(scored=True, gated_score=42.0, passed=True)
+
+    result = add_reference(
+        "https://example.com/e",
+        project_root=tmp_path,
+        write_catalog=False,
+        downloader=lambda url, root, cookies_from_browser=None: video,
+        analyzer=lambda path, url=None, use_gemini=True: _stub_profile(),
+        evaluator=fake_evaluator,
+    )
+
+    # 평가기가 다운로드된 영상과 이미 만든 프로필로 호출됐는가.
+    assert captured["eval_path"] == str(video)
+    assert captured["eval_profile"] is result.profile
+    # rubric 결과가 evals/ 아래 영상 stem 이름으로 저장됐는가.
+    assert result.rubric_path == tmp_path / "evals" / f"{video.stem}.json"
+    assert result.rubric_path.exists()
+    assert result.rubric is not None and result.rubric.gated_score == 42.0
+
+
+def test_add_reference_skips_evaluate_without_gemini(tmp_path):
+    """use_gemini=False면 평가는 건너뛴다(rubric 산출물 없음)."""
+    video = tmp_path / "reference_video" / "NoEval [Demo-n1].mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"fake")
+
+    def boom_evaluator(*a, **k):  # 호출되면 안 된다.
+        raise AssertionError("use_gemini=False인데 평가기가 호출됨")
+
+    result = add_reference(
+        "https://example.com/n",
+        project_root=tmp_path,
+        use_gemini=False,
+        write_catalog=False,
+        downloader=lambda url, root, cookies_from_browser=None: video,
+        analyzer=lambda path, url=None, use_gemini=True: _stub_profile(),
+        evaluator=boom_evaluator,
+    )
+
+    assert result.rubric is None
+    assert result.rubric_path is None

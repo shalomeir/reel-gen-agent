@@ -124,8 +124,12 @@ JSON 하나다.
 3. **최종 비교 검증**: 만들어진 최종 영상을 다시 분석해 템플릿 프로필과 같게 나왔는지
    대조한다(스타일 유사도).
 
-`add-reference`와의 차이: `analyze`는 분석만 한다. `add-reference`는 URL을 받아 다운로드,
-분석에 더해 `reference_video/list.md` 카탈로그 항목까지 추가하는 큐레이션 명령이다.
+`add-reference`와의 차이: `analyze`는 분석만 한다. `add-reference`는 URL을 받아 레퍼런스를
+들이는 큐레이션 명령으로, 다운로드에 더해 **analyze(프로필)와 evaluate(Rubric)를 기본으로
+함께 돌리고** `reference_video/list.md` 카탈로그 항목까지 추가한다. 즉 "레퍼런스 분석"은 두
+가지를 기본으로 한다(끄려면 `--no-evaluate`). 반면 영상 생성 과정의 내부 분석은 `analyze`만
+쓰면 된다. 단독 명령 `analyze`와 `evaluate`는 각각 한 가지만 하도록 명확히 분리돼 있고,
+`add-reference`가 그 둘을 조합한다.
 
 ### verify - 기술 완성도 검증 (하드 pass/fail)
 

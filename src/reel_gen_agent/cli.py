@@ -103,14 +103,21 @@ def add_reference(
     no_catalog: bool = typer.Option(
         False, "--no-catalog", help="reference_video/list.md 항목 추가를 건너뛴다"
     ),
+    no_evaluate: bool = typer.Option(
+        False, "--no-evaluate", help="레퍼런스 Rubric 평가를 건너뛴다(기본은 함께 실행)"
+    ),
 ) -> None:
-    """URL 하나로 레퍼런스를 추가한다: 다운로드 -> 분석 -> 프로필 저장 -> 카탈로그."""
+    """URL 하나로 레퍼런스를 들인다: 다운로드 -> 분석 + 평가 -> 저장 -> 카탈로그.
+
+    레퍼런스 분석은 analyze(프로필)와 evaluate(Rubric)를 기본으로 함께 돌린다.
+    """
     try:
         result = add_reference_flow(
             url,
             cookies_from_browser=cookies_from_browser,
             use_gemini=not no_gemini,
             write_catalog=not no_catalog,
+            evaluate=not no_evaluate,
         )
     except Exception as exc:  # 사용자에게는 한 줄 메시지로, 스택은 숨긴다.
         typer.echo(f"레퍼런스 추가 실패: {exc}", err=True)
@@ -118,6 +125,13 @@ def add_reference(
 
     typer.echo(f"영상:   {result.video_path}", err=True)
     typer.echo(f"프로필: {result.profile_path}", err=True)
+    if result.rubric_path is not None and result.rubric is not None:
+        verdict = "통과" if result.rubric.passed else "미달"
+        typer.echo(
+            f"평가:   {result.rubric_path} "
+            f"(gated={result.rubric.gated_score} -> {verdict})",
+            err=True,
+        )
     if result.catalog_path is not None:
         typer.echo(
             f"카탈로그: {result.catalog_path} (#{result.catalog_index} 항목 추가)",
