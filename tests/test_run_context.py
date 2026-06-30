@@ -1,7 +1,5 @@
-from pathlib import Path
-
-from reel_gen_agent.generate.run_context import output_dir_for, new_manifest
-from reel_gen_agent.generate.schema import ReelProfile, Objective, ProductSpec
+from reel_gen_agent.generate.run_context import new_manifest, output_dir_for
+from reel_gen_agent.generate.schema import Objective, ProductSpec, ReelProfile
 
 
 def _profile() -> ReelProfile:

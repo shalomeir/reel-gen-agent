@@ -27,11 +27,30 @@ class KenBurnsBackend:
             f"zoompan=z='min(zoom+0.0005,1.1)':d={total}:s={width}x{height}:fps={fps}"
         )
         cmd = [
-            "ffmpeg", "-y", "-loop", "1", "-i", still_path,
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-vf", vf, "-t", f"{duration_sec}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(fps),
-            "-c:a", "aac", "-shortest", out_path,
+            "ffmpeg",
+            "-y",
+            "-loop",
+            "1",
+            "-i",
+            still_path,
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-vf",
+            vf,
+            "-t",
+            f"{duration_sec}",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            str(fps),
+            "-c:a",
+            "aac",
+            "-shortest",
+            out_path,
         ]
         subprocess.run(cmd, check=True, capture_output=True)
         return out_path

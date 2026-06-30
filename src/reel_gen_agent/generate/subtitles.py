@@ -6,12 +6,17 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from PIL import Image, ImageFont
 from pilmoji import Pilmoji
 
 
-def _default_font(size: int) -> ImageFont.ImageFont:
-    """기본 폰트를 요청 크기로 만든다. 구버전 Pillow는 size 인자가 없어 폴백한다."""
+def _default_font(size: int) -> Any:
+    """기본 폰트를 요청 크기로 만든다. 구버전 Pillow는 size 인자가 없어 폴백한다.
+
+    Pillow 버전에 따라 FreeTypeFont/ImageFont 중 하나가 오므로 반환형은 Any로 둔다.
+    """
     try:
         return ImageFont.load_default(size=size)
     except TypeError:

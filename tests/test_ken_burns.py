@@ -1,7 +1,7 @@
 from PIL import Image
 
-from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 from reel_gen_agent.analysis.media_probe import probe_container
+from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 
 
 def _still(tmp_path):

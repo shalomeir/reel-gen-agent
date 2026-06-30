@@ -28,9 +28,7 @@ def build_final_report(
         product_input=profile.product.name,
         reference_ref=profile.provenance.reference_ref,
     )
-    prompts = [
-        NodePrompt(node=nr.name, prompt=nr.prompt) for nr in manifest.nodes if nr.prompt
-    ]
+    prompts = [NodePrompt(node=nr.name, prompt=nr.prompt) for nr in manifest.nodes if nr.prompt]
     plan = manifest.production_plan
     models = {"video": plan.video_model} if plan else {}
     bgm = BgmReport(kind=(plan.bgm if plan else "none"))

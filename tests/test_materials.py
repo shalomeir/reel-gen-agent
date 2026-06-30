@@ -3,10 +3,10 @@ from PIL import Image
 from reel_gen_agent.generate.materials import build_materials
 from reel_gen_agent.generate.production_plan import resolve_plan
 from reel_gen_agent.generate.schema import (
-    ReelProfile,
+    InputMeta,
     Objective,
     ProductSpec,
-    InputMeta,
+    ReelProfile,
     Storyboard,
     StoryboardPanel,
 )

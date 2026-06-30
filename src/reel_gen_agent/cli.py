@@ -5,6 +5,7 @@
 - add-reference: URL 하나로 다운로드 -> 분석 -> 프로필 저장 -> 카탈로그. 구현 완료.
 - evaluate: 영상 -> 드라이버 Rubric 채점(RubricResult JSON). 구현 완료.
 - verify: 영상 -> Conformance 무결성·적합성 검증(ConformanceReport JSON). 구현 완료.
+- execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. 워킹 스켈레톤.
 
 설계만 된 명령(추후 구현):
 - generate: 생성 입력 -> 에셋 바이블 -> 스토리보드 -> 영상. docs/pipeline-design.md 참고.
@@ -22,6 +23,7 @@ from .analysis.reference import _find_project_root, download_via_script
 from .analysis.reference import add_reference as add_reference_flow
 from .analysis.rubric import evaluate_video
 from .generate.conformance import verify_conformance
+from .generate.production_graph import run_production
 from .generate.schema import GenerationInput, RunManifest, Storyboard
 
 app = typer.Typer(
@@ -128,8 +130,7 @@ def add_reference(
     if result.rubric_path is not None and result.rubric is not None:
         verdict = "통과" if result.rubric.passed else "미달"
         typer.echo(
-            f"평가:   {result.rubric_path} "
-            f"(gated={result.rubric.gated_score} -> {verdict})",
+            f"평가:   {result.rubric_path} (gated={result.rubric.gated_score} -> {verdict})",
             err=True,
         )
     if result.catalog_path is not None:
@@ -222,6 +223,19 @@ def verify(
         fails = [c.code for c in report.checks if c.status == "fail"]
         typer.echo(f"실패 체크: {', '.join(fails)}", err=True)
         raise typer.Exit(code=1)
+
+
+@app.command()
+def execute(
+    profile: str = typer.Argument(..., help="ReelProfile JSON 경로"),
+    no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
+) -> None:
+    """ReelProfile을 받아 Production을 돌려 outputs/<run_id>/에 영상·리포트를 만든다."""
+    if not Path(profile).exists():
+        typer.echo(f"파일 없음: {profile}", err=True)
+        raise typer.Exit(code=1)
+    manifest = run_production(profile, use_vlm=not no_vlm)
+    typer.echo(f"영상: {manifest.final_video}", err=True)
 
 
 @app.command()

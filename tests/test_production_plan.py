@@ -1,11 +1,11 @@
 from reel_gen_agent.generate.production_plan import resolve_plan
 from reel_gen_agent.generate.schema import (
-    ReelProfile,
+    NarrationSpec,
     Objective,
     ProductSpec,
+    ReelProfile,
     Storyboard,
     StoryboardPanel,
-    NarrationSpec,
 )
 
 

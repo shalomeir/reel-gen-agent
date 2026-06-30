@@ -58,9 +58,7 @@ def select_backend(api_key_override: str | None = None) -> tuple[str, dict] | No
     )
     vertex_ready = bool(project and has_adc)
     api_key = (
-        api_key_override
-        or os.environ.get("GEMINI_API_KEY")
-        or os.environ.get("GOOGLE_API_KEY")
+        api_key_override or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     )
 
     def vertex() -> tuple[str, dict]:
@@ -88,9 +86,7 @@ def make_client(selection: tuple[str, dict]):
     backend, params = selection
     if backend == "vertex":
         # GOOGLE_APPLICATION_CREDENTIALS는 ADC가 자동으로 집는다(키 인자 불필요).
-        return genai.Client(
-            vertexai=True, project=params["project"], location=params["location"]
-        )
+        return genai.Client(vertexai=True, project=params["project"], location=params["location"])
     return genai.Client(api_key=params["api_key"])
 
 
@@ -141,9 +137,7 @@ def whole_video_part(client, types, backend: str, path: str, tmp_dir: str):
     # Vertex: 인라인 바이트. 큰 영상은 요청 본문 제한을 넘으니 키프레임으로 떨어뜨린다.
     size = os.path.getsize(path)
     if size > VERTEX_INLINE_MAX_BYTES:
-        raise RuntimeError(
-            f"Vertex 인라인 한도 초과({size}B > {VERTEX_INLINE_MAX_BYTES}B)"
-        )
+        raise RuntimeError(f"Vertex 인라인 한도 초과({size}B > {VERTEX_INLINE_MAX_BYTES}B)")
     mime = _VIDEO_MIME_BY_SUFFIX.get(Path(path).suffix.lower(), "video/mp4")
     with open(path, "rb") as fh:
         data = fh.read()

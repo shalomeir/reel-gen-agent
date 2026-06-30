@@ -21,9 +21,23 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
             f.write(f"file '{Path(clip).resolve()}'\n")
         listfile = f.name
     cmd = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listfile,
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", str(meta.fps),
-        "-c:a", "aac", out_path,
+        "ffmpeg",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        listfile,
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-r",
+        str(meta.fps),
+        "-c:a",
+        "aac",
+        out_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)
     return out_path
