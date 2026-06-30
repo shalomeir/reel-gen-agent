@@ -30,7 +30,7 @@
 ## 상태
 
 - `analyze` - 구현됨. 레퍼런스 영상을 구조화된 `VideoProfile`(JSON)로.
-- `add-reference` - 구현됨. URL 하나로 다운로드, 분석, 프로필 저장, 카탈로그 기록까지.
+- `add-reference` - 구현됨. URL 하나로 다운로드, 분석, 평가(Rubric), 프로필 저장, 카탈로그 기록까지. 레퍼런스 분석은 analyze + evaluate가 기본.
 - `evaluate` - 구현됨. 영상을 드라이버 Rubric으로 채점(`RubricResult` JSON, 기대 효과 서술 포함). 레퍼런스와 생성물에 같은 자를 댄다. [docs/rubric.md](docs/rubric.md) 참고.
 - `verify` - 구현됨. 영상이 의도대로 온전히 만들어졌는지 Conformance로 검증(하드 pass/fail). 레퍼런스 전부 PASS. [specs/conformance-gate.md](specs/conformance-gate.md) 참고.
 - `chat` / `run`(생성) - 설계됨, 단계별 구현 중. [docs/pipeline-design.md](docs/pipeline-design.md) 참고.
@@ -197,8 +197,9 @@ reel-gen analyze path/to/video.mp4 --url "https://..." --out profiles/sample.jso
 # 정형 계층만 (API 키 불필요)
 reel-gen analyze path/to/video.mp4 --no-gemini
 
-# URL 하나로 레퍼런스 추가: 다운로드, 분석, 프로필 저장, 카탈로그(큐레이션)
+# URL 하나로 레퍼런스 들이기: 다운로드 + 분석 + 평가(Rubric) + 카탈로그 (기본 둘 다 실행)
 reel-gen add-reference "https://www.youtube.com/shorts/..."
+reel-gen add-reference "https://..." --no-evaluate   # 분석만, 평가 건너뜀
 ```
 
 유튜브/틱톡에서 레퍼런스를 `reference_video/`로 받아오는 헬퍼 스크립트도 있다.
@@ -375,7 +376,8 @@ one ruler.
 ## Status
 
 - `analyze` — implemented. Reference video to a structured `VideoProfile` (JSON).
-- `add-reference` — implemented. One URL: download, analyze, save profile, catalog.
+- `add-reference` — implemented. One URL: download, analyze, evaluate (rubric), save
+  profile, catalog. Reference analysis runs analyze + evaluate by default.
 - `evaluate` — implemented. Scores a video on the driver rubric (`RubricResult` JSON,
   with an expected-effect note). The same ruler scores references and outputs. See
   [docs/rubric.md](docs/rubric.md).
@@ -521,8 +523,9 @@ reel-gen analyze path/to/video.mp4 --url "https://..." --out profiles/sample.jso
 # Deterministic layer only (no API key needed)
 reel-gen analyze path/to/video.mp4 --no-gemini
 
-# Add a reference from one URL: download, analyze, save profile, catalog
+# Ingest a reference from one URL: download + analyze + evaluate + catalog (both by default)
 reel-gen add-reference "https://www.youtube.com/shorts/..."
+reel-gen add-reference "https://..." --no-evaluate   # analyze only, skip rubric
 ```
 
 A helper script downloads a reference from YouTube/TikTok into `reference_video/`:
