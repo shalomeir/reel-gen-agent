@@ -144,8 +144,27 @@ library, not a contract.
 
 ## Running and testing
 
+This project uses `uv` and a project-local `.venv`. Always run inside that
+`.venv`; never install or run against the global / pyenv Python. The repo ships an
+`.envrc` that activates `.venv` and loads `.env` via direnv, so an interactive
+shell in this directory is already set up.
+
+Caveat for coding agents: a non-interactive shell (the kind tool calls run in)
+does not trigger the direnv hook, so `.venv` is not auto-activated and commands
+fall back to the global Python. Activate it explicitly first, or call the venv
+binaries directly:
+
 ```bash
-pip install -e ".[dev]"          # editable install + dev deps
+source .venv/bin/activate        # then run reel-gen / pytest / ruff directly
+# or, per command, without activating:
+uv run reel-gen --help           # uv run wraps the .venv
+.venv/bin/reel-gen --help        # call the venv binary directly
+```
+
+Setup and the usual loop, all inside `.venv`:
+
+```bash
+uv sync --extra dev              # create .venv + install package and dev deps
 cp .env.example .env             # then fill GEMINI_API_KEY
 
 reel-gen analyze video.mp4               # analyze a reference
