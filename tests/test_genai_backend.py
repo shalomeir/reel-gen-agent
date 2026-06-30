@@ -227,9 +227,7 @@ def test_whole_video_part_gemini_uses_file_api(monkeypatch, tmp_path):
 
     monkeypatch.setattr(gemini_client, "upload_and_wait", fake_upload)
 
-    part = gemini_client.whole_video_part(
-        object(), types, "gemini", str(video), str(tmp_path)
-    )
+    part = gemini_client.whole_video_part(object(), types, "gemini", str(video), str(tmp_path))
 
     assert part is sentinel
 
@@ -246,9 +244,7 @@ def test_whole_video_part_vertex_uses_inline_bytes(monkeypatch, tmp_path):
 
     monkeypatch.setattr(gemini_client, "upload_and_wait", boom)
 
-    part = gemini_client.whole_video_part(
-        object(), types, "vertex", str(video), str(tmp_path)
-    )
+    part = gemini_client.whole_video_part(object(), types, "vertex", str(video), str(tmp_path))
 
     assert part.inline_data is not None
     assert part.inline_data.mime_type == "video/mp4"
@@ -263,6 +259,4 @@ def test_whole_video_part_vertex_oversize_raises(monkeypatch, tmp_path):
     video.write_bytes(b"\x00\x01\x02\x03")  # 한도(2B)보다 큼
 
     with pytest.raises(RuntimeError):
-        gemini_client.whole_video_part(
-            object(), types, "vertex", str(video), str(tmp_path)
-        )
+        gemini_client.whole_video_part(object(), types, "vertex", str(video), str(tmp_path))
