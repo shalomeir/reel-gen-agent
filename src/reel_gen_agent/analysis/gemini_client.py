@@ -20,10 +20,13 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
-# 통째 업로드를 쓸 길이 상한(초). 넘으면 키프레임 폴백.
+# 통째 입력을 쓸 길이 상한(초). 넘으면 키프레임 폴백.
 WHOLE_UPLOAD_MAX_SEC = 60.0
 # File API 업로드 후 처리 완료를 기다리는 최대 시간(초).
 UPLOAD_POLL_TIMEOUT_SEC = 120
+# Vertex 인라인 바이트 입력의 크기 상한(바이트). Vertex 요청 본문은 ~20MB 제한이라
+# 프롬프트 여유를 두고 보수적으로 잡는다. 넘으면 키프레임으로 폴백한다.
+VERTEX_INLINE_MAX_BYTES = 18 * 1024 * 1024
 # 키프레임 폴백에서 뽑을 프레임 수.
 FALLBACK_FRAMES = 8
 DEFAULT_MODEL = "gemini-2.5-flash"
@@ -114,6 +117,39 @@ def upload_and_wait(client, path: str):
     return uploaded
 
 
+_VIDEO_MIME_BY_SUFFIX = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
+    ".m4v": "video/mp4",
+}
+
+
+def whole_video_part(client, types, backend: str, path: str, tmp_dir: str):
+    """영상 전체(오디오+모션 포함)를 모델에 넣을 Part를 만든다.
+
+    백엔드마다 영상 입력 방식이 다르다. Gemini 개발자 API는 File API로 업로드하고,
+    Vertex는 그 메서드를 지원하지 않으므로 인라인 바이트로 넣는다. 두 경로 모두 영상의
+    오디오와 전체 타임라인을 보존한다. Vertex 인라인은 요청 크기 제한이 있어, 상한을
+    넘으면 RuntimeError를 던져 호출 측이 키프레임으로 폴백하게 한다.
+    """
+    if backend == "gemini":
+        # File API는 비ASCII 파일명에서 인코딩 에러가 나므로 안전한 이름으로 복사 후 업로드.
+        return upload_and_wait(client, ascii_safe_path(path, tmp_dir))
+
+    # Vertex: 인라인 바이트. 큰 영상은 요청 본문 제한을 넘으니 키프레임으로 떨어뜨린다.
+    size = os.path.getsize(path)
+    if size > VERTEX_INLINE_MAX_BYTES:
+        raise RuntimeError(
+            f"Vertex 인라인 한도 초과({size}B > {VERTEX_INLINE_MAX_BYTES}B)"
+        )
+    mime = _VIDEO_MIME_BY_SUFFIX.get(Path(path).suffix.lower(), "video/mp4")
+    with open(path, "rb") as fh:
+        data = fh.read()
+    return types.Part.from_bytes(data=data, mime_type=mime)
+
+
 def frame_parts(path: str, types) -> list:
     """영상에서 균등 간격 키프레임을 JPEG Part 리스트로 만든다."""
     import cv2
@@ -178,21 +214,31 @@ def run_multimodal(
     try:
         from google.genai import types
 
+        backend = selection[0]
         client = make_client(selection)
-        print(f"[{log_prefix}] 멀티모달 백엔드: {selection[0]}", file=sys.stderr)
+        print(f"[{log_prefix}] 멀티모달 백엔드: {backend}", file=sys.stderr)
         short = duration_sec is None or duration_sec <= WHOLE_UPLOAD_MAX_SEC
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            # 1순위: 영상 통째 업로드 (짧을 때만)
+            # 1순위: 영상 통째 입력 (짧을 때만). 오디오와 전체 모션을 보존한다. 입력 방식만
+            # 백엔드별로 다르다(Gemini=File API 업로드, Vertex=인라인 바이트). 입력이 실패해도
+            # 키프레임 폴백으로 흘러가야 하므로 바깥 except가 아니라 여기서 잡는다.
             if short:
-                upload_path = ascii_safe_path(path, tmp_dir)
-                uploaded = upload_and_wait(client, upload_path)
-                result = generate_structured(client, types, model, [uploaded, video_prompt], schema)
-                if result is not None:
-                    return result
-                print(f"[{log_prefix}] 영상 경로 블록/빈 응답 - 키프레임 폴백", file=sys.stderr)
+                try:
+                    video_part = whole_video_part(client, types, backend, path, tmp_dir)
+                    result = generate_structured(
+                        client, types, model, [video_part, video_prompt], schema
+                    )
+                    if result is not None:
+                        return result
+                    print(f"[{log_prefix}] 영상 경로 블록/빈 응답 - 키프레임 폴백", file=sys.stderr)
+                except Exception as exc:
+                    print(
+                        f"[{log_prefix}] 영상 통째 입력 실패({exc}) - 키프레임 폴백",
+                        file=sys.stderr,
+                    )
 
-            # 2순위: 키프레임 이미지 폴백
+            # 2순위: 키프레임 이미지 폴백 (Vertex 포함 모든 백엔드 지원)
             frames = frame_parts(path, types)
             if frames:
                 result = generate_structured(client, types, model, frames + [frames_prompt], schema)
