@@ -1,8 +1,6 @@
 # 선행 사례: 숏폼 광고 생성 도구
 
-이 문서는 경쟁 제품(SaaS)을 다룬다. 코드로 직접 배울 오픈소스 레포(hyperframes,
-auto-editor, Remotion)와 에이전트 도구 정리는
-[references-implementation.md](references-implementation.md)를 참고하라.
+이 문서는 경쟁 제품(SaaS)에서 배울 생성 흐름과 제품 패턴을 다룬다.
 
 기존의 AI 숏폼/UGC 제품 광고 생성 도구들을 살펴보고, 이 프로젝트에 가져올 만한 패턴을
 추렸다. 결론부터 말하면, 이 분야는 [pipeline-design.md](pipeline-design.md)의

@@ -144,10 +144,10 @@ cp .env.example .env
 스토리보드, 대사 스크립트, 톤 생성 기본값으로 쓰고, 필요할 때 `TEXT_MODEL_PRIORITY`를
 바꿔 Claude Opus로 전환할 수 있다. 이미지 생성은 `IMAGE_PROVIDER`로
 Gemini/Imagen/fal 중 우선 provider를 정하고, 비워 두면 Gemini 이미지 lane을 기본으로 둔다.
-`FAL_KEY`가 있으면 Flux를 이미지 폴백이나 실험 provider로 쓸 수 있다. 영상 생성은
+`FAL_KEY`가 있으면 FLUX.2를 이미지 폴백이나 실험 provider로 쓸 수 있다. 영상 생성은
 `VIDEO_PROVIDER`로 Vertex/Gemini API/fal 중 우선 provider를 정하고, 비워 두면 Google Cloud
 크레딧을 쓸 수 있는 Vertex Veo lane을 기본으로 둔다. `GEMINI_API_KEY`를 쓰는 Gemini API Veo
-lane과 `FAL_KEY`를 쓰는 fal.ai Seedance/Kling lane은 폴백이나 실험 provider로 둔다.
+lane과 `FAL_KEY`를 쓰는 fal.ai Kling O3/Seedance lane은 폴백이나 실험 provider로 둔다.
 효과음은 ElevenLabs 생성 SFX를 먼저 쓰고, 사용자가 넣은 로컬 효과음, 무음 폴백 순서로
 내려간다. 음악은 Lyria 생성 BGM, 로컬 음악, 무음 폴백 순서다.
 
@@ -161,19 +161,19 @@ lane과 `FAL_KEY`를 쓰는 fal.ai Seedance/Kling lane은 폴백이나 실험 pr
 | `CLAUDE_MODEL` | 아니오 | Claude 텍스트 모델. 기본 `claude-opus-4-8`. |
 | `TEXT_MODEL_PRIORITY` | 아니오 | 컨셉/훅/스토리보드 텍스트 모델 우선순위. 기본은 Gemini 3.1 Pro 후 Claude Opus 옵션. |
 | `IMAGE_PROVIDER` | 아니오 | 이미지 provider 우선순위. `gemini`, `imagen`, `fal`; 비워 두면 `gemini`. |
-| `IMAGE_MODEL_PRIORITY` | 아니오 | 이미지 모델 우선순위. 기본은 Nano Banana 2, 그다음 Nano Banana Pro, Imagen 4, fal.ai Flux 후보. |
+| `IMAGE_MODEL_PRIORITY` | 아니오 | 이미지 모델 우선순위. 기본은 Nano Banana 2, 그다음 Nano Banana Pro, Imagen 4, fal.ai FLUX.2 후보. |
 | `VIDEO_PROVIDER` | 아니오 | 영상 provider 우선순위. `vertex`, `gemini`, `fal`; 비워 두면 `vertex`. |
-| `VIDEO_MODEL_PRIORITY` | 아니오 | 영상 모델 우선순위. 기본은 Vertex Veo, Gemini Veo, fal.ai Seedance/Kling 후보. |
+| `VIDEO_MODEL_PRIORITY` | 아니오 | 영상 모델 우선순위. 기본은 Vertex Veo, Gemini Veo, fal.ai Kling O3 Standard/Seedance 2.0 Fast 후보. |
 | `TTS_MODEL_PRIORITY` | 아니오 | TTS 모델 우선순위. 기본은 Gemini TTS, 그다음 ElevenLabs 후보. |
 | `SFX_PROVIDER_PRIORITY` | 아니오 | 효과음 소스 우선순위. 기본은 ElevenLabs 생성 SFX, 로컬 파일, 무음 폴백. |
 | `MUSIC_MODEL_PRIORITY` | 아니오 | 음악 소스 우선순위. 기본은 Lyria, 로컬 파일, 무음 폴백. |
 | `GEMINI_IMAGE_MODEL` | 아니오 | 이미지 모델. 기본 `gemini-3.1-flash-image-preview`. |
 | `IMAGEN_MODEL` | 아니오 | Imagen 텍스트-투-이미지 폴백. 기본 `imagen-4.0-fast-generate-001`. |
-| `FAL_KEY`, `FAL_IMAGE_MODEL` | 아니오 | fal.ai 이미지 provider. Flux 후보를 쓸 때 설정. |
+| `FAL_KEY`, `FAL_IMAGE_MODEL` | 아니오 | fal.ai 이미지 provider. FLUX.2 후보를 쓸 때 설정. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | 아니오 | Vertex AI image-to-video 모델과 단일 GCS 출력 prefix. 기본 `veo-3.1-lite-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | 아니오 | Vertex AI lane(영상 Veo + 분석 멀티모달)을 쓸 때 필요한 GCP 프로젝트와 서비스 계정 JSON 절대경로. |
 | `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 폴백 모델. 기본 `veo-3.1-lite-generate-preview`. |
-| `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. Seedance/Kling image-to-video 후보를 쓸 때 설정. |
+| `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. Kling O3 Standard/Seedance 2.0 Fast image-to-video 후보를 쓸 때 설정. |
 | `LYRIA_MODEL` | 아니오 | 배경 음악 모델(생성 단계). |
 | `ELEVENLABS_API_KEY` | 아니오 | 선택 보이스오버와 생성 효과음. SFX는 짧은 duration/count guardrail을 둔다. |
 | `FIRECRAWL_API_KEY` | 아니오 | 제품 URL 정보 추출. |
@@ -495,15 +495,15 @@ cp .env.example .env
 | `CLAUDE_MODEL` | no | Claude text model. Default `claude-opus-4-8`. |
 | `TEXT_MODEL_PRIORITY` | no | Text model priority for concept, hook, and storyboard generation. Defaults to Gemini 3.1 Pro, with Claude Opus as an option. |
 | `IMAGE_PROVIDER` | no | Preferred image provider. `gemini`, `imagen`, or `fal`; blank defaults to `gemini`. |
-| `IMAGE_MODEL_PRIORITY` | no | Image model priority. Defaults to Nano Banana, Imagen 4, then fal.ai Flux candidates. |
+| `IMAGE_MODEL_PRIORITY` | no | Image model priority. Defaults to Nano Banana, Imagen 4, then fal.ai FLUX.2 candidates. |
 | `GEMINI_IMAGE_MODEL` | no | Image model. Default `gemini-3.1-flash-image-preview`. |
 | `IMAGEN_MODEL` | no | Imagen text-to-image fallback. Default `imagen-4.0-fast-generate-001`. |
-| `FAL_KEY`, `FAL_IMAGE_MODEL` | no | Optional fal.ai image provider for Flux. |
+| `FAL_KEY`, `FAL_IMAGE_MODEL` | no | Optional fal.ai image provider for FLUX.2. |
 | `VIDEO_PROVIDER` | no | Preferred video provider. `vertex`, `gemini`, or `fal`; blank defaults to `vertex`. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | no | Vertex AI image-to-video model and GCS output path. Default `veo-3.1-lite-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | no | GCP project and service-account JSON path for the Vertex AI lane (video Veo + analysis multimodal). |
 | `GEMINI_VEO_MODEL` | no | Gemini API image-to-video fallback model. Default `veo-3.1-lite-generate-preview`. |
-| `FAL_VIDEO_MODEL` | no | Optional fal.ai video provider for Seedance/Kling image-to-video. |
+| `FAL_VIDEO_MODEL` | no | Optional fal.ai video provider for Kling O3 Standard/Seedance 2.0 Fast image-to-video. |
 | `LYRIA_MODEL` | no | Background music model (generation stage). |
 | `ELEVENLABS_API_KEY` | no | Optional voiceover demo. |
 

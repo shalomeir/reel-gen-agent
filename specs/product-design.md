@@ -6,22 +6,37 @@
 
 ## 한 줄 요약
 
-`typer`와 `rich`로 만든 챗봇형 CLI다. 같은 생성 파이프라인을 대화형(챗 모드)으로도,
-한 번에 도는 비대화(런 모드)로도 돌릴 수 있다. 두 모드는 게이트(사람 확인 지점)를 어떻게
-다루느냐만 다르다. 여기에, 이미 완성된 템플릿 JSON을 그대로 영상으로 뽑는 직행 명령
-(`execute`)을 따로 둔다.
+`typer`와 `rich`로 만든 챗봇형 CLI다. 시스템은 **두 구간으로 완전히 분리**된다. `plan`은
+입력에서 기획을 펼쳐 `ReelProfile`(profile.json)을 산출하고, `execute`는 그 ReelProfile만
+받아 영상을 만든다. 둘은 ReelProfile 스키마로만 통신한다. `run`은 둘을 한 번에 잇고,
+`chat`은 한 세션에서 대화형으로 plan을 돌린 뒤 사용자가 확인하면 execute로 넘어간다.
+구간 분리는 내부 구조이고, 사용자에게는 run/chat이 한 번에 도는 경험으로 보인다.
 
-## 두 가지 모드
+## 두 구간: plan과 execute
 
-생성 파이프라인은 컨셉, 에셋 바이블, 스토리보드, 영상 단계마다 게이트를 둔다. 게이트는
-세 가지로 동작한다(자세한 건 [pipeline-design.md](../docs/pipeline-design.md)의 "휴먼 인 더 루프
-게이트").
+시스템은 두 구간으로 완전히 분리된다. 경계는 `ReelProfile`(profile.json) 하나다. 구간별
+노드와 흐름은 [workflows.md](workflows.md)가 정본이다(plan=Planning 페이즈, execute=Production
+페이즈).
 
-- **챗 모드** (`reel-gen chat`): 대화형 챗봇으로 띄운다. 게이트마다 멈춰 결과를 보여주고,
-  사용자가 확인하거나 수정한 뒤 다음으로 넘어간다. 기본값은 HITL(사람 개입) 켜짐.
-- **런 모드** (`reel-gen run <입력>`): 입력 하나로 끝까지 한 번에 돌린다. 멈추지 않고 모든
-  게이트를 자동 통과하며, 진행 상황을 출력한 뒤 mp4 경로를 돌려준다. 비대화라 스크립트나
-  CI에 건다. 런 모드에서는 HITL이 불가능하다.
+- **`reel-gen plan <입력>`**: Planning 페이즈를 돈다. 입력(영상 목적 + 캐릭터/제품 + 선택
+  레퍼런스)에서 컨셉, 후크, 에셋, 환경, 스토리보드, 대사·자막·음악 정의를 펼쳐
+  `ReelProfile-{핵심컨셉}-{생성일시}.json`을 산출한다. 챗 모드면 게이트마다 확인/수정한다.
+- **`reel-gen execute <ReelProfile.json>`**: Production 페이즈를 돈다. ReelProfile만 받아
+  ProductionPlan 해소, 재료 병렬 생성, 조립, verify 루프, describe, evaluate, report까지
+  돌려 `outputs/<run_id>/`에 영상과 산출물을 남긴다. 이미 생성된 에셋·클립이 있으면
+  재생성을 건너뛴다(조립만). 기존 "storyboard 직행" execute를 이 명령이 흡수한다.
+
+## 한 번에: run과 chat
+
+같은 두 구간을 한 흐름으로 잇는 진입점이다. 게이트(사람 확인 지점)는 세 가지로 동작한다
+(자세한 건 [pipeline-design.md](../docs/pipeline-design.md)의 "휴먼 인 더 루프 게이트").
+
+- **챗 모드** (`reel-gen chat`): 대화형 챗봇으로 띄운다. plan 게이트마다 멈춰 결과를 보여주고,
+  사용자가 확인하거나 수정한 뒤 진행한다. ReelProfile confirm 게이트를 통과하면 같은 세션에서
+  execute로 넘어간다. 기본값은 HITL(사람 개입) 켜짐. 내부적으로는 plan과 execute가 분리돼 있다.
+- **런 모드** (`reel-gen run <입력>`): 입력 하나로 plan부터 execute까지 끝까지 한 번에 돌린다.
+  멈추지 않고 모든 게이트를 자동 통과하며, 진행 상황을 출력한 뒤 mp4 경로를 돌려준다.
+  비대화라 스크립트나 CI에 건다. 런 모드에서는 HITL이 불가능하다.
 
 ### 게이트 제어 플래그
 
@@ -29,7 +44,8 @@
 - `-y`, `--yes`: 챗 모드를 유지하되 모든 게이트를 자동 승인한다. 챗 UI는 그대로지만 멈추지
   않는다. "챗 모드인데 HITL은 끄고 싶다"를 위한 플래그다.
 - `--force-step-pass <step>`: 특정 게이트 하나만 건너뛴다(반복 지정 가능).
-  `<step>`은 `concept`, `asset_bible`, `storyboard`, `video`.
+  `<step>`은 `hook`, `asset_bible`, `storyboard`, `scripting`, `confirm`(plan 쪽)과
+  `video`(execute 쪽). 노드·게이트 목록의 정본은 [workflows.md](workflows.md).
 
 `reel-gen chat --yes`와 `reel-gen run`의 차이: 둘 다 멈추지 않지만, 전자는 챗 REPL UI를
 유지하고 후자는 순수 비대화로 진행 상황만 출력하고 종료한다. 런 모드가 스크립트와 CI의
@@ -41,7 +57,7 @@
 (rubric, 소프트 0~100점 + 기대 효과 서술)가 돈다. verify가 fail이면 evaluate로 가지 않고,
 문제 노드를 다시 돌려 verify가 통과할 때까지 반복한다. 무한 루프를 막으려고 최대 iteration
 count를 둔다(상한에 닿으면 마지막 리포트와 함께 실패로 종료). 자세한 동작은 아래
-"분석·검증·평가 명령"과 [trd.md](trd.md) "테스트 전략"에 있다.
+"분석·검증·평가 명령"과 [testing-strategy.md](testing-strategy.md)에 있다.
 
 ## 입력 형식
 
@@ -159,39 +175,35 @@ verify를 통과한 최종 결과를 정성 평가한다. 역할:
 
 계약은 [rubric.md](rubric.md).
 
-## 직행 실행 명령 (`execute`)
+## execute 명령 (ReelProfile → 영상)
 
-생성 파이프라인은 컨셉 → 에셋 바이블 → 스토리보드 → 영상 순으로 흐른다. 그런데 입력 JSON이
-이미 완성된 스토리보드(에이전트가 스토리보드 단계에서 내놓는 `Storyboard`와 같은 정형 포맷)면,
-앞 단계는 더 계산할 게 없다. 이걸 그대로 주입해 곧장 영상만 뽑는 별도 명령이 `execute`다.
+`execute`는 Production 페이즈 진입점이다. plan이 동결한 `ReelProfile`만 받아 영상을 만든다.
 
 ```bash
-reel-gen execute storyboard.json
+reel-gen execute ReelProfile-glow-serum-20260630-204512.json
 ```
 
-`run`과 분리한 이유: `run`은 상위 입력(생성 입력·텍스트 브리프·단일 에셋)을 받아 파이프라인을
-끝까지 돌리는 반면, `execute`는 정형화된 중간 산출물을 받아 조립만 한다. 입력 성격이 다르고
-헷갈리기 쉬워 명령을 가른다.
+`run`과 분리한 이유: `run`은 상위 입력(영상 목적·텍스트 브리프·단일 에셋)을 받아 plan부터
+끝까지 돌리는 반면, `execute`는 동결된 ReelProfile을 받아 Production만 돈다. 비싼 앞 단계
+(기획)를 반복하지 않는다.
 
 이게 의미 있는 이유:
 
-- **재실행과 미세 수정**: 챗 모드에서 한 번 만든 스토리보드 JSON을 저장해 두면, 자막 한 줄이나
-  타이밍만 손본 뒤 같은 JSON을 `execute`에 다시 넣어 영상만 새로 뽑는다. 비싼 앞 단계를
-  반복하지 않는다.
-- **디버그**: 포맷이 매우 정형화돼 있고 같은 JSON이 같은 조립을 재현하므로, 조립 단계만 떼어
-  재현·디버그하기 좋다.
+- **재실행과 미세 수정**: plan으로 한 번 만든 ReelProfile을 저장해 두면, 자막 한 줄이나
+  타이밍만 손본 뒤 같은 ReelProfile을 `execute`에 다시 넣어 영상만 새로 뽑는다.
+- **재현**: 같은 ReelProfile은 유사한 영상을 만든다(시드·provenance로 결정론 부분 재현).
+  단 환경·가용 리소스가 다르면 ProductionPlan이 갈려 결과가 달라질 수 있다(폴백은
+  RunManifest에 기록).
 
 ### 전제 조건과 검증
 
-`execute`가 받는 템플릿 JSON 안의 캐릭터와 제품 카탈로그에는, 영상 생성에 들어갈 **이미 생성된
-이미지의 로컬 경로**가 들어 있어야 한다(에이전트가 에셋 바이블 단계에서 이미 만들어 둔 그
-이미지들). `execute`는 다음을 따른다.
+`execute`가 받는 ReelProfile의 `asset_bible`에는 영상 생성에 들어갈 **이미 생성된 이미지의
+로컬 경로**(캐릭터·제품·환경)가 들어 있어야 한다. `execute`는 다음을 따른다.
 
-- 실행 전에 카탈로그(캐릭터·제품)의 이미지 로컬 경로가 실제로 존재하는지 확인한다.
-- 하나라도 없으면 영상을 만들 수 없으므로, 누락된 경로를 알려 주고 그 자리에서 실행을 멈춘다
-  (에러 종료). 자동 재생성으로 메우지 않는다. 직행은 "이미 만들어 둔 에셋으로 조립만 한다"는
-  계약이기 때문이다.
-- 그 밖에 조립에 필요한 항목(패널 타이밍, 자막, 음악·워터마크 설정)도 JSON 안에 있어야 한다.
+- 실행 전에 에셋 이미지의 로컬 경로가 실제로 존재하는지 확인한다.
+- 이미 생성된 에셋·클립이 있으면 재생성을 건너뛰고 조립만 한다(기존 "storyboard 직행"
+  execute의 조립-전용 동작을 흡수). 필요한 재료가 없으면 ProductionPlan에 따라 생성한다.
+- 영상 생성을 아예 못 하는 누락(필수 에셋 경로 부재)은 누락을 알려 주고 멈춘다(에러 종료).
 
 ## 설치와 실행(요약)
 
