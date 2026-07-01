@@ -32,11 +32,18 @@ class LyriaMusicClient:
             f"{self.project}/locations/{self.location}/publishers/google/models/"
             f"{self.model}:predict"
         )
-        body: dict[str, object] = {
+        import json as _json
+
+        body = {
             "instances": [{"prompt": f"{prompt}, around {bpm} bpm, upbeat, instrumental"}],
             "parameters": {"sample_count": 1},
         }
-        resp = session.post(url, json=body, timeout=180)
+        resp = session.post(
+            url,
+            data=_json.dumps(body),
+            headers={"Content-Type": "application/json"},
+            timeout=180,
+        )
         resp.raise_for_status()
         preds = resp.json().get("predictions") or []
         if not preds:
