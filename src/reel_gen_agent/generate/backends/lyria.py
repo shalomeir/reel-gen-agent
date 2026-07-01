@@ -20,6 +20,8 @@ class LyriaMusicClient:
         self.project = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
     def generate(self, prompt: str, bpm: int, duration_sec: float, out_path: str) -> str:
+        import json as _json
+
         import google.auth
         from google.auth.transport.requests import AuthorizedSession
 
@@ -27,30 +29,35 @@ class LyriaMusicClient:
             raise RuntimeError("GOOGLE_CLOUD_PROJECT가 필요하다(Lyria).")
         creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
         session = AuthorizedSession(creds)
-        url = (
-            f"https://{self.location}-aiplatform.googleapis.com/v1/projects/"
-            f"{self.project}/locations/{self.location}/publishers/google/models/"
-            f"{self.model}:predict"
-        )
-        import json as _json
-
         body = {
             "instances": [{"prompt": f"{prompt}, around {bpm} bpm, upbeat, instrumental"}],
             "parameters": {"sample_count": 1},
         }
-        resp = session.post(
-            url,
-            data=_json.dumps(body),
-            headers={"Content-Type": "application/json"},
-            timeout=180,
-        )
-        resp.raise_for_status()
-        preds = resp.json().get("predictions") or []
-        if not preds:
-            raise RuntimeError("Lyria 응답에 predictions 없음")
-        b64 = preds[0].get("bytesBase64Encoded") or preds[0].get("audioContent")
-        if not b64:
-            raise RuntimeError("Lyria 응답에 오디오 없음")
-        with open(out_path, "wb") as f:
-            f.write(base64.b64decode(b64))
-        return out_path
+        # 설정 모델을 먼저, 실패하면 predict GA 모델(lyria-002)로 재시도한다(모델명·리전 흔들림 방어).
+        models: list[str] = []
+        for mdl in (self.model, "lyria-002"):
+            if mdl and mdl not in models:
+                models.append(mdl)
+
+        last_error: Exception | None = None
+        for mdl in models:
+            url = (
+                f"https://{self.location}-aiplatform.googleapis.com/v1/projects/"
+                f"{self.project}/locations/{self.location}/publishers/google/models/{mdl}:predict"
+            )
+            try:
+                resp = session.post(
+                    url, data=_json.dumps(body),
+                    headers={"Content-Type": "application/json"}, timeout=180,
+                )
+                resp.raise_for_status()
+                preds = resp.json().get("predictions") or []
+                b64 = (preds[0].get("bytesBase64Encoded") or preds[0].get("audioContent")) if preds else None
+                if not b64:
+                    raise RuntimeError("Lyria 응답에 오디오 없음")
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(b64))
+                return out_path
+            except Exception as exc:  # 다음 모델로 재시도
+                last_error = exc
+        raise RuntimeError(f"Lyria 생성 실패: {last_error}")

@@ -71,6 +71,8 @@ class VeoBackend:
             duration_seconds=_veo_seconds(duration_sec),
             resolution="1080p" if width >= 1080 else "720p",
             generate_audio=False,  # voiceover는 별도 TTS
+            # 인물(성인) 생성을 허용해야 캐릭터 image-to-video가 RAI 필터에 안 막힌다.
+            person_generation="allow_adult",
             output_gcs_uri=self.gcs_uri,
         )
         op = client.models.generate_videos(
