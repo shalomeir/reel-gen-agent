@@ -2,13 +2,47 @@ import json
 
 import pytest
 
-from reel_gen_agent.generate.hook import generate_hooks
+from reel_gen_agent.generate.hook import _extract_json, generate_hooks
 from reel_gen_agent.generate.schema import HookRequest, ProductSpec
 from reel_gen_agent.generate.text_client import StubTextClient
 
 
 def _client(cands):
     return StubTextClient([json.dumps({"candidates": cands})])
+
+
+def test_extract_json_strips_markdown_fence():
+    raw = '```json\n{"candidates": []}\n```'
+    assert json.loads(_extract_json(raw)) == {"candidates": []}
+
+
+def test_extract_json_handles_prose_around_object():
+    raw = 'Here you go:\n{"candidates": [1]}\nHope that helps!'
+    assert json.loads(_extract_json(raw)) == {"candidates": [1]}
+
+
+def test_generate_hooks_parses_fenced_llm_output():
+    cands = [
+        {
+            "hook_type": "H1",
+            "headline": "Glow",
+            "visual_direction": "macro",
+            "bridge": "serum",
+            "variant": "question",
+        },
+        {
+            "hook_type": "H1",
+            "headline": "Glow now",
+            "visual_direction": "macro",
+            "bridge": "serum",
+            "variant": "command",
+        },
+    ]
+    fenced = "```json\n" + json.dumps({"candidates": cands}) + "\n```"
+    hs = generate_hooks(
+        HookRequest(product=ProductSpec(name="s"), count=2), StubTextClient([fenced])
+    )
+    assert len(hs.candidates) == 2
 
 
 def test_window_is_three_seconds_for_long_video():

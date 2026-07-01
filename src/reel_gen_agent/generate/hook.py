@@ -12,12 +12,55 @@ from .schema import HOOK_TYPES, HookCandidate, HookRequest, HookSet
 from .text_client import TextClient
 
 _PROMPT = (
-    "역할: 20~30초 세로 뷰티 숏폼의 첫 1~3초 후크 {count}개를 생성한다.\n"
-    "제품: {product}. 카테고리: {category}. 톤: {tone}.\n"
-    '출력: JSON {{"candidates": [{{hook_type, headline, bottom_caption, '
-    "no_text_visual, visual_direction, opening_beat, bridge, variant, rationale}}]}}.\n"
-    "유형은 H1~H12 중에서 고른다. count>=2면 질문형·명령형을 섞는다."
+    "Role: generate {count} first-1-3-second hooks for a 20-30s vertical beauty short.\n"
+    "Product: {product}. Category: {category}. Tone: {tone}. Language: English.\n"
+    'Output raw JSON only (no markdown fences, no prose): {{"candidates": [{{'
+    '"hook_type": "H1..H12", "headline": str, "bottom_caption": str, '
+    '"no_text_visual": false, "visual_direction": str, "opening_beat": str, '
+    '"bridge": str, "variant": "question"|"command", "rationale": str}}]}}.\n'
+    "hook_type must be one of H1..H12. no_text_visual is a boolean (true/false).\n"
+    "If count>=2, include exactly one question and one command variant."
 )
+
+# 선택 str 필드(None 허용)와 필수 str 필드(기본 "")를 나눠 정제한다.
+_OPTIONAL_STR = ("headline", "bottom_caption")
+_REQUIRED_STR = ("visual_direction", "opening_beat", "bridge", "rationale")
+
+
+def _coerce_candidate(c: dict) -> dict:
+    """LLM이 낸 후보 dict를 HookCandidate 스키마에 맞게 정제한다(타입 흔들림 방어)."""
+
+    def as_bool(v: object) -> bool:
+        if isinstance(v, bool):
+            return v
+        return str(v).strip().lower() in {"true", "1", "yes"}
+
+    out: dict = {"hook_type": str(c.get("hook_type", "")).strip()}
+    for f in _OPTIONAL_STR:
+        v = c.get(f)
+        out[f] = None if v is None else str(v)
+    for f in _REQUIRED_STR:
+        v = c.get(f)
+        out[f] = "" if v is None else str(v)
+    out["reinforce_overlap"] = as_bool(c.get("reinforce_overlap", False))
+    out["no_text_visual"] = as_bool(c.get("no_text_visual", False))
+    variant = c.get("variant")
+    out["variant"] = str(variant) if variant is not None else None
+    return out
+
+
+def _extract_json(raw: str) -> str:
+    """LLM 응답에서 JSON 오브젝트만 뽑는다. 마크다운 펜스·앞뒤 산문을 견딘다."""
+    s = raw.strip()
+    if s.startswith("```"):
+        # ```json ... ``` 펜스 제거: 첫 줄과 마지막 펜스를 벗긴다.
+        s = s.split("```", 2)[1] if s.count("```") >= 2 else s.strip("`")
+        if s.lstrip().lower().startswith("json"):
+            s = s.lstrip()[4:]
+    start, end = s.find("{"), s.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return s[start : end + 1]
+    return s
 
 
 def _window(duration_sec: float) -> tuple[float, float]:
@@ -34,11 +77,11 @@ def generate_hooks(request: HookRequest, client: TextClient) -> HookSet:
         tone=", ".join(request.tone) or "auto",
     )
     raw = client.complete(prompt, temperature=0.9)
-    data = json.loads(raw)
+    data = json.loads(_extract_json(raw))
     window = _window(request.duration_sec)
     candidates: list[HookCandidate] = []
     for c in data["candidates"]:
-        cand = HookCandidate(**c)  # validator가 hook_type을 검증한다
+        cand = HookCandidate(**_coerce_candidate(c))  # validator가 hook_type을 검증한다
         cand.window_sec = window
         fit = HOOK_TYPES[cand.hook_type]["product_fit"]
         if fit == "low" and not (cand.bridge or "").strip():
