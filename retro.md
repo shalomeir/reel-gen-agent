@@ -46,6 +46,24 @@
 정리하면, 목소리는 "일단 난다" 수준까지는 왔지만 **캐릭터 매칭·언어 보장·연기·믹스**를
 본격적으로 다듬는 일이 남아 있다. 제품 충실도와 함께 다음 개선 1순위다.
 
+## 0-2. 핵심 한계: reference-to-video는 원하는 퀄리티가 안 나왔다 (폐기)
+
+세 번째 한계이자 방향 전환. 처음에는 Kling O3 reference-to-video가 캐릭터·제품 일관성의 최선
+경로라고 봤다. 여러 reference를 한 번에 넣고, `elements`(frontal_image_url)로 인물 정체성까지
+고정하는 방식이 이론적으로 가장 강해 보였기 때문이다.
+
+그런데 **실제 생성해 보니 `fal-ai/kling-video/o3/pro/reference-to-video`의 영상 퀄리티가 기대에
+크게 못 미쳤다**(2026-07-02 확인). 일관성 이전에 영상 자체의 완성도가 무너져 쓸 수 없는
+수준이었다. 그래서 reference-to-video는 **운영 경로에서 완전히 버렸다.**
+
+- **기본 영상 경로를 Kling O3 Pro image-to-video로 바꿨다.** `fal-ai/kling-video/o3/pro/
+  image-to-video`를 `VIDEO_MODEL_PRIORITY` 최상단에 두고, `.env.example`의 우선순위·기본값에서
+  reference-to-video를 제거했다(쓸 일이 없게).
+- **ref2v 코드는 남겨 뒀다.** 나중에 모델이 개선되면 다시 검토할 여지가 있어, 인터페이스와
+  `elements` 처리 코드는 지우지 않았다. 다만 기본 설정으로는 절대 선택되지 않는다.
+- 아래 2·3절에 "Kling O3 Pro reference-to-video가 최선"이라고 적어 둔 초기 판단은 이 검증으로
+  뒤집혔다. 지금 기준 최선은 Kling O3 Pro image-to-video다.
+
 ## 1. 현재 구조의 가정과 가설
 
 지금 아키텍처는 몇 가지 베팅 위에 서 있다. 맞다고 증명된 게 아니라, 맞다고 보고
@@ -118,10 +136,9 @@
   호출한다. Fast가 start image 기반 뷰티 사용 컷에서 가장 무난했다. Standard/Pro급 Veo는
   중요한 히어로 컷의 고품질 승격 옵션으로만 둔다. Lite는 start/end control board에서 split
   artifact가 생겨 기본 후보에서 내린다. 
-  다만 성능상 최선의 선택은 Kling O3다. 특히 O3 Pro
-  reference-to-video는 캐릭터 설정 이미지, 제품 이미지, start/action image, 멀티샷 storyboard를
-  함께 넣었을 때 캐릭터·제품·액션 일관성이 가장 좋았다. 지금은 전체 개발 cycle을 Veo Fast로
-  마무리하고, 사용자가 FAL.ai + .env 에서 kling 을 우선시 하면 그때 기본 영상 모델을 Kling O3로 바꾼다.
+  Kling O3도 강한 후보다(**단, O3 Pro reference-to-video는 0-2절대로 퀄리티 미달로 폐기했다**).
+  현 기준 fal 경로 최선은 Kling O3 Pro image-to-video이고, `.env`에서 fal을 우선시하면 그게
+  기본 영상 모델이 된다. reference-to-video는 기본 경로에서 뺐다.
 - **BGM**: Lyria 생성을 1차로, 사용자 제공 파일이나 무음을 폴백으로.
 - **voice(나레이션 기본)**: ElevenLabs를 선호, 또는 Google TTS Chirp 3로 캐릭터 음색
   나레이션을 길게 뽑는다. on-camera 발화는 역동적 컷에서만, 멀티컷 일관이 필요하면 Kling
@@ -175,16 +192,15 @@
   reference가 likeness/private information 가능성으로 provider validation에 막혔다. 이
   프로젝트는 캐릭터 외모와 제품을 같이 고정해야 하므로, Seedance는 품질 문제가 아니라
   사용성 자체가 불안정한 후보로 본다.
-- **Kling O3가 성능상 최선.** 현시점 이 프로젝트의 영상 생성 품질만 보면 Kling O3가 가장
-  강하다. 최선 경로는 O3 Pro reference-to-video다. 적절한 prompt와 함께 start/action image,
-  구체적인 캐릭터 설정 이미지, 구체적인 제품 이미지, 멀티샷 storyboard를 reference로 넣으면
-  복잡한 뷰티 제품 컷에서도 일관성이 좋다. 컷별로 잘라 생성하고 조립하는 방식이 더 고품질이지만,
-  멀티샷이 필요하면 O3 `multi_prompt`로 한 번에 밀어붙일 수 있다.
+- **Kling O3가 성능상 최선(단, image-to-video로).** 현시점 이 프로젝트의 영상 생성 품질만 보면
+  Kling O3가 가장 강하다. **초기엔 O3 Pro reference-to-video를 최선 경로로 봤으나 실제 퀄리티가
+  미달이라 폐기했다(0-2절).** 지금 최선은 **O3 Pro image-to-video**다. 컷별 start image를 만들어
+  넣고 조립하는 방식이 가장 안정적이었다.
 - **Kling O3 image-to-video는 Veo 치환이 쉽다.** start image와 end image를 넣을 수 있어
-  Veo 3.1 image-to-video와 비슷한 형태로 바꿔 끼우기 좋다. 마스크팩 테스트에서는 start/end
-  이미지를 먼저 만든 뒤 O3 image-to-video에 넣는 방식이 reference-to-video보다 액션 전환을 더
-  명확하게 만들었다. 그래도 캐릭터·제품·스토리보드 reference를 많이 묶는 복잡한 컷은
-  reference-to-video가 더 맞다.
+  Veo 3.1 image-to-video와 비슷한 형태로 바꿔 끼우기 좋다. 마스크팩 테스트에서도 start/end
+  이미지를 먼저 만든 뒤 O3 image-to-video에 넣는 방식이 액션 전환을 더 명확하게 만들었다.
+  reference-to-video는 여러 reference를 묶는 복잡한 컷에 이론상 맞아 보였지만, 실제 퀄리티가
+  안 나와 쓰지 않는다(0-2절).
 - **Veo start image 컷 제어.** Veo는 텍스트만으로는 제품, 캐릭터, 시작 동작, 끝 상태가
   안정적으로 고정되지 않았다. Nano Banana로 컷별 start image를 먼저 만들고, 필요하면 한 장
   안에 start/end keyframe board를 만들어 프롬프트로 "split-screen이 아닌 연속 full-screen
