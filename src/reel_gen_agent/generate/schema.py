@@ -571,6 +571,11 @@ class RunManifest(BaseModel):
     panel_segments: list[str] = Field(default_factory=list)  # concat 순서대로의 클립 경로
     nodes: list[NodeRun] = Field(default_factory=list)
     production_plan: ProductionPlan | None = None  # 런타임 해소 결과
+    # 실제로 영상을 만든 백엔드(런타임 결과). plan.video_model은 '선택'이고 이건 '실행'이다.
+    # 영상 모델이 세그먼트에 실패하면 그 컷은 ken_burns로 폴백하므로, 아래로 실제를 기록한다.
+    video_backend_used: str | None = None  # "ken_burns" 또는 실제 영상 모델 id
+    video_segments_total: int = 0  # 렌더한 세그먼트 수(앵커 스틸 있는 것)
+    video_segments_fallback: int = 0  # 그중 ken_burns로 폴백한 수
 
 
 # --- 최종 산출 리포트 (describe / report 노드) --------------------------------

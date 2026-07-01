@@ -171,9 +171,12 @@ def _visuals_node(state: ExecState) -> dict:
         video_prompt = "\n\n".join(visuals.prompts) or None
         if video_prompt:
             span.set(output=video_prompt)
-        state["manifest"].nodes.append(
-            NodeRun(name="visuals", artifacts=visuals.shot_clips, prompt=video_prompt)
-        )
+        # 실제 렌더 결과를 매니페스트에 남긴다(리포트가 '선택'이 아닌 '실행'을 표기하도록).
+        mf = state["manifest"]
+        mf.video_backend_used = visuals.video_backend
+        mf.video_segments_total = visuals.segments_total
+        mf.video_segments_fallback = visuals.segments_total - visuals.segments_rendered
+        mf.nodes.append(NodeRun(name="visuals", artifacts=visuals.shot_clips, prompt=video_prompt))
         return {"visuals": visuals}
 
 

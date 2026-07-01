@@ -33,6 +33,11 @@ class VisualMaterials:
     total_dur: float = 0.0
     native_audio: bool = False  # 온카메라 발화(영상 네이티브 음성) 보존 여부
     prompts: list[str] = field(default_factory=list)  # 세그먼트별 영상 모델 프롬프트(리포트용)
+    # 실제 영상 백엔드 결과(리포트 정확도용). video_backend는 시도한 모델("ken_burns"면 영상
+    # 모델 없이 켄 번스), segments_total/rendered는 세그먼트 중 영상 모델로 실제 렌더된 수.
+    video_backend: str = "ken_burns"
+    segments_total: int = 0
+    segments_rendered: int = 0
 
 
 def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> str | None:
@@ -64,7 +69,9 @@ def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> st
         parts.append("steady, even energy throughout")
     # 보컬은 시도하지 않는다(사용자 지시 + Lyria 3 한계): 항상 인스트루멘털 배경 베드.
     parts.append("instrumental background bed, no vocals")
-    prompt = ", ".join(parts) or "modern, tasteful, professional instrumental background bed, no vocals"
+    prompt = (
+        ", ".join(parts) or "modern, tasteful, professional instrumental background bed, no vocals"
+    )
     # Lyria는 Vertex(GOOGLE_CLOUD_PROJECT) 또는 Gemini API(GEMINI_API_KEY) 어느 쪽으로도 돈다.
     use_lyria = (
         plan.bgm == "gen"
@@ -176,8 +183,14 @@ def _beat_action(beat: str) -> str:
 # 언어 코드 -> 프롬프트에 넣을 사람이 읽는 이름. 영상 모델은 "en"보다 "English"를 잘 따른다.
 # 목록에 없으면 코드를 그대로 쓴다(입력이 명시할 때만 비영어로 바뀐다. 기본은 en=English).
 _LANG_NAME: dict[str, str] = {
-    "en": "English", "ko": "Korean", "ja": "Japanese", "zh": "Chinese",
-    "es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese",
+    "en": "English",
+    "ko": "Korean",
+    "ja": "Japanese",
+    "zh": "Chinese",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "pt": "Portuguese",
 }
 
 
@@ -336,8 +349,16 @@ def _beat_cut_frame(panel: StoryboardPanel, cut_index: int) -> tuple[float, floa
 
 
 def _extract_subcut(
-    seg_clip: str, start: float, dur: float, zoom: float, w: int, h: int, fps: int, out: str,
-    keep_audio: bool = False, y_frac: float = 0.5,
+    seg_clip: str,
+    start: float,
+    dur: float,
+    zoom: float,
+    w: int,
+    h: int,
+    fps: int,
+    out: str,
+    keep_audio: bool = False,
+    y_frac: float = 0.5,
 ) -> str:
     """세그먼트 클립의 [start, start+dur] 구간을 줌·세로앵커 프레이밍으로 잘라 서브컷을 만든다.
 
@@ -349,10 +370,20 @@ def _extract_subcut(
     y_expr = f"(ih*{zoom}-{h})*{y_frac:.3f}"
     vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h}:(iw*{zoom}-{w})/2:{y_expr},setsar=1"
     cmd = [
-        "ffmpeg", "-y", "-i", seg_clip, "-ss", f"{start:.3f}", "-t", f"{dur:.3f}",
-        "-vf", vf, "-r", str(fps),
+        "ffmpeg",
+        "-y",
+        "-i",
+        seg_clip,
+        "-ss",
+        f"{start:.3f}",
+        "-t",
+        f"{dur:.3f}",
+        "-vf",
+        vf,
+        "-r",
+        str(fps),
     ]
-    cmd += (["-c:a", "aac"] if keep_audio else ["-an"])
+    cmd += ["-c:a", "aac"] if keep_audio else ["-an"]
     cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out]
     subprocess.run(cmd, check=True, capture_output=True)
     return out
@@ -418,12 +449,15 @@ def build_visuals(
     total_dur = 0.0
     cut_index = 0  # 전체 서브컷 순번(줌 홀짝 번갈기용)
     made_any = False  # Veo가 오디오 있는 클립을 하나라도 만들었나(씬 오디오 보존 판단)
+    seg_total = 0  # 렌더 시도한 세그먼트 수(앵커 스틸 있는 것)
+    seg_rendered = 0  # 그중 영상 모델로 실제 렌더된 수(나머지는 ken_burns 폴백)
     prompts: list[str] = []  # 세그먼트별 영상 모델 프롬프트(리포트 "노드별 프롬프트"용)
 
     for seg_pos, indices in enumerate(segments):
         anchor = panels[indices[0]]
         if not anchor.still_image:
             continue  # 앵커 스틸이 없으면 만들 거리가 없다.
+        seg_total += 1
         seg_dur = sum(_panel_dur(panels[i]) for i in indices)
         motions = [
             plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
@@ -436,22 +470,37 @@ def build_visuals(
             try:
                 start_image = anchor.still_image
                 prompt = _multishot_prompt(
-                    [panels[i] for i in indices], motions, product_name, style, speaking,
-                    hook_visual, pacing=profile.style.pacing,
-                    motion=profile.style.motion, product_identity=product_id,
-                    language=language, dialogue=dialogue,
+                    [panels[i] for i in indices],
+                    motions,
+                    product_name,
+                    style,
+                    speaking,
+                    hook_visual,
+                    pacing=profile.style.pacing,
+                    motion=profile.style.motion,
+                    product_identity=product_id,
+                    language=language,
+                    dialogue=dialogue,
                 )
                 prompts.append(f"[segment {seg_pos}] {prompt}")
                 # reference-to-video 백엔드(Kling)는 캐릭터·제품 이미지를 외모 참조로 함께 넣어
                 # 컷마다 인물·제품 일관성을 높인다. i2v(Veo/Kling i2v)는 이 인자를 무시한다.
                 ref_imgs = [r for r in (character_image, product_image) if r]
                 veo.render_panel(
-                    start_image, seg_dur, m.width, m.height, m.fps, seg_clip,
-                    motion=motions[0], prompt=prompt, generate_audio=gen_audio,
+                    start_image,
+                    seg_dur,
+                    m.width,
+                    m.height,
+                    m.fps,
+                    seg_clip,
+                    motion=motions[0],
+                    prompt=prompt,
+                    generate_audio=gen_audio,
                     reference_images=ref_imgs,
                 )
                 made = True
                 made_any = True
+                seg_rendered += 1
             except VeoImageRAIError as exc:
                 # 인물 이미지-RAI(대개 실존 인물과 유사)는 이 세그먼트만 스틸(켄 번스)로 폴백한다.
                 # 인물 레퍼런스를 가깝게 따르면 Veo가 가끔 얼굴을 정책 차단하는데(스틸/나노바나나는
@@ -479,8 +528,13 @@ def build_visuals(
                 from .stills import ensure_panel_stills
 
                 ensure_panel_stills(
-                    profile, out_dir, image_client, character_image, product_image,
-                    anchor_indices=set(indices), key_visual=key_visual,
+                    profile,
+                    out_dir,
+                    image_client,
+                    character_image,
+                    product_image,
+                    anchor_indices=set(indices),
+                    key_visual=key_visual,
                 )
             except Exception as exc:
                 print(f"[materials] 폴백 패널 스틸 생성 실패(앵커로 진행): {exc}", file=sys.stderr)
@@ -496,8 +550,16 @@ def build_visuals(
             if made:
                 zoom, y_frac = _beat_cut_frame(p, cut_index)
                 _extract_subcut(
-                    seg_clip, local, d, zoom, m.width, m.height, m.fps, sub_clip,
-                    keep_audio=gen_audio, y_frac=y_frac,
+                    seg_clip,
+                    local,
+                    d,
+                    zoom,
+                    m.width,
+                    m.height,
+                    m.fps,
+                    sub_clip,
+                    keep_audio=gen_audio,
+                    y_frac=y_frac,
                 )
             else:
                 # 폴백: 이 컷의 개별 스틸(없으면 앵커)을 zoom-in 계열 모션으로 렌더한다. 컷마다
@@ -505,7 +567,13 @@ def build_visuals(
                 still_i = panels[i].still_image or anchor.still_image
                 motion_i = _FALLBACK_MOTIONS[cut_index % len(_FALLBACK_MOTIONS)]
                 ken.render_panel(
-                    still_i, d, m.width, m.height, m.fps, sub_clip, motion=motion_i,
+                    still_i,
+                    d,
+                    m.width,
+                    m.height,
+                    m.fps,
+                    sub_clip,
+                    motion=motion_i,
                 )
             clips.append(sub_clip)
             cut_index += 1
@@ -527,6 +595,11 @@ def build_visuals(
         # voiceover면 나레이션 아래 씬 효과음). ken_burns 폴백만 있으면 무음이라 False.
         native_audio=made_any and gen_audio,
         prompts=prompts,
+        # 실제 렌더 결과: 영상 모델이 붙었으면 그 id, 아니면 ken_burns. 세그먼트 성공/총계로
+        # 부분 폴백까지 리포트가 정직하게 표기하게 한다.
+        video_backend=((plan.video_model or "ken_burns") if veo is not None else "ken_burns"),
+        segments_total=seg_total,
+        segments_rendered=seg_rendered,
     )
 
 

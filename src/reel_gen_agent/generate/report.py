@@ -8,7 +8,13 @@ from __future__ import annotations
 
 import os
 
-from .cost import _bgm_model, estimate_cost
+from .cost import (
+    _bgm_model,
+    _effective_video_model,
+    _text_key_present,
+    _tts_model,
+    estimate_cost,
+)
 from .schema import (
     BgmReport,
     CostReport,
@@ -24,8 +30,12 @@ def _character_summary(profile: ReelProfile) -> dict:
     """캐릭터 설정(ModelSpec)을 report용 dict로. 빈 값은 뺀다."""
     c = profile.character
     fields = {
-        "name": c.name, "age": c.age, "gender": c.gender,
-        "look": c.look, "body": c.body, "wardrobe": c.wardrobe,
+        "name": c.name,
+        "age": c.age,
+        "gender": c.gender,
+        "look": c.look,
+        "body": c.body,
+        "wardrobe": c.wardrobe,
     }
     return {k: v for k, v in fields.items() if v}
 
@@ -49,8 +59,10 @@ def _hook_summary(profile: ReelProfile) -> dict:
     if not h:
         return {}
     fields = {
-        "type": h.hook_type, "headline": h.headline,
-        "bottom_caption": h.bottom_caption, "visual": h.visual_direction,
+        "type": h.hook_type,
+        "headline": h.headline,
+        "bottom_caption": h.bottom_caption,
+        "visual": h.visual_direction,
     }
     return {k: v for k, v in fields.items() if v}
 
@@ -87,6 +99,47 @@ def _bgm_report(profile: ReelProfile, plan, env: dict) -> BgmReport:
     return BgmReport(kind=kind, model=label, description=desc)
 
 
+def _video_used_str(manifest: RunManifest, plan, env: dict) -> str | None:
+    """실제로 영상을 만든 백엔드를 사람이 읽을 문자열로. '선택'이 아니라 '실행'을 말한다.
+
+    런타임에 영상 모델이 세그먼트에 실패하면 그 컷은 ken_burns로 폴백하므로, 전량/부분
+    폴백을 그대로 드러낸다. 구버전 매니페스트(기록 없음)면 plan 기준으로 폴백 표기한다.
+    """
+    backend = manifest.video_backend_used
+    if not backend:  # 실행 기록이 없는 회차 -> plan에서 유효 모델을 추정
+        return _effective_video_model(plan, env) if plan else None
+    if backend == "ken_burns":
+        return "ken_burns"
+    total = manifest.video_segments_total
+    fb = manifest.video_segments_fallback
+    if total and fb >= total:
+        return f"ken_burns (계획: {backend}, 전량 폴백)"
+    if fb > 0:
+        return f"{backend} ({total - fb}/{total} 컷, {fb}컷 ken_burns 폴백)"
+    return backend
+
+
+def _models_used(manifest: RunManifest, plan, env: dict) -> dict:
+    """리포트 '사용 모델' 섹션. 영상은 실제 렌더 결과, 나머지는 용도별 실제 백엔드로 채운다."""
+    models: dict = {}
+    video = _video_used_str(manifest, plan, env)
+    if video:
+        models["video"] = video
+    if plan:
+        hero = env.get("GEMINI_IMAGE_MODEL_HERO") or "gemini-3.1-pro-image-preview"
+        flash = env.get("GEMINI_IMAGE_MODEL") or "gemini-3.1-flash-image-preview"
+        # ken_burns 스틸은 Flash, i2v 앵커 스틸은 히어로 4K(stills 노드·cost와 같은 규칙).
+        stills_kb = _effective_video_model(plan, env) == "ken_burns"
+        models["image_still"] = flash if stills_kb else hero
+        models["image_asset"] = hero  # 캐릭터·제품·패키지·키비주얼은 항상 히어로 4K
+        models["bgm"] = _bgm_model(plan, env)  # lyria-* / synth / none
+        if plan.voice_strategy == "separate_tts":
+            models["tts"] = _tts_model(plan, env)  # eleven_v3 / gemini tts
+    if _text_key_present(env):
+        models["llm"] = env.get("GEMINI_TEXT_MODEL") or "gemini-3.1-pro-preview"
+    return models
+
+
 def build_final_report(
     run_id: str,
     profile: ReelProfile,
@@ -103,7 +156,7 @@ def build_final_report(
     prompts = [NodePrompt(node=nr.name, prompt=nr.prompt) for nr in manifest.nodes if nr.prompt]
     plan = manifest.production_plan
     env = dict(os.environ)
-    models = {"video": plan.video_model} if plan else {}
+    models = _models_used(manifest, plan, env)
     bgm = _bgm_report(profile, plan, env)
     cost = estimate_cost(profile, plan, manifest, conformance, rubric)
     return FinalReport(
@@ -162,7 +215,7 @@ def _storyboard_section(rows: list) -> list[str]:
     for r in rows:
         beat = r.get("beat") or "-"
         sub = f' 자막:"{r["subtitle"]}"' if r.get("subtitle") else ""
-        act = f' — {r["action"]}' if r.get("action") else ""
+        act = f" — {r['action']}" if r.get("action") else ""
         out.append(f"- `{r.get('t', '')}` [{beat}]{act}{sub}")
     out.append("")
     return out

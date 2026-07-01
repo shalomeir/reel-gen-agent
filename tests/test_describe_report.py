@@ -1,5 +1,5 @@
 from reel_gen_agent.generate.describe import build_upload_kit, render_upload_md
-from reel_gen_agent.generate.report import build_final_report, render_report_md
+from reel_gen_agent.generate.report import _models_used, build_final_report, render_report_md
 from reel_gen_agent.generate.schema import (
     NodeRun,
     Objective,
@@ -83,6 +83,68 @@ def test_final_report_md_puts_user_input_first_and_prompts_last(tmp_path):
     assert "품질 평가" in text
 
 
+def test_models_used_reports_actual_render_not_just_plan():
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/reference-to-video", bgm="gen"
+    )
+    env = {"GEMINI_API_KEY": "k", "FAL_KEY": "f"}
+
+    # 전량 렌더 성공 -> 계획 모델 그대로.
+    full = RunManifest(
+        production_plan=plan,
+        video_backend_used="fal-ai/kling-video/o3/standard/reference-to-video",
+        video_segments_total=3,
+        video_segments_fallback=0,
+    )
+    assert _models_used(full, plan, env)["video"] == (
+        "fal-ai/kling-video/o3/standard/reference-to-video"
+    )
+
+    # 일부 세그먼트가 런타임 폴백 -> 부분 폴백을 정직하게 표기.
+    partial = RunManifest(
+        production_plan=plan,
+        video_backend_used="fal-ai/kling-video/o3/standard/reference-to-video",
+        video_segments_total=3,
+        video_segments_fallback=1,
+    )
+    assert "2/3" in _models_used(partial, plan, env)["video"]
+    assert "폴백" in _models_used(partial, plan, env)["video"]
+
+    # 전량 폴백 -> ken_burns로 실제를 말한다.
+    allfb = RunManifest(
+        production_plan=plan,
+        video_backend_used="fal-ai/kling-video/o3/standard/reference-to-video",
+        video_segments_total=3,
+        video_segments_fallback=3,
+    )
+    assert _models_used(allfb, plan, env)["video"].startswith("ken_burns")
+
+
+def test_models_used_lists_image_bgm_llm():
+    # i2v 계획이면 스틸=히어로 4K, 에셋=히어로, bgm=lyria, llm 포함.
+    plan = ProductionPlan(
+        video_model="veo-3.1-fast-generate-001", voice_strategy="separate_tts", bgm="gen"
+    )
+    manifest = RunManifest(
+        production_plan=plan,
+        video_backend_used="veo-3.1-fast-generate-001",
+        video_segments_total=2,
+        video_segments_fallback=0,
+    )
+    models = _models_used(manifest, plan, {"GEMINI_API_KEY": "k", "GOOGLE_CLOUD_PROJECT": "p"})
+    assert models["image_still"] == "gemini-3.1-pro-image-preview"
+    assert models["image_asset"] == "gemini-3.1-pro-image-preview"
+    assert "lyria" in models["bgm"]
+    assert models["tts"]  # voiceover라 TTS 표기
+    assert models["llm"] == "gemini-3.1-pro-preview"
+
+    # ken_burns면 스틸은 Flash.
+    kb_plan = ProductionPlan(video_model="ken_burns", voice_strategy="none", bgm="none")
+    kb_manifest = RunManifest(production_plan=kb_plan, video_backend_used="ken_burns")
+    kb_models = _models_used(kb_manifest, kb_plan, {"GEMINI_API_KEY": "k"})
+    assert kb_models["image_still"] == "gemini-3.1-flash-image-preview"
+
+
 def test_report_includes_plan_summary_and_video_prompt(tmp_path):
     # 캐릭터·스타일·훅·스토리보드·BGM(실제 모델)·영상 프롬프트가 리포트에 실린다.
     from reel_gen_agent.generate.schema import (
@@ -100,11 +162,17 @@ def test_report_includes_plan_summary_and_video_prompt(tmp_path):
             tone=["sensorial", "fresh"],
             pacing="fast_montage",
             motion="gentle",
-            hook=HookCandidate(hook_type="H1", headline="Want this glow?", visual_direction="macro"),
+            hook=HookCandidate(
+                hook_type="H1", headline="Want this glow?", visual_direction="macro"
+            ),
         ),
         music=MusicSpec(mood="uplifting", style="lofi", tempo="120 bpm"),
         storyboard=Storyboard(
-            panels=[StoryboardPanel(index=0, t_start=0, t_end=2, beat="hook", subtitle_text="Want this glow?")]
+            panels=[
+                StoryboardPanel(
+                    index=0, t_start=0, t_end=2, beat="hook", subtitle_text="Want this glow?"
+                )
+            ]
         ),
     )
     manifest = RunManifest(
