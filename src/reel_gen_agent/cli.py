@@ -27,6 +27,7 @@ from .analysis.reference import _find_project_root, download_via_script
 from .analysis.reference import add_reference as add_reference_flow
 from .analysis.rubric import evaluate_video
 from .analysis.similarity import SimilarityReport, compare_profiles
+from .generate.asset_bible import AssetGenerationError
 from .generate.backends.veo import VeoImageRAIError
 from .generate.conformance import verify_conformance
 from .generate.intake import intake, normalized_input_to_brief, validate_purpose
@@ -485,12 +486,18 @@ def run(
     for i in range(iters):
         if i > 0:
             typer.echo(f"[반복 {i + 1}/{iters}] 유사도 미달 -> 피드백 재계획", err=True)
-        path = _working(
-            "기획 중 (ReelProfile·에셋 생성)",
-            lambda f=feedback: run_planning(
-                planning_brief, outputs, text_client=text, image_client=img, style_feedback=f
-            ),
-        )
+        try:
+            path = _working(
+                "기획 중 (ReelProfile·에셋 생성)",
+                lambda f=feedback: run_planning(
+                    planning_brief, outputs, text_client=text, image_client=img, style_feedback=f
+                ),
+            )
+        except AssetGenerationError as exc:
+            # 에셋 이미지가 한 장도 안 만들어졌으면 도돌이 없이 사유를 알리고 종료한다(에셋 없는
+            # ReelProfile로 production을 진행하면 stills에서 터진다). 진짜 원인은 exc에 실려 있다.
+            typer.echo(f"거절(에셋 생성 실패): {exc}", err=True)
+            raise typer.Exit(code=2) from exc
         typer.echo(f"ReelProfile: {path}", err=True)
         manifest = _working("영상 생성 중 (production)", lambda p=path: _produce(str(p), use_vlm=not no_vlm))
         typer.echo(f"영상: {manifest.final_video}", err=True)
