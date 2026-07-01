@@ -505,9 +505,9 @@ class ProductionPlan(BaseModel):
     segments: list[list[int]] = Field(default_factory=list)
     bgm: str = "none"  # gen / file / none
     sfx: bool = False
-    # 영상 모델이 씬 오디오(효과음/앰비언스)를 함께 생성할지. 거의 항상 True(무음 영상 지양).
-    # 순차 영상 생성 단계에서 voice(integrated)·씬 효과음이 한 번에 나올 수 있음을 plan이 명시한다.
-    # voiceover면 이 씬 오디오는 나레이션 아래 낮게 깔리고, integrated면 그게 발화 트랙이 된다.
+    # 영상 모델이 씬 오디오(효과음/앰비언스)를 함께 생성할지. 기본 True(효과음 때문에 켠다).
+    # voiceover면 _speech_directive가 "오디오에 발화·음성 금지, 앰비언스/효과음만"을 명시해 대사가
+    # 섞이지 않게 하고, integrated면 그게 발화(립싱크) 트랙이 된다.
     video_native_audio: bool = True
     fallbacks_applied: list[str] = Field(default_factory=list)
 

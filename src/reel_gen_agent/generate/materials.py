@@ -153,15 +153,40 @@ def _beat_action(beat: str) -> str:
     return _BEAT_ACTION.get(beat, "a natural product b-roll moment")
 
 
-def _speech_directive(speaking: bool) -> str:
+# 언어 코드 -> 프롬프트에 넣을 사람이 읽는 이름. 영상 모델은 "en"보다 "English"를 잘 따른다.
+# 목록에 없으면 코드를 그대로 쓴다(입력이 명시할 때만 비영어로 바뀐다. 기본은 en=English).
+_LANG_NAME: dict[str, str] = {
+    "en": "English", "ko": "Korean", "ja": "Japanese", "zh": "Chinese",
+    "es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese",
+}
+
+
+def _lang_name(code: str | None) -> str:
+    """언어 코드를 프롬프트용 이름으로. 기본은 영어."""
+    return _LANG_NAME.get((code or "en").split("-")[0].lower(), code or "English")
+
+
+def _speech_directive(speaking: bool, language: str = "English") -> str:
     """발화 지시문([ADR.md] ADR-0012). 나레이션(기본)이면 영상에서 말하는 느낌을 없애 립싱크
-    불일치를 막고, 온카메라 발화가 필요할 때만 영상 모델이 립싱크로 직접 말하게 한다.
+    불일치를 막고, 온카메라 발화(integrated)일 때만 영상 모델이 립싱크로 직접 말하게 한다.
+
+    오디오는 효과음(앰비언스) 때문에 켜 두므로, 나레이션형에선 '입도 안 움직이고(비주얼)' +
+    '오디오에도 발화·음성 금지(오디오)' 둘 다 명시해야 한다. 오디오 발화를 막지 않으면 Veo가
+    제멋대로 대사(가끔 엉뚱한 언어)를 깔아버린다. 앰비언스·제품 조작음 같은 비발화 사운드는 허용.
+
+    integrated면 반대로 '지정 언어로만' 말하게 못박는다. 언어를 안 박으면 Veo가 엉뚱한 언어
+    (예: 중국어)로 발화한다. 실제 대사는 각 샷에 개별로 붙인다(_multishot_prompt의 dialogue).
     """
     if speaking:
-        return "The person speaks to the camera with natural, realistic lip-sync."
+        return (
+            f"The person speaks to the camera in {language} only, with natural, realistic lip-sync. "
+            f"Every spoken word is in {language}; never any other language, no gibberish."
+        )
     return (
         "The person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, "
-        "no lip-sync (voiceover is added separately)."
+        "no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, "
+        "water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no "
+        "spoken words in any language. Voiceover is added separately."
     )
 
 
@@ -175,6 +200,8 @@ def _multishot_prompt(
     pacing: str | None = None,
     motion: str | None = None,
     product_identity: str = "",
+    language: str = "English",
+    dialogue: dict[int, str] | None = None,
 ) -> str:
     """세그먼트 안 패널들을 샷 리스트 멀티샷 프롬프트로 편다([multishot-segments.md]).
 
@@ -183,8 +210,14 @@ def _multishot_prompt(
     담아 컷 변화를 유도한다. 편집 결(hard/fast vs gentle/slow)은 pacing에서 유도해, 레퍼런스가
     느린 시연이면 컷이 하드하게 튀지 않게 한다(하드코딩 금지). 인물·제품 일관, 발화 여부(립싱크)를
     명시적으로 요구한다(외모·피부 질감 등 내용은 입력·시작 이미지에서 오게 두고 강제하지 않는다).
+
+    integrated(온카메라 발화)면 dialogue(패널 index -> 대사)에서 각 샷의 실제 대사를 뽑아
+    그 샷에 붙인다. 이러면 Veo가 지정 언어의 스크립트를 립싱크하고, 할 말을 제멋대로 지어내
+    엉뚱한 언어로 발화하는 일이 사라진다. 대사는 스크립트 노드가 캐릭터·목적에 맞춰 만든다.
     """
     from .pacing import edit_directive, motion_directive
+
+    dialogue = dialogue or {}
 
     lines = [
         f"A single vertical 9:16 clip that moves through {len(seg_panels)} shots played one after "
@@ -203,7 +236,7 @@ def _multishot_prompt(
     lines += [
         product_line,
         "Keep the same person consistent across every shot; exactly one person, no duplicate people.",
-        _speech_directive(speaking),
+        _speech_directive(speaking, language),
         # 자막은 편집단계에서 따로 올리므로, 영상 모델이 화면에 글자를 그리면 안 된다.
         "Do not render any on-screen text, captions, subtitles, letters, words or watermarks; "
         "clean footage with no text overlay.",
@@ -224,7 +257,14 @@ def _multishot_prompt(
         cam = (panel.camera or "").strip()
         cam_bit = f". Camera: {cam or directive}" if (cam or directive) else ""
         subject = _shot_subject(panel, product_name)
-        lines.append(f"Shot {k + 1}: {shot} — {subject}, {action}{cam_bit}.")
+        shot_line = f"Shot {k + 1}: {shot} — {subject}, {action}{cam_bit}."
+        # integrated 발화면 이 컷의 실제 대사를 붙여 Veo가 스크립트를 립싱크하게 한다(대사 없는
+        # 컷은 조용히 둔다). 대사에 큰따옴표가 있으면 프롬프트 구조가 깨지므로 작은따옴표로 바꾼다.
+        if speaking:
+            line = (dialogue.get(panel.index) or "").strip().replace('"', "'")
+            if line:
+                shot_line += f' The person says in {language}: "{line}"'
+        lines.append(shot_line)
     return "\n".join(lines)
 
 
@@ -346,10 +386,20 @@ def build_visuals(
     # 온카메라 발화(integrated)일 때만 영상 모델이 립싱크로 말하고 음성도 직접 낸다. 기본
     # 나레이션(separate_tts/none)은 영상에서 말하는 느낌을 없애 립싱크 불일치를 막는다.
     speaking = plan.voice_strategy == "integrated"
-    # 영상 모델은 씬 오디오(효과음/앰비언스)를 거의 항상 생성한다(무음 영상 지양, plan이 결정).
-    # integrated는 발화까지 네이티브로 내야 하므로 항상 오디오 on. 발화 여부는 speech 지시가 가른다
-    # (voiceover면 "말하지 않음"으로 씬 사운드만, integrated면 립싱크 발화까지).
+    # 영상 모델은 씬 오디오(효과음/앰비언스)를 함께 생성한다 — 효과음 때문에 voiceover에서도
+    # 켠다. 다만 오디오를 켜면 Veo가 제멋대로 대사(가끔 중국어)를 깔 수 있어, voiceover/none이면
+    # _speech_directive가 "오디오에 발화·음성 금지, 앰비언스/효과음만"을 강하게 명시해 대사가
+    # 섞이지 않게 한다. integrated면 그 발화가 립싱크 음성 트랙이 된다.
     gen_audio = bool(plan.video_native_audio) or speaking
+    # integrated 발화면 스크립트 노드가 만든 대사(패널 index -> 텍스트)와 언어를 Veo에 넘겨
+    # 그 언어로 립싱크하게 한다(언어 기본은 영어, meta.language가 명시할 때만 바뀐다). voiceover면
+    # 발화가 없으므로 대사 맵도 비운다(_speech_directive가 발화 금지를 명시).
+    language = _lang_name(m.language)
+    dialogue = (
+        {ln.panel_index: ln.text for ln in profile.narration.lines if (ln.text or "").strip()}
+        if speaking
+        else {}
+    )
     # 생성된 훅의 시각 컨셉을 훅 컷 생성에 반영한다(첫 3초가 훅을 실현하도록).
     hook_visual = (profile.style.hook.visual_direction or "") if profile.style.hook else ""
 
@@ -380,6 +430,7 @@ def build_visuals(
                     [panels[i] for i in indices], motions, product_name, style, speaking,
                     hook_visual, pacing=profile.style.pacing,
                     motion=profile.style.motion, product_identity=product_id,
+                    language=language, dialogue=dialogue,
                 )
                 veo.render_panel(
                     start_image, seg_dur, m.width, m.height, m.fps, seg_clip,

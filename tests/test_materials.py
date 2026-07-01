@@ -74,11 +74,13 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     assert len(fake.calls) == 1  # ≤15초 = 영상 모델 호출 1회(세그먼트 1개)
     # 멀티샷 프롬프트에 샷 리스트가 들어간다.
     assert "Shot 1:" in fake.calls[0][2] and "Shot 6:" in fake.calls[0][2]
-    # 기본 나레이션(voiceover)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
+    # 기본 나레이션(voiceover/none)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
     assert "NOT talking" in fake.calls[0][2]
-    # 씬 오디오(효과음/앰비언스)는 거의 항상 켠다(무음 영상 지양). voiceover면 "말하지 않음"
-    # 지시로 씬 사운드만 나오고, 최종에서 나레이션 아래 낮게 깔린다.
-    assert fake.calls[0][3] is True  # generate_audio: 씬 오디오 생성 on
+    # 씬 오디오(효과음/앰비언스)는 켠다(효과음 때문). voiceover면 오디오에 발화가 섞이지 않게
+    # "발화·음성 금지, 앰비언스/효과음만"을 프롬프트에 강하게 명시한다(Veo가 제멋대로 대사를
+    # 까는 걸 막는다). 실제 나레이션은 뒤 voice 노드가 넣는다.
+    assert fake.calls[0][3] is True  # generate_audio: 씬 오디오 on(효과음)
+    assert "no spoken words in any language" in fake.calls[0][2]  # 오디오 발화 금지
     # 외모·피부 질감 같은 내용은 프롬프트로 강제하지 않는다(입력·시작 이미지에서 온다).
     assert "matte" not in fake.calls[0][2] and "attractive" not in fake.calls[0][2]
     # 편집단계 beat-cut 몽타주: 한 세그먼트를 패널 경계로 6컷으로 재분할한다.
@@ -86,3 +88,52 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     # 자막은 패널별로 6개, 구간도 타임라인에 매핑된다.
     assert len(mats.subtitle_pngs) == 6
     assert mats.subtitle_spans[-1] == [5.0, 6.0]
+
+
+def test_integrated_speech_directive_allows_lipsync(tmp_path, monkeypatch):
+    # 온카메라 발화(integrated)면 오디오도 켜고, 발화 금지 문구 대신 립싱크로 말하게 한다.
+    profile = _profile(tmp_path, n=2)
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="veo-3.1-fast-generate-001",
+        voice_strategy="integrated",
+        segments=[[0, 1]],
+    )
+    build_materials(profile, plan, str(tmp_path / "run"))
+    assert fake.calls[0][3] is True  # integrated: generate_audio on
+    # integrated는 립싱크로 말한다 -> "발화 금지"가 아니라 "말한다" 지시.
+    assert "lip-sync" in fake.calls[0][2]
+    assert "no spoken words in any language" not in fake.calls[0][2]
+
+
+def test_integrated_feeds_scripted_dialogue_and_language(tmp_path, monkeypatch):
+    # integrated면 스크립트 노드가 만든 대사를 해당 샷에 붙이고, 언어(기본 영어)를 못박는다.
+    from reel_gen_agent.generate.schema import NarrationLine, NarrationSpec
+
+    profile = _profile(tmp_path, n=2)
+    profile.narration = NarrationSpec(
+        delivery="on_camera",
+        lines=[NarrationLine(panel_index=0, text="You need to try this serum.")],
+    )
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="veo-3.1-fast-generate-001",
+        voice_strategy="integrated",
+        segments=[[0, 1]],
+    )
+    build_materials(profile, plan, str(tmp_path / "run"))
+    prompt = fake.calls[0][2]
+    # 지정 언어(영어) 발화를 못박는다.
+    assert "in English only" in prompt
+    # 컷 0의 실제 대사가 그 샷에 붙는다.
+    assert 'The person says in English: "You need to try this serum."' in prompt
+
+
+def test_lang_name_defaults_to_english():
+    from reel_gen_agent.generate.materials import _lang_name
+
+    assert _lang_name(None) == "English"
+    assert _lang_name("en") == "English"
+    assert _lang_name("ko") == "Korean"
