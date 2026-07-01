@@ -82,7 +82,9 @@ def _global_prompt(
         f"character: {character.look or character.name or 'a beauty content creator'}",
         f"product: {product.name}",
         _framing_directive(product),
-        f"palette: {', '.join(style.palette)}" if style.palette else "",
+        f"color grading in warm tones matching this palette: {', '.join(style.palette)}"
+        if style.palette
+        else "",
         f"location: {environment.location}" if environment.location else "",
         f"lighting: {environment.lighting}" if environment.lighting else "",
         f"mood: {environment.mood}" if environment.mood else "",

@@ -26,9 +26,9 @@
 |---|---|---|---|
 | 레퍼런스 비전 분석(VLM) | Gemini Flash 계열 | Gemini Pro 계열 | 빠르고 싸며 멀티모달. 분석 층은 결정론 수치가 주연이라 지각 묘사는 가벼운 모델로 충분 |
 | 기획·카피 생성(LLM) | Gemini 3.1 Pro | Claude Opus(병행 비교) | 카피 품질이 결과를 좌우하는 텍스트 레인. 두 키를 다 보유해 일급으로 나란히 비교, 작업별로 나은 쪽 채택 |
-| 이미지 생성(에셋 시트, 패널 스틸) | Google Nano Banana 계열(Gemini 네이티브 이미지) | FLUX.2(fal.ai 경유) | 단일 키 안에서 돌고, 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞음. 스틸 품질이 영상으로 전파되므로 품질 우선 |
+| 이미지 생성(에셋 시트, 패널 스틸) | Google Nano Banana 계열(Gemini 네이티브 이미지) | 없음(단일 경로) | 단일 키 안에서 돌고, 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞음. 스틸 품질이 영상으로 전파되므로 품질 우선. 이미지는 Nano Banana 단일 경로로 좁힘 |
 | image-to-video(패널 클립) | Veo 3.1 Fast(Vertex 전용 개발 기본) | Kling O3 Pro reference-to-video(성능 최선), Kling O3 image-to-video(Veo 치환 후보), Veo 3.1 Standard/Pro(고품질 승격), 스틸 켄 번스 폴백 | 개발 검증 기본은 Veo Fast지만, 현시점 이 프로젝트에서 품질 최선은 Kling O3. 특히 O3 Pro reference-to-video가 캐릭터·제품·스토리보드 reference 일관성에서 가장 강함 |
-| 배경 음악(BGM) | Lyria 음악 생성 | 사용자 제공 음악 또는 무음 | 컷 리듬에 BGM 템포를 맞춤. 생성과 제공 파일 두 경로면 충분 |
+| 배경 음악(BGM) | Lyria 3(Clip, 30초 이하 기본) | 30초 초과 시 Lyria 3 Pro, 사용자 제공 음악 또는 무음 | 컷 리듬에 BGM 템포를 맞춤. 대부분 숏폼은 30초 이하라 Clip으로 충분, 30초 넘으면 Pro로 승격 |
 | voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs(선호) 또는 Google TTS Chirp 3 | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 캐릭터 음색을 길게 연속으로 뽑아 컷이 나뉘어도 톤 일관. voice를 먼저 만들어 영상 모델에 주입하는 립싱크는 쓰지 않는다 |
 
 비전 분석, Rubric 채점, Conformance 검사 같은 Gemini 멀티모달 호출은 `GENAI_BACKEND`가 백엔드를
@@ -53,7 +53,7 @@ audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedanc
 |---|---|---|
 | google-genai | 비전 분석, 이미지 생성, Gemini 호출, Vertex AI Veo 호출 | 단일 키 약속의 중심. `GENAI_BACKEND=auto`로 Vertex(크레딧) 우선, Gemini 키 폴백을 한 SDK로 처리 |
 | google-cloud-storage | Vertex Veo 출력 다운로드 | Vertex Veo 결과가 GCS로 떨어질 때 내려받는 용도 |
-| fal-client | 선택 이미지 백엔드(FLUX.2), Kling O3 영상 전환 후보, Seedance 비교 후보 | `FAL_KEY`가 있으면 이미지 1차가 막히거나 특정 룩이 필요할 때 provider로. 영상은 개발 기본 경로가 아니지만, 품질 최선 후보인 Kling O3 전환 대기 경로로 둔다 |
+| fal-client | Kling O3 영상 전환 후보, Seedance 비교 후보 | `FAL_KEY`가 있으면 영상 후보 provider로. 영상은 개발 기본 경로가 아니지만, 품질 최선 후보인 Kling O3 전환 대기 경로로 둔다. 이미지에는 쓰지 않는다(Nano Banana 단일) |
 | elevenlabs | voiceover TTS(서브) | voice는 되도록 사용. 캐릭터 음색 매칭과 자연스러운 감정 전달이 더 필요할 때 Google TTS 대신 |
 | firecrawl-py | 제품 URL에서 정보·이미지 추출 | 컨셉 단계의 product-fetch 노드. 입력을 URL 하나로 줄이는 경로 |
 | langfuse | 트레이싱·관측, 튜닝 루프 | 그래프 실행을 단계별로 기록. 키 있을 때만 붙는 옵션 sink(로컬 trace가 진실의 원천) |

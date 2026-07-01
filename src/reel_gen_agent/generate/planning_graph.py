@@ -22,9 +22,12 @@ from .schema import (
     InputMeta,
     ModelSpec,
     MusicSpec,
+    NarrationLine,
+    NarrationSpec,
     ProductSpec,
     Provenance,
     StyleDimensions,
+    VoiceSpec,
 )
 from .storyboard import build_storyboard
 from .text_client import TextClient
@@ -86,6 +89,25 @@ def run_planning(
         if hooks.candidates:
             style.hook = hooks.candidates[0]
 
+    # 나레이션 스크립트: 기본 전달은 voiceover. LLM이 있으면 짧은 대사 스크립트를 생성한다.
+    narration = NarrationSpec(
+        delivery="voiceover",
+        voice=VoiceSpec(from_character=True, type=(character.look or None)),
+    )
+    if text_client is not None:
+        try:
+            script = text_client.complete(
+                f"Write a short, upbeat first-person narration voiceover script in English "
+                f"for a {meta.duration_sec:.0f}-second vertical beauty short about "
+                f"{product.name}. 2-3 short punchy sentences, natural UGC tone, no emojis, "
+                f"no stage directions. Return only the narration text.",
+                temperature=0.8,
+            )
+            if script.strip():
+                narration.lines = [NarrationLine(panel_index=0, text=script.strip())]
+        except Exception:
+            pass
+
     # 스토리보드/콘티는 항상 채운다(텍스트 패널). 레퍼런스 컷 수가 있으면 그 수에 맞춘다.
     storyboard = build_storyboard(
         meta=meta,
@@ -103,7 +125,9 @@ def run_planning(
 
     # asset_bible: 캐릭터 정면샷 + 제품 이미지를 생성한다(image_client 있을 때). 이 에셋이
     # execute의 컷별 스틸 생성에서 reference·폴백으로 쓰인다. 없으면 빈 에셋으로 둔다.
-    asset_bible = build_asset_bible(character, product, environment, image_client, str(out_dir))
+    asset_bible = build_asset_bible(
+        character, product, environment, image_client, str(out_dir), palette=style.palette
+    )
 
     profile = assemble_profile(
         {
@@ -114,6 +138,7 @@ def run_planning(
             "narrative_arc": narrative_arc,
             "asset_bible": asset_bible,
             "storyboard": storyboard,
+            "narration": narration,
             "music": music,
             "provenance": provenance,
         }

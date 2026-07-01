@@ -78,6 +78,12 @@ def synth_music_bed(duration_sec: float, bpm: int, out_path: str) -> str:
 
 
 class MusicClient(Protocol):
+    """BGM 생성 백엔드. 기본은 Lyria 3(Clip)으로 한 번에 30초까지 생성한다.
+
+    대부분의 숏폼은 30초 이하라 Clip으로 충분하다. `duration_sec`가 30을 넘으면
+    30초 상한을 넘는 트랙이 필요한 경우이므로 Lyria 3 Pro로 승격해야 한다.
+    """
+
     def generate(self, prompt: str, bpm: int, duration_sec: float, out_path: str) -> str: ...
 
 

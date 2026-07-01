@@ -1,4 +1,4 @@
-"""이미지 생성 클라이언트 인터페이스. 실제 백엔드(Nano Banana/FLUX)는 .env로 고른다.
+"""이미지 생성 클라이언트 인터페이스. 백엔드는 Nano Banana(Gemini 네이티브 이미지) 단일 경로다.
 
 스토리보드 컷별 start image와 에셋 시트가 이걸 쓴다. 테스트는 StubImageClient로 호출을
 막는다([ai-model-records.md] §3). 캐릭터·제품 reference 이미지를 함께 넘겨 일관성을 잡는다.

@@ -58,8 +58,8 @@
   둘에 돌려 카피와 내러티브 품질을 본다. 잠정 1차는 Gemini 3.1 Pro로 두되, 작업별로
   나은 쪽을 채택해 굳혀 갈 계획이다.
 - **이미지 생성(에셋 시트, 패널 스틸)**: Google Nano Banana 계열(Gemini 네이티브
-  이미지)을 1차로. 단일 키 안에서 돌고 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞다.
-  특정 룩이 필요하면 fal.ai 경유 Flux를 폴백으로.
+  이미지) 단일 경로. 단일 키 안에서 돌고 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞다.
+  이미지는 외부 백엔드 없이 Nano Banana 하나로 좁혔다.
 - **image-to-video**: 개발 검증 기본은 Veo 3.1 Fast로 못박았고, 항상 Vertex AI lane으로만
   호출한다. Fast가 start image 기반 뷰티 사용 컷에서 가장 무난했다. Standard/Pro급 Veo는
   중요한 히어로 컷의 고품질 승격 옵션으로만 둔다. Lite는 start/end control board에서 split

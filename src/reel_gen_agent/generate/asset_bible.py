@@ -20,7 +20,17 @@ from .schema import (
 )
 
 
-def _character_prompt(character: ModelSpec, environment: EnvironmentSpec) -> str:
+def _palette_phrase(palette: list[str] | None) -> str:
+    """팔레트를 이미지 프롬프트용 색 그레이딩 지시로 바꾼다(hex를 그대로 안 따르므로 강조)."""
+    if not palette:
+        return ""
+    tones = ", ".join(palette[:5])
+    return f" Color grading and overall tones in this palette: {tones}. Match this mood and warmth."
+
+
+def _character_prompt(
+    character: ModelSpec, environment: EnvironmentSpec, palette: list[str] | None
+) -> str:
     look = character.look or "a naturally pretty early-20s woman, effortless natural look"
     age = character.age or "early 20s"
     gender = character.gender or "female"
@@ -30,16 +40,17 @@ def _character_prompt(character: ModelSpec, environment: EnvironmentSpec) -> str
         f"{age} {gender}, looking straight at the camera, natural soft indoor lighting, "
         f"{loc} in the background, authentic UGC selfie aesthetic, high skin detail, "
         "clean and bright. A fictional person, not a real or identifiable individual."
+        + _palette_phrase(palette)
     )
 
 
-def _product_prompt(product: ProductSpec) -> str:
+def _product_prompt(product: ProductSpec, palette: list[str] | None) -> str:
     packaging = product.packaging_desc or "as described"
     return (
         f"Studio e-commerce catalog photo of {product.name}. Packaging: {packaging}. "
         "Clean seamless off-white background, soft even studio lighting, single hero "
         "product centered, subtle reflection, sharp focus, high detail, no text overlay, "
-        "no hands, no human, vertical 9:16 framing, photorealistic."
+        "no hands, no human, vertical 9:16 framing, photorealistic." + _palette_phrase(palette)
     )
 
 
@@ -49,6 +60,7 @@ def build_asset_bible(
     environment: EnvironmentSpec,
     image_client: ImageClient | None,
     out_dir: str,
+    palette: list[str] | None = None,
 ) -> AssetBible:
     """캐릭터 정면샷 + 제품 히어로샷을 만들어 AssetBible을 채운다(상대 파일명으로 기록).
 
@@ -57,8 +69,8 @@ def build_asset_bible(
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    char_prompt = _character_prompt(character, environment)
-    prod_prompt = _product_prompt(product)
+    char_prompt = _character_prompt(character, environment, palette)
+    prod_prompt = _product_prompt(product, palette)
 
     char_rel: str | None = None
     prod_rel: str | None = None

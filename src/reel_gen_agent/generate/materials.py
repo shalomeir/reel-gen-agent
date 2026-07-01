@@ -7,6 +7,7 @@ bpm을 맞춰 만든다. voice는 voiceover일 때만 별도 생성(on_camera는
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -51,4 +52,25 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         bpm = _music_bpm(profile.music.tempo) or bpm_for_cuts(profile.storyboard.panels)
         bgm_audio = synth_music_bed(total_dur, bpm, str(panels_dir / "bgm.wav"))
 
-    return Materials(shot_clips=clips, subtitle_pngs=subs, bgm_audio=bgm_audio)
+    # voice: 나레이션(voiceover)이면 대사 스크립트를 ElevenLabs로 TTS해 붙인다(키 있을 때).
+    voice_audio = _build_voice(profile, str(panels_dir))
+
+    return Materials(
+        shot_clips=clips, subtitle_pngs=subs, bgm_audio=bgm_audio, voice_audio=voice_audio
+    )
+
+
+def _build_voice(profile: ReelProfile, panels_dir: str) -> str | None:
+    """voiceover 나레이션 오디오를 만든다. delivery가 voiceover이고 대사·키가 있을 때만."""
+    if profile.narration.delivery != "voiceover":
+        return None
+    text = " ".join(line.text for line in profile.narration.lines if line.text).strip()
+    if not text or not os.environ.get("ELEVENLABS_API_KEY"):
+        return None
+    try:
+        from .backends.voice_tts import ElevenLabsVoiceClient
+
+        desc = profile.narration.voice.type or ""
+        return ElevenLabsVoiceClient().synthesize(text, desc, str(Path(panels_dir) / "voice.mp3"))
+    except Exception:
+        return None

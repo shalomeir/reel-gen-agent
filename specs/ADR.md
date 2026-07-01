@@ -172,8 +172,8 @@ pass(`--force-step-pass <step>`), 런 모드(전부 자동 통과)가 한 그래
 Vertex AI lane으로만 호출한다(출력은 GCS, `VEO_OUTPUT_GCS_URI`로 통일). 중요한 히어로 컷은
 Veo 3.1 Standard/Pro(`veo-3.1-generate-001`)로만 승격한다. Veo 3.1 Lite는 start/end control
 board에서 split artifact가 생겨 기본 경로에서 제외한다. Gemini API Veo lane은 쓰지 않는다.
-fal.ai는 FLUX.2 이미지와, 사용자가 공식 요청할 때의 Kling O3/Seedance 비교에만 쓴다. Veo를
-fal로 호출하지 않는다.
+fal.ai는 사용자가 공식 요청할 때의 Kling O3/Seedance 영상 비교에만 쓴다(이미지는 Nano Banana
+단일 경로). Veo를 fal로 호출하지 않는다.
 
 **결과**: 영상 경로가 단순해지고 크레딧 사용이 예측 가능하다. 컷 제어는 모델을 늘리기보다
 Nano Banana start image와 프롬프트로 해결한다. Kling O3/Seedance는 별도 비교 요청이 있을
