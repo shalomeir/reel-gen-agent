@@ -1,0 +1,185 @@
+{
+  "run_id": "biodance-biodance-hydrating-collagen-water-20260702-071214",
+  "input_path": "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/plan/ReelProfile-biodance-biodance-hydrating-collagen-water-20260702-071214.json",
+  "storyboard_path": null,
+  "final_video": "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/final.mp4",
+  "panel_segments": [
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_0.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_1.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_2.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_3.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_4.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_5.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_6.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_7.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_8.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_9.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_10.mp4",
+    "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_11.mp4"
+  ],
+  "nodes": [
+    {
+      "name": "production_plan",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "stills",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "visuals",
+      "status": "done",
+      "artifacts": [
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_0.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_1.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_2.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_3.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_4.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_5.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_6.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_0_7.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_8.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_9.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_10.mp4",
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/execute/panels/clip_1_11.mp4"
+      ],
+      "prompt": "[segment 0] A single vertical 9:16 clip that moves through 8 shots played one after another over time (a fast-edited sequence with hard, snappy cuts on a tight timeline (each shot brief and driving)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mist, Jelly Serum Mist, Sprayable Hydrogel, in a Mist bottle. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: exceptionally attractive American woman, top viral beauty influencer, flawless dewy skin, model-tier, magnetic and highly photogenic aspirational it-girl; product (keep identical in every shot): BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mist, Jelly Serum Mist, Sprayable Hydrogel, in a Mist bottle; mood and tone: dewy, aspirational, refreshing, authentic, chic; framing: vertical 9:16, subject very large — tight on the face, from the upper chest up so the face fills most of the frame (face beauty product); color grading matching this palette: soft pink, dewy peach, clean white, warm beige; location: A modern, aesthetic bathroom with a sleek vanity and a large mirror; lighting: Soft, diffused natural morning sunlight mixed with flattering vanity lights; mood: Fresh, clean, aspirational, and radiant; no on-screen text, captions, letters or watermarks\nShot 1: Extreme Close-Up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Extreme close-up of the creator's flawless, wet-looking glowing face. She slowly turns her head to catch the studio light perfectly on her cheekbones, holding the aesthetic pink BIODANCE bottle near her chin.. Camera: slow push-in.\nShot 2: Medium Close-Up — the creator, Creator dramatically pokes a dull, dry patch on her cheek while looking in the bathroom mirror, showing slight frustration.. Camera: quick zoom out.\nShot 3: Close-Up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Camera whips down to the aesthetic pink BIODANCE bottle resting prominently on the sleek marble vanity.. Camera: whip-pan.\nShot 4: Macro Detail — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, A finger presses the nozzle in macro detail, spraying a fine cloud of hydrogel mist directly toward the camera lens.. Camera: static.\nShot 5: Medium Shot — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Creator holds the bottle close to her face and sprays generously, her eyes closed in deep relaxation.. Camera: handheld orbit.\nShot 6: Close-Up — the creator, Creator quickly and briskly pats her cheeks with both hands, working the dewy essence into her skin.. Camera: tilt up.\nShot 7: Extreme Close-Up — the creator, Creator presses a finger into her cheek to reveal extreme bounce and a highly reflective, wet-looking glow.. Camera: slow push-in.\nShot 8: Medium Close-Up — the creator, Creator applies a quick swipe of lip gloss over her perfectly prepped, dewy skin.. Camera: pan right.\n\n[segment 1] A single vertical 9:16 clip that moves through 4 shots played one after another over time (a fast-edited sequence with hard, snappy cuts on a tight timeline (each shot brief and driving)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mist, Jelly Serum Mist, Sprayable Hydrogel, in a Mist bottle. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: exceptionally attractive American woman, top viral beauty influencer, flawless dewy skin, model-tier, magnetic and highly photogenic aspirational it-girl; product (keep identical in every shot): BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mist, Jelly Serum Mist, Sprayable Hydrogel, in a Mist bottle; mood and tone: dewy, aspirational, refreshing, authentic, chic; framing: vertical 9:16, subject very large — tight on the face, from the upper chest up so the face fills most of the frame (face beauty product); color grading matching this palette: soft pink, dewy peach, clean white, warm beige; location: A modern, aesthetic bathroom with a sleek vanity and a large mirror; lighting: Soft, diffused natural morning sunlight mixed with flattering vanity lights; mood: Fresh, clean, aspirational, and radiant; no on-screen text, captions, letters or watermarks\nShot 1: Close-Up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, She gives her face one final quick spritz with the pink bottle for a finishing touch.. Camera: quick zoom in.\nShot 2: POV — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Creator casually tosses the pink bottle into a stylish travel makeup bag on the counter.. Camera: tilt down.\nShot 3: Medium Shot — the creator, Creator looks into the vanity mirror, giving a confident hair flip with her radiantly glowing skin.. Camera: arc left.\nShot 4: Close-Up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Creator holds the pink BIODANCE bottle out directly to the camera with a bright, enthusiastic smile.. Camera: push-in.",
+      "error": null
+    },
+    {
+      "name": "voice",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "bgm",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "sfx",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "assemble",
+      "status": "done",
+      "artifacts": [
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/final.mp4"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "describe",
+      "status": "done",
+      "artifacts": [
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/upload.md"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "evaluate",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "report",
+      "status": "done",
+      "artifacts": [
+        "outputs/biodance-biodance-hydrating-collagen-water-20260702-071214/report.md"
+      ],
+      "prompt": null,
+      "error": null
+    }
+  ],
+  "production_plan": {
+    "video_model": "fal-ai/kling-video/o3/pro/image-to-video",
+    "capability": {
+      "model_id": "fal-ai/kling-video/o3/pro/image-to-video",
+      "lane": "fal",
+      "multishot": false,
+      "integrated_voice": true,
+      "max_clip_sec": 10.0,
+      "max_resolution": "1080x1920"
+    },
+    "voice_strategy": "separate_tts",
+    "multishot": false,
+    "key_image_per_cut": true,
+    "panel_renderers": [
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v"
+    ],
+    "panel_motions": [
+      "push_in",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_in_slow"
+    ],
+    "segments": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      [
+        8,
+        9,
+        10,
+        11
+      ]
+    ],
+    "bgm": "gen",
+    "sfx": true,
+    "video_native_audio": true,
+    "fallbacks_applied": []
+  },
+  "video_backend_used": "fal-ai/kling-video/o3/pro/image-to-video",
+  "video_segments_total": 2,
+  "video_segments_fallback": 0
+}

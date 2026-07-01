@@ -1,0 +1,185 @@
+{
+  "run_id": "la-nike-air-max-isla-20260702-072957",
+  "input_path": "outputs/la-nike-air-max-isla-20260702-072957/plan/ReelProfile-la-nike-air-max-isla-20260702-072957.json",
+  "storyboard_path": null,
+  "final_video": "outputs/la-nike-air-max-isla-20260702-072957/final.mp4",
+  "panel_segments": [
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_0.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_1.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_2.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_3.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_4.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_5.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_6.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_7.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_8.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_9.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_10.mp4",
+    "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_11.mp4"
+  ],
+  "nodes": [
+    {
+      "name": "production_plan",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "stills",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "visuals",
+      "status": "done",
+      "artifacts": [
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_0.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_1.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_2.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_3.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_4.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_5.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_6.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_0_7.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_8.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_9.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_10.mp4",
+        "outputs/la-nike-air-max-isla-20260702-072957/execute/panels/clip_1_11.mp4"
+      ],
+      "prompt": "[segment 0] A single vertical 9:16 clip that moves through 8 shots played one after another over time (a fast-edited sequence with hard, snappy cuts on a tight timeline (each shot brief and driving)).\nWithin each shot keep motion dynamic and lively: energetic subject movement and expressive camera moves.\nKeep the SAME product identical in every shot — the product is: 나이키 에어맥스 아일라 여성 샌들, a 여성 샌들, 패딩 스트랩, 플랫폼 솔, 오픈 토, in a bare item, no packaging, 파티클 로즈, 메탈릭 실버, 실트 레드 tones, distinctive: 두꺼운 패딩 크로스오버 스트랩, 청키한 플랫폼 미드솔, 측면에 보이는 맥스 에어 유닛, 쿠셔닝 풋베드. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: healthy athletic Black woman with African heritage, exceptionally attractive, model-tier flawless glowing skin, magnetic and highly photogenic celebrity-tier face, confident LA-based sports beauty creator, fit athletic build; product (keep identical in every shot): 나이키 에어맥스 아일라 여성 샌들, a 여성 샌들, 패딩 스트랩, 플랫폼 솔, 오픈 토, in a bare item, no packaging, 파티클 로즈, 메탈릭 실버, 실트 레드 tones, distinctive: 두꺼운 패딩 크로스오버 스트랩, 청키한 플랫폼 미드솔, 측면에 보이는 맥스 에어 유닛, 쿠셔닝 풋베드; mood and tone: authentic, effortless, vibrant, chic; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: sun-drenched gold, crisp white, warm neutral, sky blue; location: A dynamic travel montage featuring sun-drenched European cobblestone alleys, a chic outdoor cafe storefront, a vibrant city shopping street, and a scenic vacation promenade; lighting: Bright, natural sunlight with a warm, sun-kissed glow to enhance the creator's flawless skin and capture a vibrant summer vacation atmosphere; mood: Energetic, effortlessly chic, and wanderlust-inspiring, conveying a comfortable yet stylish travel vlog vibe; no on-screen text, captions, letters or watermarks\nShot 1: medium — the creator, Fast-paced travel vlog cuts: The stunning creator, an athletic Black woman with flawless glowing skin, confidently struts down a cobblestone European alley in a breezy summer dress. Quick cut to an aesthetic close-up of her feet in the sleek Nike Air Max Isla sandals stepping out of a cafe.. Camera: fast tracking shot.\nShot 2: close-up — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Aesthetic close-up of her feet in the sleek Nike Air Max Isla sandals confidently stepping out of a chic cafe doorway onto the cobblestone.. Camera: quick tilt down.\nShot 3: medium — the creator, Creator stands on a vibrant city shopping street holding multiple shopping bags, wiping a pretend bead of sweat from her forehead but smiling brightly.. Camera: handheld orbit.\nShot 4: macro detail — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Creator's hand presses her thumb into the velvet-like padded strap of the sandal, showing the plush material bouncing right back.. Camera: macro push-in.\nShot 5: close-up — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Side view of her heel in the sandal. She shifts her weight backward, visibly compressing the chunky Max Air unit to demonstrate the bouncy cushioning.. Camera: fast push-in.\nShot 6: wide — the creator, Creator twirls happily on a scenic vacation promenade, showing off a sporty feminine athleisure set that perfectly matches the chunky platform sandals.. Camera: whip pan reveal.\nShot 7: medium close-up — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Creator sits at an outdoor cafe storefront, sipping an espresso while crossing her legs to casually display the stylish platform sandal in the sunlight.. Camera: slow push-in.\nShot 8: POV — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Fast-paced POV looking down at her feet as she briskly walks up historic stone steps, highlighting the sole's flexible movement and solid grip.. Camera: low tracking.\n\n[segment 1] A single vertical 9:16 clip that moves through 4 shots played one after another over time (a fast-edited sequence with hard, snappy cuts on a tight timeline (each shot brief and driving)).\nWithin each shot keep motion dynamic and lively: energetic subject movement and expressive camera moves.\nKeep the SAME product identical in every shot — the product is: 나이키 에어맥스 아일라 여성 샌들, a 여성 샌들, 패딩 스트랩, 플랫폼 솔, 오픈 토, in a bare item, no packaging, 파티클 로즈, 메탈릭 실버, 실트 레드 tones, distinctive: 두꺼운 패딩 크로스오버 스트랩, 청키한 플랫폼 미드솔, 측면에 보이는 맥스 에어 유닛, 쿠셔닝 풋베드. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: healthy athletic Black woman with African heritage, exceptionally attractive, model-tier flawless glowing skin, magnetic and highly photogenic celebrity-tier face, confident LA-based sports beauty creator, fit athletic build; product (keep identical in every shot): 나이키 에어맥스 아일라 여성 샌들, a 여성 샌들, 패딩 스트랩, 플랫폼 솔, 오픈 토, in a bare item, no packaging, 파티클 로즈, 메탈릭 실버, 실트 레드 tones, distinctive: 두꺼운 패딩 크로스오버 스트랩, 청키한 플랫폼 미드솔, 측면에 보이는 맥스 에어 유닛, 쿠셔닝 풋베드; mood and tone: authentic, effortless, vibrant, chic; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: sun-drenched gold, crisp white, warm neutral, sky blue; location: A dynamic travel montage featuring sun-drenched European cobblestone alleys, a chic outdoor cafe storefront, a vibrant city shopping street, and a scenic vacation promenade; lighting: Bright, natural sunlight with a warm, sun-kissed glow to enhance the creator's flawless skin and capture a vibrant summer vacation atmosphere; mood: Energetic, effortlessly chic, and wanderlust-inspiring, conveying a comfortable yet stylish travel vlog vibe; no on-screen text, captions, letters or watermarks\nShot 1: medium — the creator, Golden hour lighting. The creator laughs radiantly, looking effortlessly energetic and completely pain-free despite the long day of travel.. Camera: handheld orbit.\nShot 2: close-up — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Both feet plant firmly together on a scenic overlook, showing off the sleek silhouette and the flattering, height-boosting platform.. Camera: whip pan down.\nShot 3: medium wide — the creator, Creator playfully walks backward down the vibrant shopping street, blowing a kiss to the camera and pointing down at her sandals.. Camera: tracking backward.\nShot 4: medium — the 나이키 에어맥스 아일라 여성 샌들 product in focus, Creator grabs her luggage handle on a sunny hotel balcony, lifting one foot to showcase the Nike Air Max Isla sandal perfectly framed in the center.. Camera: quick zoom to product.",
+      "error": null
+    },
+    {
+      "name": "voice",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "bgm",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "sfx",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "assemble",
+      "status": "done",
+      "artifacts": [
+        "outputs/la-nike-air-max-isla-20260702-072957/final.mp4"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "describe",
+      "status": "done",
+      "artifacts": [
+        "outputs/la-nike-air-max-isla-20260702-072957/upload.md"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "evaluate",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "report",
+      "status": "done",
+      "artifacts": [
+        "outputs/la-nike-air-max-isla-20260702-072957/report.md"
+      ],
+      "prompt": null,
+      "error": null
+    }
+  ],
+  "production_plan": {
+    "video_model": "fal-ai/kling-video/o3/pro/image-to-video",
+    "capability": {
+      "model_id": "fal-ai/kling-video/o3/pro/image-to-video",
+      "lane": "fal",
+      "multishot": false,
+      "integrated_voice": true,
+      "max_clip_sec": 10.0,
+      "max_resolution": "1080x1920"
+    },
+    "voice_strategy": "separate_tts",
+    "multishot": false,
+    "key_image_per_cut": true,
+    "panel_renderers": [
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v"
+    ],
+    "panel_motions": [
+      "push_in",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "product_push_in"
+    ],
+    "segments": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      [
+        8,
+        9,
+        10,
+        11
+      ]
+    ],
+    "bgm": "gen",
+    "sfx": true,
+    "video_native_audio": true,
+    "fallbacks_applied": []
+  },
+  "video_backend_used": "fal-ai/kling-video/o3/pro/image-to-video",
+  "video_segments_total": 2,
+  "video_segments_fallback": 0
+}

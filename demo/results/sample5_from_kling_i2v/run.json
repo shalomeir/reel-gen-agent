@@ -1,0 +1,145 @@
+{
+  "run_id": "15-lightweight-linen-open-collar-20260702-071800",
+  "input_path": "outputs/15-lightweight-linen-open-collar-20260702-071800/plan/ReelProfile-15-lightweight-linen-open-collar-20260702-071800.json",
+  "storyboard_path": null,
+  "final_video": "outputs/15-lightweight-linen-open-collar-20260702-071800/final.mp4",
+  "panel_segments": [
+    "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_0_0.mp4",
+    "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_0_1.mp4",
+    "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_1_2.mp4",
+    "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_1_3.mp4"
+  ],
+  "nodes": [
+    {
+      "name": "production_plan",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "stills",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "visuals",
+      "status": "done",
+      "artifacts": [
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_0_0.mp4",
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_0_1.mp4",
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_1_2.mp4",
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/execute/panels/clip_1_3.mp4"
+      ],
+      "prompt": "[segment 0] A single vertical 9:16 clip that moves through 2 shots played one after another over time (a smoothly edited sequence with longer, gentle holds and soft transitions (each shot lingers, calm and unhurried)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: Lightweight Linen Open-Collar Summer Shirt, a men's summer shirt, lightweight linen, distinctive: open-collar, lightweight linen fabric. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person speaks to the camera in English only, with natural, realistic lip-sync. Every spoken word is in English; never any other language, no gibberish.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: exceptionally attractive American man, highly photogenic celebrity-tier face, charismatic and witty 'it-guy' vibe, flawless model-tier features, magnetic viral TikToker appearance; product (keep identical in every shot): Lightweight Linen Open-Collar Summer Shirt, a men's summer shirt, lightweight linen, distinctive: open-collar, lightweight linen fabric; mood and tone: witty, effortless, breezy, charismatic; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: sun-drenched beige, ocean blue, crisp white, warm golden hour; location: A sun-drenched luxury resort balcony overlooking a bright tropical beach; lighting: Bright, natural afternoon sunlight with a warm golden glow and soft, flattering shadows; mood: Breezy, vibrant, and effortlessly stylish summer vacation vibe; no on-screen text, captions, letters or watermarks\nShot 1: Medium shot — the creator, The creator leans casually against a sun-drenched balcony railing, the ocean sparkling behind him. He effortlessly adjusts the open collar of his breezy linen shirt, flashing a magnetic, knowing smirk directly at the lens.. Camera: Slow push-in. The person says in English: \"This open-collar linen is my summer staple.\"\nShot 2: Macro close-up — the Lightweight Linen Open-Collar Summer Shirt product in focus, The warm ocean breeze gently ripples the lightweight fabric. His hand slowly grazes the textured linen weave near the open collar, highlighting the breathable, unrestrictive drape of the shirt against his skin.. Camera: Gentle downward tilt.\n\n[segment 1] A single vertical 9:16 clip that moves through 2 shots played one after another over time (a smoothly edited sequence with longer, gentle holds and soft transitions (each shot lingers, calm and unhurried)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: Lightweight Linen Open-Collar Summer Shirt, a men's summer shirt, lightweight linen, distinctive: open-collar, lightweight linen fabric. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person speaks to the camera in English only, with natural, realistic lip-sync. Every spoken word is in English; never any other language, no gibberish.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: exceptionally attractive American man, highly photogenic celebrity-tier face, charismatic and witty 'it-guy' vibe, flawless model-tier features, magnetic viral TikToker appearance; product (keep identical in every shot): Lightweight Linen Open-Collar Summer Shirt, a men's summer shirt, lightweight linen, distinctive: open-collar, lightweight linen fabric; mood and tone: witty, effortless, breezy, charismatic; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: sun-drenched beige, ocean blue, crisp white, warm golden hour; location: A sun-drenched luxury resort balcony overlooking a bright tropical beach; lighting: Bright, natural afternoon sunlight with a warm golden glow and soft, flattering shadows; mood: Breezy, vibrant, and effortlessly stylish summer vacation vibe; no on-screen text, captions, letters or watermarks\nShot 1: Medium-wide shot — the Lightweight Linen Open-Collar Summer Shirt product in focus, He steps back from the railing, unhurriedly rolling up one sleeve to forearm length. The open collar perfectly frames his relaxed posture as he turns his head to deliver a witty, charismatic grin.. Camera: Slow handheld orbit. The person says in English: \"So lightweight for those resort days.\"\nShot 2: Close-up — the Lightweight Linen Open-Collar Summer Shirt product in focus, He smoothly slides on a pair of sleek sunglasses, playfully tapping the crisp linen chest of his shirt with two fingers. He gives a confident nod and points subtly toward the bottom edge of the screen.. Camera: Slow dolly out.",
+      "error": null
+    },
+    {
+      "name": "voice",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "bgm",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "sfx",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "assemble",
+      "status": "done",
+      "artifacts": [
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/final.mp4"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "describe",
+      "status": "done",
+      "artifacts": [
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/upload.md"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "evaluate",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "report",
+      "status": "done",
+      "artifacts": [
+        "outputs/15-lightweight-linen-open-collar-20260702-071800/report.md"
+      ],
+      "prompt": null,
+      "error": null
+    }
+  ],
+  "production_plan": {
+    "video_model": "fal-ai/kling-video/o3/pro/image-to-video",
+    "capability": {
+      "model_id": "fal-ai/kling-video/o3/pro/image-to-video",
+      "lane": "fal",
+      "multishot": false,
+      "integrated_voice": true,
+      "max_clip_sec": 10.0,
+      "max_resolution": "1080x1920"
+    },
+    "voice_strategy": "integrated",
+    "multishot": false,
+    "key_image_per_cut": true,
+    "panel_renderers": [
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v"
+    ],
+    "panel_motions": [
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "product_push_in"
+    ],
+    "segments": [
+      [
+        0,
+        1
+      ],
+      [
+        2,
+        3
+      ]
+    ],
+    "bgm": "gen",
+    "sfx": false,
+    "video_native_audio": true,
+    "fallbacks_applied": []
+  },
+  "video_backend_used": "fal-ai/kling-video/o3/pro/image-to-video",
+  "video_segments_total": 2,
+  "video_segments_fallback": 0
+}

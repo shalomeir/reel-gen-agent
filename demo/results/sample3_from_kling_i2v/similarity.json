@@ -1,0 +1,56 @@
+{
+  "overall": 0.5517,
+  "passed": false,
+  "threshold": 0.78,
+  "axes": [
+    {
+      "key": "rhythm",
+      "weight": 0.28,
+      "score": 0.6296670272869335,
+      "detail": "mode mixed->slow_demo, mean 1.356->2.773s",
+      "delta": null
+    },
+    {
+      "key": "voice",
+      "weight": 0.22,
+      "score": 0.0,
+      "detail": "tone None->'calm, friendly, persuasive', pace None->moderate",
+      "delta": "Voice delivery off: reference voice is '?' (? pace), output is 'calm, friendly, persuasive' (moderate pace). Match the reference delivery: same tone and pace."
+    },
+    {
+      "key": "music",
+      "weight": 0.15,
+      "score": 0.9394150417827299,
+      "detail": "dyn flat->flat, bpm 117.5->143.6",
+      "delta": null
+    },
+    {
+      "key": "visual",
+      "weight": 0.18,
+      "score": 0.8120348011363636,
+      "detail": "motion gentle->gentle, bright 132.7->154.0",
+      "delta": null
+    },
+    {
+      "key": "tone",
+      "weight": 0.05,
+      "score": 0.6666666666666665,
+      "detail": "['beauty', 'fresh', 'sensorial', 'clean'] -> ['radiant', 'fresh', 'beauty', 'healthy', 'sensorial']",
+      "delta": null
+    },
+    {
+      "key": "subtitle",
+      "weight": 0.09,
+      "score": 0.5,
+      "detail": "density keyword->full_transcript",
+      "delta": "Subtitle style off: reference density=keyword, position=bottom; output density=full_transcript, position=bottom."
+    },
+    {
+      "key": "narrative",
+      "weight": 0.03,
+      "score": 0.3333333333333333,
+      "detail": "['show product', 'apply product', 'product benefit'] -> ['introduce a desired outcome', 'introduce product', 'show application', 'highlight ingredients/benefits', 'show result', 'call to action']",
+      "delta": "Narrative arc differs: reference=['show product', 'apply product', 'product benefit'], output=['introduce a desired outcome', 'introduce product', 'show application', 'highlight ingredients/benefits', 'show result', 'call to action']."
+    }
+  ]
+}

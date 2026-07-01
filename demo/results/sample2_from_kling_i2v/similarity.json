@@ -1,0 +1,56 @@
+{
+  "overall": 0.7209,
+  "passed": false,
+  "threshold": 0.78,
+  "axes": [
+    {
+      "key": "rhythm",
+      "weight": 0.28,
+      "score": 0.6405003909304144,
+      "detail": "mode fast_montage->mixed, mean 0.667->1.279s",
+      "delta": null
+    },
+    {
+      "key": "voice",
+      "weight": 0.22,
+      "score": 0.8667,
+      "detail": "tone 'enthusiastic and satisfied'->'enthusiastic, bright, confident', pace medium->moderate to fast",
+      "delta": null
+    },
+    {
+      "key": "music",
+      "weight": 0.15,
+      "score": 0.9833333333333334,
+      "detail": "dyn flat->flat, bpm 136.0->129.2",
+      "delta": null
+    },
+    {
+      "key": "visual",
+      "weight": 0.18,
+      "score": 0.6944017269736843,
+      "detail": "motion dynamic->dynamic, bright 108.8->139.7",
+      "delta": null
+    },
+    {
+      "key": "tone",
+      "weight": 0.05,
+      "score": 0.18181818181818182,
+      "detail": "['energetic', 'sensorial', 'effective', 'beauty'] -> ['enthusiastic', 'aspirational', 'beauty', 'product-focused', 'authentic', 'glowing']",
+      "delta": "Overall tone drift: reference tone=['energetic', 'sensorial', 'effective', 'beauty'], output tone=['enthusiastic', 'aspirational', 'beauty', 'product-focused', 'authentic', 'glowing']. Steer the concept toward the reference's tone words."
+    },
+    {
+      "key": "subtitle",
+      "weight": 0.09,
+      "score": 0.7,
+      "detail": "density keyword->keyword",
+      "delta": null
+    },
+    {
+      "key": "narrative",
+      "weight": 0.03,
+      "score": 0.2105263157894737,
+      "detail": "['problem_statement', 'product_reveal', 'application', 'transformation', 'payoff'] -> ['problem/desire', 'introduce solution', 'explain benefits', 'demonstrate use', 'payoff', 'call to action']",
+      "delta": "Narrative arc differs: reference=['problem_statement', 'product_reveal', 'application', 'transformation', 'payoff'], output=['problem/desire', 'introduce solution', 'explain benefits', 'demonstrate use', 'payoff', 'call to action']."
+    }
+  ]
+}

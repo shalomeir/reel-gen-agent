@@ -1,0 +1,167 @@
+{
+  "run_id": "want-this-effortless-morning-glow-20260701-235953",
+  "input_path": "outputs/want-this-effortless-morning-glow-20260701-235953/plan/ReelProfile-want-this-effortless-morning-glow-20260701-235953.json",
+  "storyboard_path": null,
+  "final_video": "outputs/want-this-effortless-morning-glow-20260701-235953/final.mp4",
+  "panel_segments": [
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_0.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_1.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_2.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_3.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_4.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_5.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_6.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_7.mp4",
+    "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_8.mp4"
+  ],
+  "nodes": [
+    {
+      "name": "production_plan",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "stills",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "visuals",
+      "status": "done",
+      "artifacts": [
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_0.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_1.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_2.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_3.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_4.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_0_5.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_6.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_7.mp4",
+        "outputs/want-this-effortless-morning-glow-20260701-235953/execute/panels/clip_1_8.mp4"
+      ],
+      "prompt": "[segment 0] A single vertical 9:16 clip that moves through 6 shots played one after another over time (an edited sequence with varied pacing (a mix of longer holds and quicker cuts)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: glow, a serum mist, jelly-to-mist, in a clear pink spray bottle with a white pump, pink, white, clear tones, distinctive: clear pink bottle, white spray pump mechanism, visible jelly texture inside the bottle. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: Black/African descent, celebrity-level supermodel-tier gorgeous, stunning head-turning beauty with a flawless deep skin tone and a natural dewy glow. She has short, dark, curly hair pulled back and is wearing a light pink t-shirt.; product (keep identical in every shot): glow, a serum mist, jelly-to-mist, in a clear pink spray bottle with a white pump, pink, white, clear tones, distinctive: clear pink bottle, white spray pump mechanism, visible jelly texture inside the bottle; mood and tone: fresh, radiant, effortless, luminous; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: light pink, rich mahogany, golden glow, soft morning white; location: A bright, modern bathroom with a clean, minimalist aesthetic and light-colored tones to contrast with her pink t-shirt; lighting: Soft, natural morning sunlight combined with diffused front lighting to beautifully accentuate the dewy glow on her deep skin tone; mood: Fresh, radiant, and effortlessly luxurious, capturing an uplifting morning energy; no on-screen text, captions, letters or watermarks\nShot 1: Extreme close-up — the creator, Extreme close-up of her flawless, deeply melanated skin catching the natural morning sunlight. She tilts her cheek to show off the glass-like reflection, smiling effortlessly in her light pink t-shirt with her short curly hair pulled neatly back.. Camera: Slow push-in.\nShot 2: Medium shot — the glow product in focus, Standing in a bright, minimalist bathroom in her light pink t-shirt, she smiles confidently and holds up the glow serum bottle to the camera.. Camera: Handheld slight orbit.\nShot 3: Macro detail — the glow product in focus, Her hands vigorously shake the clear bottle, showing the thick jelly texture inside instantly transforming into a fluid liquid.. Camera: Locked off.\nShot 4: Close-up — the glow product in focus, She closes her eyes and presses the nozzle, spraying a fine, even mist of the serum directly across her face.. Camera: Slow push-in.\nShot 5: Hands detail — the creator, Her fingertips gently and rhythmically pat the damp mist into her cheeks, blending it seamlessly into her skin.. Camera: Static.\nShot 6: Medium close-up — the creator, She opens her eyes and looks directly into the lens, her expression instantly refreshed as her skin looks visibly plumper.. Camera: Quick whip-pan.\n\n[segment 1] A single vertical 9:16 clip that moves through 3 shots played one after another over time (an edited sequence with varied pacing (a mix of longer holds and quicker cuts)).\nWithin each shot keep motion gentle and smooth: slow, subtle camera moves and calm, minimal, graceful subject motion — not busy or energetic, even though cuts are quick.\nKeep the SAME product identical in every shot — the product is: glow, a serum mist, jelly-to-mist, in a clear pink spray bottle with a white pump, pink, white, clear tones, distinctive: clear pink bottle, white spray pump mechanism, visible jelly texture inside the bottle. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: Black/African descent, celebrity-level supermodel-tier gorgeous, stunning head-turning beauty with a flawless deep skin tone and a natural dewy glow. She has short, dark, curly hair pulled back and is wearing a light pink t-shirt.; product (keep identical in every shot): glow, a serum mist, jelly-to-mist, in a clear pink spray bottle with a white pump, pink, white, clear tones, distinctive: clear pink bottle, white spray pump mechanism, visible jelly texture inside the bottle; mood and tone: fresh, radiant, effortless, luminous; framing: vertical 9:16, subject large — upper body only by default; color grading matching this palette: light pink, rich mahogany, golden glow, soft morning white; location: A bright, modern bathroom with a clean, minimalist aesthetic and light-colored tones to contrast with her pink t-shirt; lighting: Soft, natural morning sunlight combined with diffused front lighting to beautifully accentuate the dewy glow on her deep skin tone; mood: Fresh, radiant, and effortlessly luxurious, capturing an uplifting morning energy; no on-screen text, captions, letters or watermarks\nShot 1: Extreme close-up — the creator, She slowly turns her head side-to-side, showcasing the ultimate dewy, radiant finish on her cheekbones.. Camera: Slight pan.\nShot 2: Close-up — the glow product in focus, The glow serum bottle rests on the clean white bathroom sink; focus pulls sharply from her smiling in the background to the bottle in the foreground.. Camera: Rack focus.\nShot 3: Medium shot — the glow product in focus, She holds the bottle next to her glowing face, gives a confident wink, and playfully points down toward the bottom of the screen.. Camera: Static.",
+      "error": null
+    },
+    {
+      "name": "voice",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "bgm",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "sfx",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "assemble",
+      "status": "done",
+      "artifacts": [
+        "outputs/want-this-effortless-morning-glow-20260701-235953/final.mp4"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "describe",
+      "status": "done",
+      "artifacts": [
+        "outputs/want-this-effortless-morning-glow-20260701-235953/upload.md"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "evaluate",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "report",
+      "status": "done",
+      "artifacts": [
+        "outputs/want-this-effortless-morning-glow-20260701-235953/report.md"
+      ],
+      "prompt": null,
+      "error": null
+    }
+  ],
+  "production_plan": {
+    "video_model": "veo-3.1-fast-generate-001",
+    "capability": {
+      "model_id": "veo-3.1-fast-generate-001",
+      "lane": "vertex",
+      "multishot": false,
+      "integrated_voice": true,
+      "max_clip_sec": 8.0,
+      "max_resolution": "1080x1920"
+    },
+    "voice_strategy": "separate_tts",
+    "multishot": false,
+    "key_image_per_cut": true,
+    "panel_renderers": [
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v"
+    ],
+    "panel_motions": [
+      "push_in",
+      "product_push_in",
+      "zoom_in_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "zoom_in_slow",
+      "product_push_in"
+    ],
+    "segments": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      [
+        6,
+        7,
+        8
+      ]
+    ],
+    "bgm": "gen",
+    "sfx": false,
+    "video_native_audio": true,
+    "fallbacks_applied": []
+  }
+}

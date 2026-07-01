@@ -1,0 +1,163 @@
+{
+  "run_id": "reference-users-shalomeir-devspaces-personalplayground-20260702-070027",
+  "input_path": "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/plan/ReelProfile-reference-users-shalomeir-devspaces-personalplayground-20260702-070027.json",
+  "storyboard_path": null,
+  "final_video": "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/final.mp4",
+  "panel_segments": [
+    "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/execute/panels/clip_0_hook.mp4",
+    "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/execute/panels/clip_0_rest.mp4"
+  ],
+  "nodes": [
+    {
+      "name": "production_plan",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "stills",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "visuals",
+      "status": "done",
+      "artifacts": [
+        "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/execute/panels/clip_0_hook.mp4",
+        "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/execute/panels/clip_0_rest.mp4"
+      ],
+      "prompt": "[segment 0] A single vertical 9:16 clip that moves through 12 shots played one after another over time (a fast-edited sequence with hard, snappy cuts on a tight timeline (each shot brief and driving)).\nWithin each shot keep motion dynamic and lively: energetic subject movement and expressive camera moves.\nKeep the SAME product identical in every shot — the product is: BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mists, Jelly Serum Mist, Sprayable Hydrogel, in a Spray bottle. Its shape, packaging and colors must stay exactly the same across all shots.\nKeep the same person consistent across every shot; exactly one person, no duplicate people.\nThe person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, no lip-sync. AUDIO: ambient and diegetic sounds only (room tone, product handling, fabric, water); absolutely NO voice, NO speech, NO dialogue, NO narration, NO singing, and no spoken words in any language. Voiceover is added separately.\nDo not render any on-screen text, captions, subtitles, letters, words or watermarks; clean footage with no text overlay.\ncharacter: strikingly beautiful young woman with a warm deep brown skin tone and radiant glass-skin glow, elegant oval face, almond-shaped dark brown eyes, dark tight curly natural hair gathered into a high puff bun with soft curls framing the hairline, full naturally pink-brown lips, flawless top viral beauty-influencer presence, slim fit build, wearing a soft pastel pink sleeveless ribbed top and small silver hoop earrings; product (keep identical in every shot): BIODANCE Collagen Peptides Jelly Serum Mist, a Face Mists, Jelly Serum Mist, Sprayable Hydrogel, in a Spray bottle; mood and tone: radiant, fresh, vibrant, approachable; framing: vertical 9:16, subject very large — tight on the face, from the upper chest up so the face fills most of the frame (face beauty product); color grading matching this palette: pastel pink, warm deep brown, soft white, dewy silver; location: A bright, modern, minimalist bathroom or aesthetic vanity space with clean white and soft pastel accents; lighting: Soft, diffused natural morning sunlight blended with a gentle front-facing beauty light to emphasize a radiant, dewy glass-skin finish; mood: Fresh, vibrant, and uplifting, with a clean, luxurious, and approachable beauty-influencer aesthetic; no on-screen text, captions, letters or watermarks\nShot 1: Extreme Close-up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Extreme close-up of her flawless deep brown skin catching the light. She wears a pastel pink ribbed top, her dark tight curls in a high puff bun, holding the pink BIODANCE bottle near her glowing cheek with a vibrant, approachable smile.. Camera: Fast push-in.\nShot 2: Macro detail — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, She vigorously shakes the pink bottle, highlighting the unique, thick hydrogel jelly texture bouncing inside before it sprays.. Camera: Handheld orbit.\nShot 3: Close-up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Her finger decisively presses the pump down, releasing a wide, luxurious cloud of fine mist toward the lens.. Camera: Quick zoom to product.\nShot 4: Medium shot — the creator, Wearing her pastel pink ribbed top, she sprays the mist in a halo around her face, eyes softly closed with a joyful, vibrant smile.. Camera: Whip pan into frame.\nShot 5: Extreme Close-up — the creator, Tiny dewy mist droplets settle onto her deep brown cheek, visibly melting into a glossy, hydrated finish.. Camera: Slow push-in.\nShot 6: Close-up — the creator, She gently but quickly pats her cheeks with both hands, demonstrating the bouncy, plump elasticity of her skin.. Camera: Fast tilt up.\nShot 7: Medium shot — the creator, She turns her elegant oval face side-to-side, her small silver hoop earrings catching light alongside her intense glass-skin glow.. Camera: Arc shot.\nShot 8: Close-up — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, She thrusts the pink BIODANCE bottle directly toward the camera lens, showcasing the clean beauty label.. Camera: Quick push-in.\nShot 9: Over-the-shoulder — the creator, She touches up her tight curly high puff bun in the mirror, her radiant reflection dominating the bright, modern minimalist bathroom.. Camera: Handheld tracking.\nShot 10: Close-up — the creator, She turns back to the camera, mouth open in a joyful, authentic 'wow' reaction, excitedly tapping her glowing cheek.. Camera: Fast zoom in.\nShot 11: Hands detail — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, Her hands firmly pop the cap back onto the pink bottle, shifting focus sharply onto the sleek product design.. Camera: Static with fast focus pull.\nShot 12: Medium Wide — the BIODANCE Collagen Peptides Jelly Serum Mist product in focus, She holds the bottle out toward the viewer, then playfully points down to the screen bottom with a confident, glossy smile.. Camera: Whip pan.",
+      "error": null
+    },
+    {
+      "name": "voice",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "bgm",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "sfx",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "assemble",
+      "status": "done",
+      "artifacts": [
+        "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/final.mp4"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "verify",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "describe",
+      "status": "done",
+      "artifacts": [
+        "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/upload.md"
+      ],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "evaluate",
+      "status": "done",
+      "artifacts": [],
+      "prompt": null,
+      "error": null
+    },
+    {
+      "name": "report",
+      "status": "done",
+      "artifacts": [
+        "outputs/reference-users-shalomeir-devspaces-personalplayground-20260702-070027/report.md"
+      ],
+      "prompt": null,
+      "error": null
+    }
+  ],
+  "production_plan": {
+    "video_model": "fal-ai/kling-video/o3/pro/reference-to-video",
+    "capability": {
+      "model_id": "fal-ai/kling-video/o3/pro/reference-to-video",
+      "lane": "fal",
+      "multishot": false,
+      "integrated_voice": true,
+      "max_clip_sec": 10.0,
+      "max_resolution": "1080x1920"
+    },
+    "voice_strategy": "separate_tts",
+    "multishot": false,
+    "key_image_per_cut": true,
+    "panel_renderers": [
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v",
+      "i2v"
+    ],
+    "panel_motions": [
+      "push_in",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "product_push_in",
+      "zoom_in_slow",
+      "zoom_out_slow",
+      "zoom_in_slow",
+      "product_push_in"
+    ],
+    "segments": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ]
+    ],
+    "bgm": "gen",
+    "sfx": true,
+    "video_native_audio": true,
+    "fallbacks_applied": []
+  },
+  "video_backend_used": "fal-ai/kling-video/o3/pro/reference-to-video",
+  "video_segments_total": 1,
+  "video_segments_fallback": 0
+}
