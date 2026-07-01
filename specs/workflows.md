@@ -1,5 +1,7 @@
 # 워크플로우: LangGraph StateGraph
 
+![ReelGenAgent LangGraph architecture](ReelGenAgentLangGraphArchitecture.png)
+
 상태: 구현. 이 문서는 코어 LangGraph 그래프의 노드, 각 노드의 주요 task, 흐름을 정하고
 현재 코드(`plan_graph.py`, `execute_graph.py`, `replan_graph.py`)와 맞춘다. 무엇을 만드는지는
 [prd.md](prd.md), 사용자 경험과 게이트는 [product-design.md](product-design.md), 기술 스택은

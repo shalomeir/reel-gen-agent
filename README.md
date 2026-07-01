@@ -1,5 +1,7 @@
 # reel-gen-agent
 
+![ReelGenAgent LangGraph architecture](specs/ReelGenAgentLangGraphArchitecture.png)
+
 > Read this in [English](README.en.md).
 
 제품 하나를 인스타그램 릴스, 틱톡, 유튜브 쇼츠용 세로 숏폼으로 바꿔 주는 AI 에이전트
