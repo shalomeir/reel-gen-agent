@@ -32,6 +32,8 @@ class VisualMaterials:
     subtitle_spans: list[list[float]] = field(default_factory=list)
     total_dur: float = 0.0
     native_audio: bool = False  # 온카메라 발화(영상 네이티브 음성) 보존 여부
+    native_speech: bool = False  # 네이티브가 발화(integrated)면 True, 씬 앰비언스면 False
+    segment_sizes: list[int] = field(default_factory=list)  # 세그먼트별 shot_clips 개수(경계 정보)
     prompts: list[str] = field(default_factory=list)  # 세그먼트별 영상 모델 프롬프트(리포트용)
     # 실제 영상 백엔드 결과(리포트 정확도용). video_backend는 시도한 모델("ken_burns"면 영상
     # 모델 없이 켄 번스), segments_total/rendered는 세그먼트 중 영상 모델로 실제 렌더된 수.
@@ -369,21 +371,16 @@ def _extract_subcut(
     # 중앙 x, 세로는 y_frac 위치. zoom=1.0이면 오프셋 0(원본 프레임).
     y_expr = f"(ih*{zoom}-{h})*{y_frac:.3f}"
     vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h}:(iw*{zoom}-{w})/2:{y_expr},setsar=1"
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        seg_clip,
-        "-ss",
-        f"{start:.3f}",
-        "-t",
-        f"{dur:.3f}",
-        "-vf",
-        vf,
-        "-r",
-        str(fps),
-    ]
-    cmd += ["-c:a", "aac"] if keep_audio else ["-an"]
+    cmd = ["ffmpeg", "-y", "-i", seg_clip]
+    if not keep_audio:
+        # 오디오를 안 살릴 때도 무음 트랙을 붙여 모든 서브컷이 오디오를 갖게 한다(ken_burns와
+        # 통일). 이래야 concat·경계 크로스페이드에서 오디오 유무가 섞여 깨지지 않는다.
+        cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+    cmd += ["-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-vf", vf, "-r", str(fps)]
+    if keep_audio:
+        cmd += ["-c:a", "aac"]  # 씬 네이티브 음성(integrated) 보존
+    else:
+        cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac"]
     cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out]
     subprocess.run(cmd, check=True, capture_output=True)
     return out
@@ -418,6 +415,10 @@ def build_visuals(
     veo = _video_backend(plan)  # Veo(있으면) / None. 실패 시 앵커 스틸 켄 번스로 폴백.
     # segments가 없으면(직접 만든 plan) 패널당 1개로 둔다.
     segments = plan.segments or [[i] for i in range(len(panels))]
+    # reference-to-video는 릴 전체가 단일 세그먼트 1회 생성이다(한 번에 뽑은 매끄러운 모션).
+    # 그 안을 패널마다 줌 컷으로 쪼개지 않고, 훅 컷만 별도로 살리고 나머지는 원본 모션 통짜로
+    # 둔다(사용자 결정: "훅 컷만 최소화"). i2v는 기존대로 패널별 beat-cut 몽타주.
+    is_ref2v = "reference-to-video" in (plan.video_model or "").lower()
     product_name = profile.product.name or ""
     from .product import product_identity
 
@@ -426,11 +427,11 @@ def build_visuals(
     # 온카메라 발화(integrated)일 때만 영상 모델이 립싱크로 말하고 음성도 직접 낸다. 기본
     # 나레이션(separate_tts/none)은 영상에서 말하는 느낌을 없애 립싱크 불일치를 막는다.
     speaking = plan.voice_strategy == "integrated"
-    # 영상 모델은 씬 오디오(효과음/앰비언스)를 함께 생성한다 — 효과음 때문에 voiceover에서도
-    # 켠다. 다만 오디오를 켜면 Veo가 제멋대로 대사(가끔 중국어)를 깔 수 있어, voiceover/none이면
-    # _speech_directive가 "오디오에 발화·음성 금지, 앰비언스/효과음만"을 강하게 명시해 대사가
-    # 섞이지 않게 한다. integrated면 그 발화가 립싱크 음성 트랙이 된다.
-    gen_audio = bool(plan.video_native_audio) or speaking
+    # 영상 모델 오디오는 온카메라 발화(integrated)일 때만 켠다. voiceover/music_bed에서 켜면
+    # Kling O3가 제 배경음악을 큼직하게 깔아(우리 Lyria BGM과 충돌) 세그먼트 경계에서도 튄다.
+    # 씬 효과음은 SFX 노드가, 배경음악은 BGM(Lyria) 노드가 따로 맡으므로, 발화가 아니면 영상
+    # 모델엔 오디오 생성을 끄고(generate_audio=False) 우리 오디오 스택만 쓴다.
+    gen_audio = speaking
     # integrated 발화면 스크립트 노드가 만든 대사(패널 index -> 텍스트)와 언어를 Veo에 넘겨
     # 그 언어로 립싱크하게 한다(언어 기본은 영어, meta.language가 명시할 때만 바뀐다). voiceover면
     # 발화가 없으므로 대사 맵도 비운다(_speech_directive가 발화 금지를 명시).
@@ -446,6 +447,7 @@ def build_visuals(
     clips: list[str] = []
     subs: list[str] = []
     spans: list[list[float]] = []
+    segment_sizes: list[int] = []  # 세그먼트별 clips 개수(경계 크로스페이드용). 하드컷은 세그먼트 안만.
     total_dur = 0.0
     cut_index = 0  # 전체 서브컷 순번(줌 홀짝 번갈기용)
     made_any = False  # Veo가 오디오 있는 클립을 하나라도 만들었나(씬 오디오 보존 판단)
@@ -457,6 +459,7 @@ def build_visuals(
         anchor = panels[indices[0]]
         if not anchor.still_image:
             continue  # 앵커 스틸이 없으면 만들 거리가 없다.
+        seg_clip_start = len(clips)  # 이 세그먼트가 append할 clips 시작 위치(경계 계산용).
         seg_total += 1
         seg_dur = sum(_panel_dur(panels[i]) for i in indices)
         motions = [
@@ -483,9 +486,12 @@ def build_visuals(
                     dialogue=dialogue,
                 )
                 prompts.append(f"[segment {seg_pos}] {prompt}")
-                # reference-to-video 백엔드(Kling)는 캐릭터·제품 이미지를 외모 참조로 함께 넣어
-                # 컷마다 인물·제품 일관성을 높인다. i2v(Veo/Kling i2v)는 이 인자를 무시한다.
-                ref_imgs = [r for r in (character_image, product_image) if r]
+                # reference-to-video 백엔드(Kling)는 인물·제품 정체성을 elements로 넣어야 일관성이
+                # 산다: 캐릭터는 character_ref(항상), 제품은 product_ref(제품 컷이 있을 때만),
+                # key_visual은 룩/조명 참조(image_urls)로 얹는다. 예전엔 캐릭터를 image_urls(약한
+                # 스타일 참조)에 넣어 컷마다 인물이 딴 사람으로 드리프트했다. i2v(Veo/Kling i2v)는
+                # 이 인자들을 무시하고 시작 프레임만 쓴다.
+                seg_has_product = any(panels[pi].product_lock for pi in indices)
                 veo.render_panel(
                     start_image,
                     seg_dur,
@@ -496,7 +502,9 @@ def build_visuals(
                     motion=motions[0],
                     prompt=prompt,
                     generate_audio=gen_audio,
-                    reference_images=ref_imgs,
+                    reference_images=([key_visual] if key_visual else []),
+                    character_ref=character_image,
+                    product_ref=(product_image if seg_has_product else None),
                 )
                 made = True
                 made_any = True
@@ -539,45 +547,60 @@ def build_visuals(
             except Exception as exc:
                 print(f"[materials] 폴백 패널 스틸 생성 실패(앵커로 진행): {exc}", file=sys.stderr)
 
-        # 컷 단위 재분할. Veo 성공이면 실 영상 세그먼트를 패널 경계로 잘라 컷마다 줌을 달리한다.
-        # Veo 실패(폴백)면 패널별 개별 스틸을 각자 ken_burns 서브컷으로 만들어 진짜 몽타주를
-        # 유지한다(컷마다 다른 이미지 -> 컷 감지). 부드러운 줌이라 정지(not_frozen) 문제도 없다.
+        # 컷 단위 재분할. 세 경로가 있다:
+        # - ref2v 성공: 한 번에 뽑은 매끄러운 모션이라 훅 컷만 별도로 살리고 나머지는 원본 모션
+        #   통짜로 둔다(줌 컷으로 쪼개지 않음).
+        # - i2v 성공: 실 영상 세그먼트를 패널 경계로 잘라 컷마다 줌을 달리해 beat-cut 몽타주.
+        # - 폴백: 패널별 개별 스틸을 각자 ken_burns 서브컷으로(컷마다 다른 이미지 -> 컷 감지).
+        if made and is_ref2v:
+            hook_dur = _panel_dur(panels[indices[0]])
+            hook_clip = str(panels_dir / f"clip_{seg_pos}_hook.mp4")
+            zoom, y_frac = _beat_cut_frame(panels[indices[0]], cut_index)
+            _extract_subcut(
+                seg_clip, 0.0, hook_dur, zoom, m.width, m.height, m.fps,
+                hook_clip, keep_audio=gen_audio, y_frac=y_frac,
+            )
+            clips.append(hook_clip)
+            cut_index += 1
+            rest_dur = seg_dur - hook_dur
+            if rest_dur > 0.05:  # 훅 이후를 원본 모션 그대로(zoom=1.0) 통짜로 이어붙인다.
+                rest_clip = str(panels_dir / f"clip_{seg_pos}_rest.mp4")
+                _extract_subcut(
+                    seg_clip, hook_dur, rest_dur, 1.0, m.width, m.height, m.fps,
+                    rest_clip, keep_audio=gen_audio, y_frac=0.5,
+                )
+                clips.append(rest_clip)
+                cut_index += 1
+        else:
+            local = 0.0
+            for i in indices:
+                p = panels[i]
+                d = _panel_dur(p)
+                sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
+                if made:
+                    zoom, y_frac = _beat_cut_frame(p, cut_index)
+                    _extract_subcut(
+                        seg_clip, local, d, zoom, m.width, m.height, m.fps,
+                        sub_clip, keep_audio=gen_audio, y_frac=y_frac,
+                    )
+                else:
+                    # 폴백: 이 컷의 개별 스틸(없으면 앵커)을 zoom-in 계열 모션으로 렌더한다. 컷마다
+                    # 다른 이미지라 경계가 확실히 잡히고, 부드러운 줌으로 정지 문제도 없다.
+                    still_i = panels[i].still_image or anchor.still_image
+                    motion_i = _FALLBACK_MOTIONS[cut_index % len(_FALLBACK_MOTIONS)]
+                    ken.render_panel(
+                        still_i, d, m.width, m.height, m.fps, sub_clip, motion=motion_i,
+                    )
+                clips.append(sub_clip)
+                cut_index += 1
+                local += d  # 다음 컷은 세그먼트의 다음 시간 구간을 자른다(안 올리면 전부 첫 구간 반복).
+
+        # 자막: 계획된 패널 구간에 시간 기반으로 건다(모델 내부 컷·클립 분할과 무관). ref2v로
+        # 컷을 줄여도 자막은 패널 타이밍 그대로 최종 타임라인에 얹힌다.
         local = 0.0
         for i in indices:
             p = panels[i]
             d = _panel_dur(p)
-            sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
-            if made:
-                zoom, y_frac = _beat_cut_frame(p, cut_index)
-                _extract_subcut(
-                    seg_clip,
-                    local,
-                    d,
-                    zoom,
-                    m.width,
-                    m.height,
-                    m.fps,
-                    sub_clip,
-                    keep_audio=gen_audio,
-                    y_frac=y_frac,
-                )
-            else:
-                # 폴백: 이 컷의 개별 스틸(없으면 앵커)을 zoom-in 계열 모션으로 렌더한다. 컷마다
-                # 다른 이미지라 경계가 확실히 잡히고, 부드러운 줌으로 정지 문제도 없다.
-                still_i = panels[i].still_image or anchor.still_image
-                motion_i = _FALLBACK_MOTIONS[cut_index % len(_FALLBACK_MOTIONS)]
-                ken.render_panel(
-                    still_i,
-                    d,
-                    m.width,
-                    m.height,
-                    m.fps,
-                    sub_clip,
-                    motion=motion_i,
-                )
-            clips.append(sub_clip)
-            cut_index += 1
-            # 자막: 계획된 패널 구간에 시간 기반으로 건다(모델 내부 컷과 무관).
             if (p.subtitle_text or "").strip():
                 sub = str(panels_dir / f"sub_{p.index}.png")
                 render_subtitle_png(p.subtitle_text or "", m.width, m.height, sub)
@@ -585,15 +608,19 @@ def build_visuals(
                 spans.append([total_dur + local, total_dur + local + d])
             local += d
 
+        segment_sizes.append(len(clips) - seg_clip_start)  # 이 세그먼트가 낸 clips 개수
         total_dur += seg_dur
     return VisualMaterials(
         shot_clips=clips,
         subtitle_pngs=subs,
         subtitle_spans=spans,
+        segment_sizes=segment_sizes,
         total_dur=total_dur,
         # Veo가 오디오 있는 클립을 만들었으면 그 씬 오디오를 보존한다(integrated면 발화,
         # voiceover면 나레이션 아래 씬 효과음). ken_burns 폴백만 있으면 무음이라 False.
         native_audio=made_any and gen_audio,
+        # 네이티브가 발화(integrated)인지 앰비언스인지. 앰비언스면 BGM 있을 때 감쇠해 경계 스냅 제거.
+        native_speech=made_any and gen_audio and speaking,
         prompts=prompts,
         # 실제 렌더 결과: 영상 모델이 붙었으면 그 id, 아니면 ken_burns. 세그먼트 성공/총계로
         # 부분 폴백까지 리포트가 정직하게 표기하게 한다.
@@ -660,6 +687,8 @@ def build_materials(
         sfx_audio=sfx_audio,
         sfx_starts=sfx_starts,
         native_audio=v.native_audio,
+        native_speech=v.native_speech,
+        segment_sizes=v.segment_sizes,
         bgm_gain=bgm_gain,
     )
 

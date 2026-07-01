@@ -59,11 +59,15 @@ class _FakeVeo:
 
     def render_panel(
         self, still, dur, w, h, fps, out, motion="", prompt="", generate_audio=False,
-        reference_images=None,
+        reference_images=None, character_ref=None, product_ref=None,
     ):
         from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 
-        self.calls.append((still, dur, prompt, generate_audio, reference_images))
+        # 기존 인덱스 유지: [0]still [2]prompt [3]generate_audio [4]reference_images,
+        # 뒤에 [5]character_ref [6]product_ref를 덧붙인다.
+        self.calls.append(
+            (still, dur, prompt, generate_audio, reference_images, character_ref, product_ref)
+        )
         return KenBurnsBackend().render_panel(still, dur, w, h, fps, out, motion=motion)
 
 
@@ -79,11 +83,11 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     assert "Shot 1:" in fake.calls[0][2] and "Shot 6:" in fake.calls[0][2]
     # 기본 나레이션(voiceover/none)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
     assert "NOT talking" in fake.calls[0][2]
-    # 씬 오디오(효과음/앰비언스)는 켠다(효과음 때문). voiceover면 오디오에 발화가 섞이지 않게
-    # "발화·음성 금지, 앰비언스/효과음만"을 프롬프트에 강하게 명시한다(Veo가 제멋대로 대사를
-    # 까는 걸 막는다). 실제 나레이션은 뒤 voice 노드가 넣는다.
-    assert fake.calls[0][3] is True  # generate_audio: 씬 오디오 on(효과음)
-    assert "no spoken words in any language" in fake.calls[0][2]  # 오디오 발화 금지
+    # voiceover(비발화)면 영상 모델 오디오 생성을 끈다(Kling이 제 배경음악을 크게 깔아 우리
+    # BGM과 충돌하는 걸 막는다). BGM·SFX는 별도 노드가, 나레이션은 voice 노드가 넣는다.
+    assert fake.calls[0][3] is False  # generate_audio: off(비발화)
+    # 오디오를 꺼도 '말하는 느낌'은 시각적으로 없애야 하므로 비발화 지시는 유지한다.
+    assert "no spoken words in any language" in fake.calls[0][2]
     # 외모·피부 질감 같은 내용은 프롬프트로 강제하지 않는다(입력·시작 이미지에서 온다).
     assert "matte" not in fake.calls[0][2] and "attractive" not in fake.calls[0][2]
     # 편집단계 beat-cut 몽타주: 한 세그먼트를 패널 경계로 6컷으로 재분할한다.
@@ -173,3 +177,109 @@ def test_build_visuals_captures_video_prompts(tmp_path, monkeypatch):
     assert len(v.prompts) == 1  # 세그먼트 1개
     assert "segment 0" in v.prompts[0]
     assert "Shot 1:" in v.prompts[0]
+
+
+def test_ref2v_keeps_hook_cut_and_continuous_rest(tmp_path, monkeypatch):
+    # ref2v 단일 세그먼트: 한 번에 뽑은 매끄러운 모션이라 훅 컷만 별도로 살리고 나머지는 원본
+    # 모션 통짜로 둔다 -> 패널이 3개여도 clips는 훅+통짜 2개. 자막은 패널별로 유지된다.
+    from reel_gen_agent.generate.materials import build_visuals
+
+    profile = _profile(tmp_path, n=3)
+    profile.storyboard.panels[0].beat = "hook"
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/reference-to-video",
+        segments=[[0, 1, 2]],
+    )
+    v = build_visuals(profile, plan, str(tmp_path / "run"))
+    assert len(v.shot_clips) == 2  # 훅 컷 + 나머지 통짜
+    assert v.segment_sizes == [2]  # 단일 세그먼트
+    assert len(v.subtitle_pngs) == 3  # 자막은 패널별 유지
+    assert len(v.subtitle_spans) == 3
+
+
+def test_i2v_subcuts_extract_increasing_time_ranges(tmp_path, monkeypatch):
+    # 회귀 방지: i2v beat-cut은 세그먼트의 서로 다른 시간 구간을 잘라야 한다. local이 안 오르면
+    # 모든 서브컷이 [0, d] 같은 첫 구간만 반복 추출해 같은 컷이 반복된다(편집 버그).
+    from reel_gen_agent.generate import materials as mm
+    from reel_gen_agent.generate.materials import build_visuals
+
+    starts: list[float] = []
+    real = mm._extract_subcut
+
+    def _spy(seg_clip, start, dur, *a, **k):
+        starts.append(round(start, 3))
+        return real(seg_clip, start, dur, *a, **k)
+
+    monkeypatch.setattr(mm, "_extract_subcut", _spy)
+    profile = _profile(tmp_path, n=4)
+    fake = _FakeVeo()
+    monkeypatch.setattr(mm, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/image-to-video",
+        segments=[[0, 1, 2, 3]],
+    )
+    build_visuals(profile, plan, str(tmp_path / "run"))
+    # 4컷 x 1초 -> 시작 오프셋이 0,1,2,3으로 증가해야 한다(전부 0이면 버그).
+    assert starts == [0.0, 1.0, 2.0, 3.0]
+
+
+def test_i2v_keeps_per_panel_beat_cuts(tmp_path, monkeypatch):
+    # i2v(비 ref2v)는 기존대로 패널별 beat-cut으로 쪼갠다(3패널 단일 세그먼트 -> 3 clips).
+    from reel_gen_agent.generate.materials import build_visuals
+
+    profile = _profile(tmp_path, n=3)
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/image-to-video",
+        segments=[[0, 1, 2]],
+    )
+    v = build_visuals(profile, plan, str(tmp_path / "run"))
+    assert len(v.shot_clips) == 3  # 패널별 beat-cut
+
+
+def test_reference_to_video_passes_character_and_product_as_elements(tmp_path, monkeypatch):
+    # reference-to-video는 인물·제품 정체성을 elements(character_ref/product_ref)로 넘기고,
+    # key_visual은 스타일 참조(reference_images=image_urls)로 넘긴다. 제품은 제품 컷이 있을 때만.
+    from reel_gen_agent.generate.materials import build_visuals
+
+    profile = _profile(tmp_path, n=2)
+    profile.storyboard.panels[0].product_lock = False
+    profile.storyboard.panels[1].product_lock = True  # 세그먼트에 제품 컷이 있음
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    # ref2v는 단일 세그먼트라 두 패널이 한 호출로 묶인다.
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/reference-to-video",
+        segments=[[0, 1]],
+    )
+    build_visuals(
+        profile, plan, str(tmp_path / "run"),
+        character_image="char.png", product_image="prod.png", key_visual="kv.png",
+    )
+    call = fake.calls[0]
+    assert call[5] == "char.png"  # character_ref (element)
+    assert call[6] == "prod.png"  # product_ref (element, 제품 컷 있음)
+    assert call[4] == ["kv.png"]  # reference_images = key_visual (style/image_urls)
+
+
+def test_reference_to_video_omits_product_element_without_product_cut(tmp_path, monkeypatch):
+    from reel_gen_agent.generate.materials import build_visuals
+
+    profile = _profile(tmp_path, n=2)
+    for p in profile.storyboard.panels:
+        p.product_lock = False  # 제품 컷 없음
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/standard/reference-to-video",
+        segments=[[0, 1]],
+    )
+    build_visuals(
+        profile, plan, str(tmp_path / "run"),
+        character_image="char.png", product_image="prod.png", key_visual="kv.png",
+    )
+    assert fake.calls[0][5] == "char.png"  # 캐릭터는 항상
+    assert fake.calls[0][6] is None  # 제품 컷이 없으면 제품 element는 뺀다

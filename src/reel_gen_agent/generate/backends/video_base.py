@@ -21,4 +21,6 @@ class VideoBackend(Protocol):
         prompt: str = "",
         generate_audio: bool = False,
         reference_images: list[str] | None = None,
+        character_ref: str | None = None,
+        product_ref: str | None = None,
     ) -> str: ...

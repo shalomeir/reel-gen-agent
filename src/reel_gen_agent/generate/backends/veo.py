@@ -202,6 +202,8 @@ class VeoBackend:
         prompt: str = "",
         generate_audio: bool = False,
         reference_images: list[str] | None = None,  # Veo는 시작 이미지만 쓴다(미사용).
+        character_ref: str | None = None,  # Veo 미사용(Kling reference-to-video elements 전용).
+        product_ref: str | None = None,  # Veo 미사용.
     ) -> str:
         from google.genai import types
 
@@ -284,9 +286,16 @@ class VeoBackend:
 
         # 패널 길이로 자르고 목표 해상도/프레임레이트로 맞춘다.
         vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
-        cmd = ["ffmpeg", "-y", "-i", raw, "-t", f"{duration_sec:.3f}", "-vf", vf, "-r", str(fps)]
-        # integrated 발화면 네이티브 립싱크 음성을 보존, 기본은 오디오를 제거한다.
-        cmd += ["-c:a", "aac"] if generate_audio else ["-an"]
+        cmd = ["ffmpeg", "-y", "-i", raw]
+        if not generate_audio:
+            # 기본(비발화)은 네이티브 오디오를 버리되 무음 트랙을 붙인다. 모든 클립이 오디오를
+            # 갖게 해(ken_burns와 통일) concat·경계 크로스페이드에서 오디오 유무가 섞이지 않게 한다.
+            cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+        cmd += ["-t", f"{duration_sec:.3f}", "-vf", vf, "-r", str(fps)]
+        if generate_audio:
+            cmd += ["-c:a", "aac"]  # integrated 발화: 네이티브 립싱크 음성 보존
+        else:
+            cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-shortest"]
         cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out_path]
         subprocess.run(cmd, check=True, capture_output=True)
         return out_path

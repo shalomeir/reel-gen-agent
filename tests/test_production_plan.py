@@ -98,6 +98,37 @@ def test_resolve_plan_ken_burns_segments_are_per_panel():
     assert plan.segments == [[0], [1], [2]]
 
 
+_R2V_PRIO = (
+    "fal:fal-ai/kling-video/o3/standard/reference-to-video,"
+    "fal:fal-ai/kling-video/o3/standard/image-to-video"
+)
+
+
+def _profile_timed(panels: int, dur: float = 1.0, delivery: str = "voiceover") -> ReelProfile:
+    prof = _profile(panels=panels, delivery=delivery)
+    for i, p in enumerate(prof.storyboard.panels):
+        p.t_start = i * dur
+        p.t_end = i * dur + dur
+    return prof
+
+
+def test_ref2v_uses_single_segment_for_short_reel():
+    # 6컷 x 1초 = 6초(<=15). reference-to-video면 이어붙이지 않고 단일 세그먼트 1회 호출.
+    env = {"VIDEO_MODEL_PRIORITY": _R2V_PRIO, "FAL_KEY": "k"}
+    plan = resolve_plan(_profile_timed(6), env=env)
+    assert "reference-to-video" in plan.video_model
+    assert plan.segments == [[0, 1, 2, 3, 4, 5]]
+
+
+def test_ref2v_skipped_over_15s_falls_to_i2v_multiseg():
+    # 20컷 x 1초 = 20초(>15). ref2v는 단일 클립 한도를 못 담아 건너뛰고 i2v로 내려가 여러 세그먼트.
+    env = {"VIDEO_MODEL_PRIORITY": _R2V_PRIO, "FAL_KEY": "k"}
+    plan = resolve_plan(_profile_timed(20), env=env)
+    assert "image-to-video" in plan.video_model
+    assert len(plan.segments) > 1
+    assert any("ref2v_over_15s" in f for f in plan.fallbacks_applied)
+
+
 def test_motion_for_panel_hook_pushes_in():
     hook = StoryboardPanel(index=0, beat="hook")
     assert motion_for_panel(hook) == "push_in"

@@ -13,9 +13,18 @@ from .schema import ProductionPlan, ReelProfile, StoryboardPanel
 # 하나라도 있으면 영상 백엔드 가능(Vertex Veo / Gemini API Veo / fal Kling).
 _VIDEO_KEYS = ("GOOGLE_CLOUD_PROJECT", "GEMINI_API_KEY", "GOOGLE_API_KEY", "FAL_KEY")
 
+# Kling 단일 클립 최대 길이(초). reference-to-video는 세그먼트 이어붙이기를 하지 않으므로
+# 릴 전체가 이 한도를 넘으면 ref2v를 쓸 수 없다(그 컷을 잘라 이어붙이는 건 i2v 몫).
+_KLING_MAX_SEC = 15.0
+
 
 def _has_video_backend(env: dict[str, str]) -> bool:
     return any(env.get(k) for k in _VIDEO_KEYS)
+
+
+def _is_ref2v(model: str | None) -> bool:
+    """reference-to-video 모델인가. ref2v는 단일 세그먼트 전용이라 별도 취급한다."""
+    return "reference-to-video" in (model or "").lower()
 
 
 def _lane_available(lane: str, env: dict[str, str]) -> bool:
@@ -30,11 +39,15 @@ def _lane_available(lane: str, env: dict[str, str]) -> bool:
     return False
 
 
-def _select_video_model(env: dict[str, str]) -> str | None:
+def _select_video_model(env: dict[str, str], total_dur: float = 0.0) -> str | None:
     """영상 모델을 고른다. VIDEO_MODEL_PRIORITY(lane:model, 콤마 구분)를 순회하며 lane 자격이
     있는 첫 후보를 쓴다. 없으면 레거시 폴백(VEO_MODEL / GCP·FAL 키). 다 없으면 None(ken_burns).
 
     이렇게 해야 .env의 우선순위(예: fal Kling 최우선)가 실제로 반영된다(예전엔 VEO_MODEL만 봤다).
+
+    reference-to-video는 세그먼트 이어붙이기를 하지 않아 단일 클립 한도(15초)를 넘는 릴을
+    담을 수 없다. 그래서 total_dur가 15초를 넘으면 우선순위에서 ref2v 후보를 건너뛰고 다음
+    후보(대개 i2v)를 쓴다. 우선순위 최상단이어도 무시한다(사용자 요구).
     """
     prio = (env.get("VIDEO_MODEL_PRIORITY") or "").strip()
     for entry in prio.split(","):
@@ -43,6 +56,8 @@ def _select_video_model(env: dict[str, str]) -> str | None:
             continue
         lane, sep, model = entry.partition(":")
         model = (model if sep else "").strip() or lane.strip()
+        if _is_ref2v(model) and total_dur > _KLING_MAX_SEC:
+            continue  # ref2v는 단일 클립 한도 초과 릴을 못 담는다 -> 다음 후보로.
         if _lane_available(lane.strip(), env):
             return model
     # 레거시 폴백(우선순위 미설정). 자격이 있는 레인만 고른다.
@@ -129,8 +144,13 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
     fallbacks: list[str] = []
     panels = profile.storyboard.panels or []
     n = max(1, len(panels))
+    total_dur = sum(_panel_dur(p) for p in panels)
 
-    video_model = _select_video_model(env)
+    video_model = _select_video_model(env, total_dur)
+    # 길이 초과로 ref2v를 건너뛴 경우 기록에 남긴다(우선순위에 자격 있는 ref2v 후보가 있었을 때만).
+    prio_str = env.get("VIDEO_MODEL_PRIORITY") or ""
+    if total_dur > _KLING_MAX_SEC and _is_ref2v(prio_str) and _lane_available("fal", env):
+        fallbacks.append("ref2v_over_15s->i2v")
     if video_model is None:
         video_model = "ken_burns"
         fallbacks.append("no_video_key->ken_burns")
@@ -144,7 +164,12 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
         renderers = ["i2v"] * n
 
     # 세그먼트: 영상 모델은 max_clip_sec로 묶어 ≤15초를 ≤2회 호출. ken_burns는 패널당 1개.
-    segments = segment_panels(panels, cap.max_clip_sec, per_panel=is_ken_burns)
+    # reference-to-video는 세그먼트 이어붙이기를 하지 않는다(경계 점프·인물 드리프트 방지):
+    # 릴 전체를 단일 세그먼트 1회 호출로 뽑는다(여기 오면 total_dur≤15초가 보장된다).
+    if _is_ref2v(video_model):
+        segments = [list(range(n))]
+    else:
+        segments = segment_panels(panels, cap.max_clip_sec, per_panel=is_ken_burns)
 
     delivery = profile.narration.delivery
     if delivery == "none":

@@ -50,8 +50,22 @@ def _panel_refs(
     return refs
 
 
-def _fallback_still(panel, character_image: str | None, product_image: str | None) -> str | None:
-    """생성 실패 시 재사용할 에셋 이미지. 제품 컷이면 제품, 아니면 캐릭터."""
+def _fallback_still(
+    panel,
+    character_image: str | None,
+    product_image: str | None,
+    key_visual: str | None = None,
+    person_forward: bool = False,
+) -> str | None:
+    """생성 실패 시 재사용할 에셋 이미지.
+
+    person_forward(세그먼트 앵커)면 인물을 최우선으로 돌려준다: 세그먼트 시작 프레임이 곧
+    그 세그먼트 인물이라, 여기서 제품 패키지샷이 오면 세그먼트가 인물 없이 제품만으로 시작해
+    인물 통일이 깨진다(같은 사람 유지가 최우선). key_visual(인물 대표 프레임) -> 캐릭터 순.
+    일반(비앵커) 컷은 기존대로 제품 컷이면 제품을 재사용한다.
+    """
+    if person_forward:
+        return key_visual or character_image or product_image
     if panel.product_lock and product_image:
         return product_image
     if character_image:
@@ -108,6 +122,10 @@ def ensure_panel_stills(
 
     panels_dir = Path(out_dir) / "panels"
     panels_dir.mkdir(parents=True, exist_ok=True)
+    # 세그먼트 앵커(시작 프레임)를 채우는 호출이면 인물 우선으로 간다. 앵커는 그 세그먼트의 인물을
+    # 정하는 프레임이라, 제품 컷이어도 사람이 주체로 있어야 세그먼트끼리 인물이 통일된다. 제품
+    # 패키지샷으로 시작하면(생성 실패 폴백 등) 그 세그먼트가 인물 없이 제품만으로 시작해 개판이 된다.
+    person_forward = anchor_indices is not None
     filled = 0
     for panel in missing:
         refs = _panel_refs(panel, character_image, product_image, key_visual)
@@ -120,7 +138,15 @@ def ensure_panel_stills(
 
         # 캐릭터 이미지가 참조에 들어가면 '같은 사람 유지'를 명시해 컷 간 인물 드리프트를 막는다.
         char_lock = f" {_CHARACTER_LOCK}" if character_image else ""
-        prompt = f"{base}. {_SINGLE_MOMENT_RULE} {SOLO_PERSON}{char_lock}{vibe}"
+        # 앵커는 사람이 주체임을 못 박아 제품만 있는 패키지샷으로 시작하지 않게 한다(제품은 손에
+        # 들거나 곁에 두는 소품이지 화면 전체를 채우는 주체가 아니다).
+        anchor_person = (
+            " The creator (a real person) is the main subject filling the frame; if the product "
+            "appears, it is held or beside them, never a product-only packshot with no person."
+            if person_forward
+            else ""
+        )
+        prompt = f"{base}. {_SINGLE_MOMENT_RULE} {SOLO_PERSON}{char_lock}{anchor_person}{vibe}"
         out = str(panels_dir / f"still_{panel.index}.png")
         generated = False
         if image_client is not None:
@@ -131,7 +157,9 @@ def ensure_panel_stills(
             except Exception:
                 generated = False
         if not generated:
-            fallback = _fallback_still(panel, character_image, product_image)
+            fallback = _fallback_still(
+                panel, character_image, product_image, key_visual, person_forward
+            )
             if fallback and Path(fallback).exists():
                 dst = str(panels_dir / f"still_{panel.index}{Path(fallback).suffix}")
                 shutil.copy2(fallback, dst)

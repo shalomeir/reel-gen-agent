@@ -197,6 +197,9 @@ class GenerationInput(BaseModel):
 
     objective: str | None = None  # 영상 목적을 자연어로 받는 수동 입력 경로
     prompt: str | None = None  # 자유 자연어 요청. `reel-gen run "..."` 입력처럼 그대로 해석한다.
+    # 발화 방식: on_camera(인물이 카메라 보고 직접 말함, 영상 모델 네이티브 발화·립싱크) /
+    # voiceover(화면 밖 나레이션, 기본) / none. 없으면 voiceover. Kling·Veo만 on_camera 가능.
+    delivery: str | None = None
     meta: InputMeta = Field(default_factory=InputMeta)
     product: ProductSpec
     model: ModelSpec = Field(default_factory=ModelSpec)
@@ -541,6 +544,11 @@ class Materials(BaseModel):
     # 클립에 영상 모델 네이티브 음성(온카메라 발화)이 들어 있는가. True면 assemble이 그 오디오를
     # 보존해 BGM과 믹스한다(별도 voice 없음). 기본 나레이션 경로는 False.
     native_audio: bool = False
+    # 네이티브 오디오가 온카메라 '발화'(integrated)인가, 아니면 씬 '앰비언스'(voiceover/music_bed)인가.
+    # True면 발화라 보존, False(앰비언스)면 BGM이 있을 때 감쇠해 세그먼트 경계 스냅을 없앤다.
+    native_speech: bool = False
+    # 세그먼트별 shot_clips 개수. 세그먼트 안은 하드컷, 경계에만 크로스페이드를 걸기 위한 경계 정보.
+    segment_sizes: list[int] = Field(default_factory=list)
     # 발화가 있을 때 BGM 볼륨(플랜 music.prominence가 정함). None이면 assemble 기본 덕킹.
     bgm_gain: float | None = None
 

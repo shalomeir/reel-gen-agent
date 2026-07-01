@@ -228,6 +228,8 @@ def _assemble_node(state: ExecState) -> dict:
             sfx_audio=state.get("sfx_audio") or [],
             sfx_starts=state.get("sfx_starts") or [],
             native_audio=v.native_audio,
+            native_speech=v.native_speech,
+            segment_sizes=v.segment_sizes,
             bgm_gain=state.get("bgm_gain"),
         )
         final_video = str(state["out_dir"] / "final.mp4")
