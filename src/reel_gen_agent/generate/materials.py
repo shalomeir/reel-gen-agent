@@ -145,6 +145,7 @@ def _multishot_prompt(
     style: str,
     speaking: bool,
     skin_directive: str,
+    hook_visual: str = "",
 ) -> str:
     """세그먼트 안 패널들을 샷 리스트 멀티샷 프롬프트로 편다([multishot-segments.md]).
 
@@ -165,7 +166,9 @@ def _multishot_prompt(
         lines.append(style)
     for k, panel in enumerate(seg_panels):
         shot = (panel.shot_type or "medium shot").strip()
-        action = _beat_action((panel.beat or "").strip())
+        beat = (panel.beat or "").strip()
+        # 훅 컷은 생성된 훅의 시각 컨셉을 그대로 실현한다(첫 3초가 훅을 반영하도록).
+        action = hook_visual if (beat == "hook" and hook_visual) else _beat_action(beat)
         directive = _MOTION_DIRECTIVE.get(motions[k], "")
         cam_bit = f". Camera: {directive}" if directive else ""
         subject = _shot_subject(panel, product_name)
@@ -251,6 +254,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     # 나레이션(separate_tts/none)은 영상에서 말하는 느낌을 없애 립싱크 불일치를 막는다.
     speaking = plan.voice_strategy == "integrated"
     skin_directive = _skin_directive(plan.video_model)  # Veo만 피부 광택을 더 세게 억제
+    # 생성된 훅의 시각 컨셉을 훅 컷 생성에 반영한다(첫 3초가 훅을 실현하도록).
+    hook_visual = (profile.style.hook.visual_direction or "") if profile.style.hook else ""
 
     clips: list[str] = []
     subs: list[str] = []
@@ -276,7 +281,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
                 start_image = prev_last_frame or anchor.still_image
                 prompt = _multishot_prompt(
                     [panels[i] for i in indices], motions, product_name, style, speaking,
-                    skin_directive,
+                    skin_directive, hook_visual,
                 )
                 veo.render_panel(
                     start_image, seg_dur, m.width, m.height, m.fps, seg_clip,

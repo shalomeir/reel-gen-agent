@@ -56,6 +56,19 @@ def test_storyboard_always_has_panels_and_hook_first():
     assert sb.global_prompt  # 콘티 공통 맥락이 채워진다
 
 
+def test_hook_visual_direction_drives_first_cut_prompt():
+    # 생성된 훅의 시각 컨셉이 훅 컷(패널0) 생성 프롬프트에 반영돼야 첫 3초가 훅을 실현한다.
+    parts = _parts()
+    parts["style"].hook = HookCandidate(
+        hook_type="H1",
+        headline="Glow in seconds",
+        visual_direction="hands squeezing pink jelly, then mist sprayed on the face",
+    )
+    sb = build_storyboard(**parts)
+    assert sb.panels[0].beat == "hook"
+    assert "pink jelly" in (sb.panels[0].prompt or "")
+
+
 def test_subtitles_on_meaningful_cuts_not_forced_on_all():
     # 의미 있는 컷(hook/cta 등)엔 자막이 있고, 모든 컷에 강제하지는 않는다(필러 자막 금지).
     sb = build_storyboard(**_parts(pacing="fast_montage", duration=18.0))

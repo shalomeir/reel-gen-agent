@@ -151,7 +151,11 @@ def build_storyboard(
         shot = shot_for(beat)
         # beat "라벨 단어"(problem/cta 등)를 프롬프트에 넣으면 이미지 모델이 그 단어를 화면
         # 글자로 그려버린다. 라벨 대신 샷·피사체만 적는다.
-        local = f"{shot} of {product.name}"
+        # 훅 컷은 생성된 훅의 시각 컨셉(visual_direction)을 그대로 반영해 첫 3초가 훅을 실현하게 한다.
+        if beat == "hook" and style.hook and style.hook.visual_direction:
+            local = f"{shot}, opening hook: {style.hook.visual_direction}"
+        else:
+            local = f"{shot} of {product.name}"
         if beat == "use" and product.affordances:
             local += f" ({product.affordances[0]})"
         panels.append(
