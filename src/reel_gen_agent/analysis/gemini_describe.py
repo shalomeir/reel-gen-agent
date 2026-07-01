@@ -24,6 +24,16 @@ Fill the structured schema, focusing on perceptual qualities a numeric pipeline 
   (top/center/bottom/mixed), density (keyword vs full_transcript), and any emoji used.
 - visual_palette: dominant color mood words (e.g. "warm beige", "soft pink").
 - visual_motion: still / gentle / dynamic.
+- subject: the on-screen person/model — this drives the generated character, so be accurate.
+  present=true if a person appears; then give gender, age_range (e.g. "early 20s"), ethnicity as
+  observed (e.g. "white", "black/african", "east asian", "south asian", "latina"), skin_tone
+  (e.g. "fair", "medium tan", "deep"), hair (length/color/style), a one-line look, and wardrobe.
+  Report ethnicity and skin_tone as actually observed; do NOT default to East Asian.
+  present=false if no person is shown.
+- product: the advertised product. present=true if a product appears; then give category
+  (e.g. "serum mist", "cushion foundation"), form (e.g. "jelly-to-mist", "cream"), packaging
+  (e.g. "frosted spray bottle"), colors (main product/packaging colors), and text_visible (any
+  legible text on the packaging). present=false if no product is shown.
 - hook (first 3s): headline, product_line, bottom_caption, and the visual hook.
 - tone: mood labels (e.g. fresh, clinical, sensorial, cinematic, ugc, authentic).
 - narrative_arc: ordered beats (e.g. ["problem", "apply", "payoff"]).

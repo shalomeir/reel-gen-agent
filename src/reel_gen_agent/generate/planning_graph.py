@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..analysis.profile import Subject
 from .asset_bible import build_asset_bible
+from .character import derive_character
 from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
@@ -20,7 +22,6 @@ from .schema import (
     EnvironmentSpec,
     HookRequest,
     InputMeta,
-    ModelSpec,
     MusicSpec,
     NarrationLine,
     NarrationSpec,
@@ -46,13 +47,6 @@ def run_planning(
         raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
 
     product = ProductSpec(name=(result.product.source or "product"))
-    # 기본 캐릭터: 자연스러운 내추럴함이 매력인 동안의 20대 초중반 여성(specs/trd.md 기본 포맷).
-    character = ModelSpec(
-        age="early-to-mid 20s",
-        gender="female",
-        look="naturally pretty, effortless natural look with minimal makeup, "
-        "youthful baby face, warm approachable vibe",
-    )
     # 장소 언급이 없으면 기본 환경은 등장인물 본인 방(실내)이다(specs/trd.md 기본 제작 포맷).
     environment = EnvironmentSpec(
         location="the creator's own bedroom, indoor",
@@ -63,12 +57,13 @@ def run_planning(
     music = MusicSpec()
     cut_count: int | None = None
     delivery = "voiceover"  # 기본은 나레이션. 레퍼런스가 온카메라 발화면 시딩이 바꾼다.
+    ref_subject: Subject | None = None  # 레퍼런스 등장 인물(캐릭터 노드 입력)
     provenance = Provenance(
         style_source="reference" if result.reference_ref else "llm",
         reference_ref=result.reference_ref,
     )
 
-    # 레퍼런스가 있으면 최대한 레퍼런스에서 베이스라인을 시딩한다(스타일/메타/음악/컷수/후크).
+    # 레퍼런스가 있으면 최대한 레퍼런스에서 베이스라인을 시딩한다(스타일/메타/음악/컷수/후크/인물).
     ref = result.reference_ref
     if ref and Path(ref).exists():
         try:
@@ -76,9 +71,14 @@ def run_planning(
             meta, style, music = seed.meta, seed.style, seed.music
             cut_count = seed.cut_count or None
             delivery = seed.delivery  # 레퍼런스 발화 방식(온카메라/나레이션/무음)을 따른다
+            ref_subject = seed.subject  # 레퍼런스 인물 -> 캐릭터 노드가 최대한 반영
             provenance.seeds = seed.seeds
         except Exception:
             pass  # 시딩 실패 시 기본값으로 진행(파이프라인은 끝까지 돈다).
+
+    # 캐릭터 노드: 레퍼런스 인물이 있으면 최대한 반영하고, 없으면 LLM이 브리프에서 도출한다.
+    # 아무 단서 없으면 기본값(매력적인 20대 초반 미국 여성). 하드코딩하지 않는다(사용자 지시).
+    character = derive_character(result.objective.goal, product, ref_subject, text_client)
 
     # 후크: 유형·문구는 LLM이 제품·목적·톤에 맞춰 유연하게 고른다(하드코딩 X, temperature로
     # 다양성). 레퍼런스가 있으면 그 첫 3초 시각 컨셉(visual_direction)·문구·윈도를 LLM이 고른

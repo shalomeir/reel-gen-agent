@@ -84,6 +84,39 @@ class Hook(BaseModel):
     window_sec: list[float] = Field(default_factory=lambda: [0.0, 3.0])
 
 
+class Subject(BaseModel):
+    """화면에 나오는 인물(모델/크리에이터) 묘사. 생성 시 캐릭터 시딩에 쓴다.
+
+    없으면 present=False. 있으면 성별·나이대·인종·피부톤·헤어·착장까지 최대한 잡아, 생성
+    캐릭터가 레퍼런스 인물을 따르도록 한다(입력 레퍼런스 반영). 특히 인종과 피부톤은
+    캐릭터 정체성을 좌우하므로 관측된 대로 명확히 남긴다. Gemini가 채운다.
+    """
+
+    present: bool = False
+    gender: str | None = None  # female / male / group
+    age_range: str | None = None  # 예: "early 20s"
+    ethnicity: str | None = None  # 예: "black/african", "east asian", "white" (관측된 대로)
+    skin_tone: str | None = None  # 예: "deep", "medium tan", "fair" (인종 판단을 구체 관측으로 보강)
+    hair: str | None = None  # 길이·색·스타일(예: "long dark curly")
+    look: str | None = None  # 외모/분위기 한 줄
+    wardrobe: str | None = None  # 착장
+
+
+class Product(BaseModel):
+    """화면에 나오는 제품 묘사. 생성 시 제품 시딩 참고에 쓴다. 없으면 present=False.
+
+    브랜드·제품명을 복제하려는 게 아니라(생성물은 사용자 제품을 쓴다), 카테고리·제형·
+    용기·색 같은 시각 특성을 잡아 생성 제품이 레퍼런스 결과 유형을 따르게 한다. Gemini가 채운다.
+    """
+
+    present: bool = False
+    category: str | None = None  # 예: "serum mist", "cushion foundation"
+    form: str | None = None  # 제형/형태(예: "jelly-to-mist", "cream", "stick")
+    packaging: str | None = None  # 용기 형태(예: "frosted spray bottle")
+    colors: list[str] = Field(default_factory=list)  # 제품/패키지 주요 색
+    text_visible: list[str] = Field(default_factory=list)  # 패키지에 읽히는 텍스트(관측된 대로)
+
+
 class Source(BaseModel):
     """출처 추적."""
 
@@ -102,6 +135,8 @@ class VideoProfile(BaseModel):
     voice: Voice = Field(default_factory=Voice)
     music: Music = Field(default_factory=Music)
     hook: Hook = Field(default_factory=Hook)
+    subject: Subject = Field(default_factory=Subject)
+    product: Product = Field(default_factory=Product)
     tone: list[str] = Field(default_factory=list)
     narrative_arc: list[str] = Field(default_factory=list)
     description: str | None = None
@@ -122,6 +157,8 @@ class GeminiDescription(BaseModel):
     music_dynamics: str | None = None  # flat / build
     music_beat_synced: bool | None = None
     hook: Hook = Field(default_factory=Hook)
+    subject: Subject = Field(default_factory=Subject)
+    product: Product = Field(default_factory=Product)
     tone: list[str] = Field(default_factory=list)
     narrative_arc: list[str] = Field(default_factory=list)
     description: str | None = None

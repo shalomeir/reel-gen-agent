@@ -4,7 +4,14 @@ from PIL import Image
 
 from reel_gen_agent.analysis.media_probe import has_audio_stream
 from reel_gen_agent.generate.assemble import assemble
-from reel_gen_agent.generate.audio import bgm_cut_sync_ok, bpm_for_cuts, synth_music_bed
+from reel_gen_agent.generate.audio import (
+    NARRATION_GAP_SEC,
+    NARRATION_MAX_TEMPO,
+    _narration_timeline,
+    bgm_cut_sync_ok,
+    bpm_for_cuts,
+    synth_music_bed,
+)
 from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 from reel_gen_agent.generate.schema import InputMeta, Materials, StoryboardPanel
 
@@ -34,6 +41,34 @@ def test_cut_sync_fails_when_off_beat():
     panels = _panels(1.0)
     # 90bpm -> 비트 0.667s, 1.0s는 1.5배라 정수배가 아님 -> 비동기.
     assert bgm_cut_sync_ok(90, panels) is False
+
+
+def _ends(durs, tempo, starts):
+    """각 대사의 끝 시각(압축 템포 반영)."""
+    return [s + d / tempo for s, d in zip(starts, durs)]
+
+
+def test_narration_timeline_never_overlaps_and_has_gap():
+    # 컷은 1.19초로 짧지만 대사는 2.2초 -> 순차 배치라 겹치지 않고 쉼이 들어가야 한다.
+    durs = [2.2, 2.2, 2.2]
+    tempo, starts = _narration_timeline(durs, first_start=0.0, total_dur=30.0)
+    assert tempo == 1.0  # 30초 안에 다 들어가니 압축 없음
+    assert starts[0] == 0.0
+    ends = _ends(durs, tempo, starts)
+    for i in range(1, len(starts)):
+        # 다음 대사는 직전 대사 끝난 뒤에 시작(겹침 없음) + 쉼 확보.
+        assert starts[i] >= ends[i - 1] - 1e-9
+        assert starts[i] - ends[i - 1] >= NARRATION_GAP_SEC - 1e-9
+
+
+def test_narration_timeline_compresses_to_fit_without_cutoff():
+    # 대사 총량이 남은 길이를 크게 넘으면 균일 템포로 눌러 전체 길이 안에 맞춘다.
+    durs = [2.2] * 8  # 17.6초 + 쉼, 영상은 10.7초
+    tempo, starts = _narration_timeline(durs, first_start=0.0, total_dur=10.7)
+    assert 1.0 < tempo <= NARRATION_MAX_TEMPO
+    ends = _ends(durs, tempo, starts)
+    for i in range(1, len(starts)):
+        assert starts[i] >= ends[i - 1] - 1e-9  # 여전히 겹치지 않는다
 
 
 def test_synth_bed_makes_non_silent_audio(tmp_path):

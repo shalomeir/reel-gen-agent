@@ -42,6 +42,37 @@ def _audio_duration(path: str) -> float:
         return 0.0
 
 
+# 대사와 대사 사이 최소 쉼(초). 숨 쉴 틈을 줘 붙어 들리지 않게 한다.
+NARRATION_GAP_SEC = 0.15
+# 전체 길이에 맞추려 올릴 수 있는 최대 템포. 넘으면 목소리가 부자연스러워 여기서 캡한다.
+NARRATION_MAX_TEMPO = 1.6
+
+
+def _narration_timeline(
+    durs: list[float], first_start: float, total_dur: float
+) -> tuple[float, list[float]]:
+    """대사 길이 목록을 순차 배치 타임라인으로 바꾼다(겹침 없음).
+
+    첫 대사는 first_start에서 시작하고, 각 다음 대사는 직전 대사(압축 후 길이)가 끝나고
+    NARRATION_GAP_SEC만큼 쉰 뒤 시작한다. 전체 대사+쉼이 남은 길이를 넘으면 모든 대사에
+    같은 템포(최대 NARRATION_MAX_TEMPO)를 걸어 잘리지 않게 압축한다.
+
+    반환: (적용 템포, 각 대사 시작 시각 목록). 시작 시각은 항상 비감소이며 겹치지 않는다.
+    """
+    anchor = min(total_dur, max(0.0, first_start))
+    content = sum(durs) + NARRATION_GAP_SEC * (len(durs) - 1)
+    available = max(0.1, total_dur - anchor)
+    tempo = min(NARRATION_MAX_TEMPO, content / available) if content > available else 1.0
+
+    starts: list[float] = []
+    cursor = anchor
+    for dur in durs:
+        starts.append(cursor)
+        # 다음 대사는 이번 대사(압축 후 길이)가 끝나고 쉼만큼 뒤 -> 겹치지 않는다.
+        cursor += dur / tempo + NARRATION_GAP_SEC
+    return tempo, starts
+
+
 def compose_aligned_narration(
     lines: list[NarrationLine],
     panels: list[StoryboardPanel],
@@ -50,29 +81,22 @@ def compose_aligned_narration(
     work_dir: str,
     out_path: str,
 ) -> str | None:
-    """비트별 대사를 각 패널 t_start에 배치해 전체 길이 voice 트랙으로 합성한다.
+    """대사를 순차 배치(직전 대사 끝 + 짧은 쉼)해 전체 길이 voice 트랙으로 합성한다.
 
-    각 대사를 TTS한 뒤, 그 패널 슬롯(다음 패널 시작까지)보다 길면 살짝 템포를 올려 넘치지
-    않게 맞추고(최대 1.6배), 해당 t_start에 지연 배치(adelay)해 amix한다. 스토리보드 비트에
-    맞물려 깔리고, 전체 길이가 total_dur라 영상과 함께 끝나 잘리지 않는다.
+    각 대사를 TTS한 뒤 스토리보드 순서대로 이어 깐다. 대사는 절대 겹치지 않는다: 다음
+    대사는 직전 대사가 끝나고 NARRATION_GAP_SEC만큼 쉰 뒤 시작한다. 첫 대사는 해당 패널
+    t_start에서 시작해 영상 도입과 맞춘다. 전체 대사가 total_dur를 넘으면 전 대사에 같은
+    템포(최대 NARRATION_MAX_TEMPO)를 걸어 잘리지 않게 맞춘다(넘침 대신 균일 압축).
     """
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
     starts = {p.index: (p.t_start or 0.0) for p in panels}
-    ordered_starts = sorted(starts.values())
 
-    def _slot(start: float) -> float:
-        nxt = [s for s in ordered_starts if s > start + 1e-3]
-        return (min(nxt) if nxt else total_dur) - start
-
-    inputs: list[str] = []
-    filters: list[str] = []
-    labels: list[str] = []
-    n = 0
-    for line in lines:
+    # 스토리보드 순서(패널 t_start, 그다음 index)대로 TTS하고 길이를 잰다.
+    made: list[tuple[str, float, float]] = []  # (clip, dur, panel_start)
+    for line in sorted(lines, key=lambda ln: (starts.get(ln.panel_index, 0.0), ln.panel_index)):
         if not line.text.strip():
             continue
-        start = starts.get(line.panel_index, 0.0)
         clip = str(work / f"nl_{line.panel_index}.mp3")
         try:
             tts(line.text.strip(), clip)
@@ -81,17 +105,27 @@ def compose_aligned_narration(
         dur = _audio_duration(clip)
         if dur <= 0:
             continue
-        slot = max(0.4, _slot(start))
-        chain = f"[{n + 1}:a]"
-        # 슬롯보다 길면 최대 1.6배까지 템포를 올려 다음 컷을 침범하지 않게 한다.
-        if dur > slot:
-            tempo = min(1.6, dur / slot)
+        made.append((clip, dur, max(0.0, starts.get(line.panel_index, 0.0))))
+
+    if not made:
+        return None
+
+    # 첫 대사는 그 패널 t_start에서 시작. 순차 배치 타임라인을 계산한다(겹침 없음).
+    tempo, line_starts = _narration_timeline(
+        [dur for _, dur, _ in made], made[0][2], total_dur
+    )
+
+    inputs: list[str] = []
+    filters: list[str] = []
+    labels: list[str] = []
+    for i, ((clip, _dur, _), start) in enumerate(zip(made, line_starts)):
+        chain = f"[{i + 1}:a]"
+        if tempo > 1.0:
             chain += f"atempo={tempo:.3f},"
         delay_ms = int(start * 1000)
-        filters.append(f"{chain}adelay={delay_ms}|{delay_ms}[d{n}]")
-        labels.append(f"[d{n}]")
+        filters.append(f"{chain}adelay={delay_ms}|{delay_ms}[d{i}]")
+        labels.append(f"[d{i}]")
         inputs.append(clip)
-        n += 1
 
     if not labels:
         return None

@@ -79,14 +79,16 @@ def _lookup(model: str) -> tuple[str, float] | None:
     return None
 
 
-def _panel_seconds(profile: ReelProfile) -> float:
-    """still_image가 있는 패널의 길이 합(초). materials의 dur 산정과 정렬."""
-    total = 0.0
-    for panel in profile.storyboard.panels:
-        if not panel.still_image:
-            continue
-        total += max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
-    return total
+def _video_seconds(profile: ReelProfile) -> float:
+    """생성된 영상 길이(초) = 전체 패널 길이 합.
+
+    멀티샷은 여러 패널을 한 세그먼트로 묶어 스틸 몇 장만으로 전체 구간을 생성한다.
+    그래서 still_image 유무로 초를 세면 실제 생성 초를 크게 과소집계한다(예: 9패널 10.7초를
+    스틸 2장만 세어 2.38초로 계산). 조립 영상 길이와 맞도록 모든 패널 길이를 합한다.
+    """
+    return sum(
+        max(0.5, (p.t_end or 0.0) - (p.t_start or 0.0)) for p in profile.storyboard.panels
+    )
 
 
 def _still_count(profile: ReelProfile) -> int:
@@ -163,7 +165,7 @@ def estimate_cost(
 
     # 영상 클립: 로컬(ken_burns)이면 라인 생략, 아니면 초당 단가.
     video_model = _effective_video_model(plan, env)
-    video_seconds = _panel_seconds(profile)
+    video_seconds = _video_seconds(profile)
     n_clips = len(manifest.panel_segments)
     if video_model not in LOCAL_BACKENDS and video_seconds > 0:
         note = f"{n_clips}개 클립" if n_clips else None

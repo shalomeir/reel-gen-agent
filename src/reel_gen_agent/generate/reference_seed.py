@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..analysis.analyze import analyze_video
-from ..analysis.profile import VideoProfile
+from ..analysis.profile import Subject, VideoProfile
 from .schema import (
     CutRhythm,
     HookCandidate,
@@ -32,6 +32,7 @@ class ReferenceSeed:
     narrative_arc: list[str]
     cut_count: int
     delivery: str = "voiceover"  # 레퍼런스의 발화 방식: voiceover / on_camera / none
+    subject: Subject = field(default_factory=Subject)  # 레퍼런스 등장 인물(캐릭터 시딩용)
     seeds: dict = field(default_factory=dict)
 
 
@@ -109,6 +110,7 @@ def seed_from_reference(ref_path: str, *, use_gemini: bool = True) -> ReferenceS
         narrative_arc=list(vp.narrative_arc),
         cut_count=cut.count or 0,
         delivery=_delivery_from(vp),
+        subject=vp.subject,
         seeds={
             "cut_count": cut.count,
             "cut_mean_sec": cut.mean_sec,

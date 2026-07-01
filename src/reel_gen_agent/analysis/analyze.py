@@ -99,6 +99,8 @@ def _merge_gemini(profile: VideoProfile, desc) -> None:
         profile.cut.sync = "beat_based" if desc.music_beat_synced else "meaning_based"
 
     profile.hook = desc.hook
+    profile.subject = desc.subject
+    profile.product = desc.product
     profile.tone = desc.tone
     profile.narrative_arc = desc.narrative_arc
     profile.description = desc.description

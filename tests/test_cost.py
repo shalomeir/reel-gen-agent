@@ -101,3 +101,32 @@ def test_kling_reference_to_video_is_priced_by_partial_match():
     cost = estimate_cost(profile, plan, manifest, {}, {}, {})
     video = next(ln for ln in cost.lines if ln.label == "영상 클립")
     assert video.subtotal_usd == round(3.5 * 0.28, 4)
+
+
+def test_multishot_counts_all_panel_seconds_not_just_stills():
+    # 멀티샷: 9패널을 2세그먼트로 묶어 스틸 2장(패널 0, 5)만 생성해도, 영상/BGM 초는
+    # 전체 패널 길이(10.7초)로 잡아야 한다(still_image 유무로 과소집계 금지).
+    panels = []
+    for i in range(9):
+        t0 = round(i * 1.19, 2)
+        t1 = round((i + 1) * 1.19, 2) if i < 8 else 10.7
+        still = f"still_{i}.png" if i in (0, 5) else None
+        panels.append(StoryboardPanel(index=i, t_start=t0, t_end=t1, still_image=still))
+    profile = ReelProfile(
+        objective=Objective(goal="g", key_message="k"),
+        product=ProductSpec(name="P"),
+        storyboard=Storyboard(panels=panels),
+    )
+    plan = ProductionPlan(video_model="veo-3.1-lite-generate-001", bgm="gen")
+    manifest = RunManifest(panel_segments=[f"c{i}.mp4" for i in range(9)])
+
+    cost = estimate_cost(profile, plan, manifest, {}, {}, {"GOOGLE_CLOUD_PROJECT": "p"})
+    lines = _lines_by_label(cost)
+
+    total_sec = round(sum(max(0.5, p.t_end - p.t_start) for p in panels), 4)
+    assert total_sec == 10.7  # 2.38이 아니라 전체 길이
+    assert lines["영상 클립"].quantity == 10.7
+    assert lines["영상 클립"].subtotal_usd == round(10.7 * 0.10, 4)
+    assert lines["BGM"].quantity == 10.7
+    # 스틸(이미지)은 실제 생성 장수(2장)와 맞게 유지된다.
+    assert lines["패널 스틸"].quantity == 2
