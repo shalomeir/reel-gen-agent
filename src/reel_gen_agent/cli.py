@@ -568,7 +568,7 @@ def chat(
     # 실행 시 기본 모델을 최상단에 보여준다(대화 모델 / 영상 생성 모델).
     text_model = getattr(text, "model", "?")
     video_model = os.environ.get("VEO_MODEL") or "veo-3.1-fast-generate-001"
-    console.print("리엘젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
+    console.print("릴젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
     console.print(f"[dim]대화 모델:[/] {text_model}")
     console.print(f"[dim]영상 생성 모델:[/] {video_model}")
 
@@ -593,8 +593,9 @@ def chat(
         console.print(f"\n🤖 {OPENING}")
         state.add_user(_ask("나 > "))
 
-    # 대화 루프: 목적·제품·(원하면)캐릭터가 충분히 정의될 때까지 한 번에 하나씩 물어 채운다.
-    # 덜 정의되면 next_turn이 계속 질문을 돌려주고, 충분해지면 ready=True로 브리프를 종합한다.
+    # 대화 루프: 목적·제품·캐릭터(등장 인물)가 정해질 때까지 한 번에 하나씩 물어 채운다.
+    # 캐릭터는 사용자에게 반드시 한 번 되묻는다(사용자가 위임하면 그대로 수용). 덜 정의되면
+    # next_turn이 계속 질문을 돌려주고, 충분해지면 ready=True로 브리프를 종합한다.
     brief = ""
     for _ in range(14):
         decision = _spin("생각하는 중", lambda: next_turn(state, text))
