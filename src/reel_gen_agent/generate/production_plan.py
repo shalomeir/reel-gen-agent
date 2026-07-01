@@ -17,27 +17,39 @@ def _has_video_backend(env: dict[str, str]) -> bool:
     return any(env.get(k) for k in _VIDEO_KEYS)
 
 
-def motion_for_beat(beat: str | None, general_index: int = 0) -> str:
-    """켄 번스 폴백 모션을 beat로 고른다([2026-07-01-ken-burns-motion-design.md]).
+def motion_for_panel(
+    panel: StoryboardPanel, general_index: int = 0, product_index: int = 0
+) -> str:
+    """패널의 beat + 제품 잠금으로 컷 모션을 고른다([2026-07-01-ken-burns-motion-design.md]).
 
-    hook은 또렷한 push_in, proof/cta는 완전 정지(static). 그 외 일반 컷은 약한 줌인/줌아웃을
-    번갈아(general_index 홀짝) 인접 컷 경계를 다르게 한다. 어색한 좌우 팬은 쓰지 않는다.
+    컷마다 카메라를 다르게 움직여 컷 변화를 준다:
+    - hook: 또렷한 push_in으로 시선을 잡는다.
+    - 제품 강조 컷(product_lock): 제품으로 줌인한다. 제품 컷이 연속이면 강한 줌인
+      (product_push_in)과 약한 줌인(zoom_in_slow)을 번갈아, 인접 컷 경계를 다르게 하되
+      방향은 항상 안쪽(제품 쪽)으로 유지한다.
+    - 그 외 일반 컷: 약한 줌인/줌아웃을 번갈아 인접 컷 경계를 다르게 한다.
+
+    어색해지기 쉬운 좌우 팬과, conformance not_frozen을 건드리는 완전 정지는 쓰지 않는다.
     """
-    b = (beat or "").strip().lower()
+    b = (panel.beat or "").strip().lower()
     if b == "hook":
         return "push_in"
-    if b in ("proof", "cta"):
-        return "static"
+    if panel.product_lock:
+        # 제품 강조: 항상 제품 쪽으로 줌인, 연속 컷은 줌 세기를 번갈아 경계를 살린다.
+        return "product_push_in" if product_index % 2 == 0 else "zoom_in_slow"
     return "zoom_in_slow" if general_index % 2 == 0 else "zoom_out_slow"
 
 
 def _panel_motions(panels: list[StoryboardPanel]) -> list[str]:
-    """패널 목록을 beat 기반 모션 목록으로. 일반 컷만 줌인/줌아웃 교대 인덱스를 센다."""
+    """패널 목록을 모션 목록으로. 일반 컷/제품 컷 교대 인덱스를 따로 센다."""
     motions: list[str] = []
     general = 0
+    product = 0
     for panel in panels:
-        motion = motion_for_beat(panel.beat, general)
-        if motion in ("zoom_in_slow", "zoom_out_slow"):
+        motion = motion_for_panel(panel, general, product)
+        if panel.product_lock and (panel.beat or "").strip().lower() != "hook":
+            product += 1
+        elif motion in ("zoom_in_slow", "zoom_out_slow"):
             general += 1
         motions.append(motion)
     return motions

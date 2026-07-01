@@ -28,18 +28,25 @@
 | `zoom_in_slow` | 1.0 -> 1.06 중앙 줌인 | 일반 컷(교대) |
 | `zoom_out_slow` | 1.06 -> 1.0 중앙 줌아웃 | 일반 컷(교대) |
 | `push_in` | 1.0 -> 1.12 중앙 줌인 | hook 컷 |
-| `static` | zoompan 미사용, 스틸 반복 | proof / cta (완전 정지) |
+| `product_push_in` | 1.0 -> 1.18 중앙 줌인(강) | 제품 강조 컷(product_lock) |
+| `static` | zoompan 미사용, 스틸 반복 | 정지가 꼭 필요할 때만(기본 미사용) |
 
-넷 다 중앙 기준이라 팬처럼 흔들리지 않는다. 좌우 팬은 어색해지기 쉬워 채택하지 않는다.
-`static`은 zoompan을 아예 쓰지 않아 지터가 원천 차단된다(완전 정지).
+전부 중앙 기준이라 팬처럼 흔들리지 않는다. 좌우 팬은 어색해지기 쉬워 채택하지 않는다.
+`static`은 지터가 원천 차단되지만 `not_frozen`을 건드려 기본 경로에서는 쓰지 않는다.
 
-### C. beat 매핑 (beat 1차 선택 + 일반 컷 교대)
+### C. 매핑 (beat + 제품 잠금 1차 선택, 나머지는 교대)
 
-- `hook -> push_in`
-- `proof -> static`, `cta -> static`
-- 그 외(problem/discovery/use/reaction/None) -> `zoom_in_slow`와 `zoom_out_slow`를
+- `hook -> push_in` (시선을 잡는 또렷한 줌인)
+- **제품 강조 컷(`product_lock=True`)** -> 제품으로 줌인. 연속되면 강한 줌인
+  (`product_push_in`)과 약한 줌인(`zoom_in_slow`)을 번갈아, 방향은 항상 안쪽(제품)으로
+  두되 인접 컷 경계는 다르게 한다. "유저가 제품을 강조할 때 그 제품으로 줌인" 요구를 만족.
+- 그 외 일반 컷(problem/discovery/reaction/None) -> `zoom_in_slow`와 `zoom_out_slow`를
   번갈아 쓴다. 일반 컷 순번(홀짝)으로 교대해 인접 클립의 경계 프레임이 달라지고, 스틸이
   비슷해도 컷 감지기가 경계를 잡기 쉽다.
+
+영상 백엔드(Veo/Kling)에도 이 모션이 카메라 지시문으로 전달된다: `materials._veo_prompt`가
+모션명을 "slow push-in zooming into the product" 같은 문장으로 바꿔 패널 프롬프트에 붙여,
+켄 번스든 실 영상이든 같은 컷 무빙 의도를 공유한다.
 
 ## 인터페이스 (아키텍처 경계 유지)
 
@@ -48,7 +55,8 @@
   무시한다.
 - **렌더링(메커니즘)은 backend**: `KenBurnsBackend.render_panel(..., motion="zoom_in_slow")`.
   모션명 -> ffmpeg 식은 backend 내부에 둔다. `static`은 zoompan 없는 단순 경로.
-- **매핑 함수** `motion_for_beat(beat) -> str`는 `production_plan.py`에 둔다.
+- **매핑 함수** `motion_for_panel(panel, general_index, product_index) -> str`는
+  `production_plan.py`에 둔다(패널 beat + `product_lock`로 선택).
 - `materials.py` 루프에서 `plan.panel_motions[i]`를 `render_panel`에 넘긴다.
 
 ## 게이트
@@ -59,7 +67,7 @@
 
 ## 테스트
 
-- `motion_for_beat` 매핑 단위 테스트(결정적).
+- `motion_for_panel` 매핑 단위 테스트(hook/제품 컷/일반 컷 교대, 결정적).
 - `render_panel`의 각 모션이 ffmpeg 실행에 성공: `zoom_in_slow`/`push_in`은
   `not_frozen` 임계값을 넘기고, `static`은 정지(임계값 미만)임을 확인.
 - 기존 `test_ken_burns` duration/resolution 테스트 유지.

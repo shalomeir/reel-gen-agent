@@ -55,7 +55,9 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
         if filled == 0:
             raise ValueError("stills: 채울 수 있는 패널 스틸이 없다(에셋 이미지 확인).")
 
-    plan = resolve_plan(profile, env={})
+    # 실제 환경(GOOGLE_CLOUD_PROJECT/FAL_KEY 등)을 넘겨야 영상 백엔드가 선택된다.
+    # 빈 dict를 넘기면 항상 ken_burns로 폴백해 실 영상 생성이 꺼진다.
+    plan = resolve_plan(profile, env=dict(os.environ))
     manifest.production_plan = plan
     manifest.nodes.append(NodeRun(name="production_plan"))
 

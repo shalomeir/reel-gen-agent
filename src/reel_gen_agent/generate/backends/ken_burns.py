@@ -22,6 +22,7 @@ _ZOOM_EXPR: dict[str, str] = {
     "zoom_in_slow": "1+0.06*on/{total}",  # 평상시: 아주 약한 줌인
     "zoom_out_slow": "1.06-0.06*on/{total}",  # 평상시 교대: 아주 약한 줌아웃
     "push_in": "1+0.12*on/{total}",  # hook: 조금 더 또렷하게 밀고 들어감
+    "product_push_in": "1+0.18*on/{total}",  # 제품 강조 컷: 제품으로 또렷하게 줌인
 }
 DEFAULT_MOTION = "zoom_in_slow"
 

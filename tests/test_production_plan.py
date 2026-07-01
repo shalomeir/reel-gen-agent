@@ -1,4 +1,4 @@
-from reel_gen_agent.generate.production_plan import motion_for_beat, resolve_plan
+from reel_gen_agent.generate.production_plan import motion_for_panel, resolve_plan
 from reel_gen_agent.generate.schema import (
     NarrationSpec,
     Objective,
@@ -9,8 +9,15 @@ from reel_gen_agent.generate.schema import (
 )
 
 
-def _profile(delivery="voiceover", panels=1, beats=None) -> ReelProfile:
-    ps = [StoryboardPanel(index=i, beat=(beats[i] if beats else None)) for i in range(panels)]
+def _profile(delivery="voiceover", panels=1, beats=None, product_locks=None) -> ReelProfile:
+    ps = [
+        StoryboardPanel(
+            index=i,
+            beat=(beats[i] if beats else None),
+            product_lock=bool(product_locks[i]) if product_locks else False,
+        )
+        for i in range(panels)
+    ]
     sb = Storyboard(panels=ps)
     return ReelProfile(
         objective=Objective(goal="demo"),
@@ -43,27 +50,35 @@ def test_on_camera_multicut_without_kling_downgrades_to_voiceover():
     assert any("on_camera" in f for f in plan.fallbacks_applied)
 
 
-def test_motion_for_beat_maps_hook_and_cta():
-    assert motion_for_beat("hook") == "push_in"
-    assert motion_for_beat("proof") == "static"
-    assert motion_for_beat("cta") == "static"
+def test_motion_for_panel_hook_pushes_in():
+    hook = StoryboardPanel(index=0, beat="hook")
+    assert motion_for_panel(hook) == "push_in"
 
 
-def test_motion_for_beat_general_cuts_alternate_zoom():
-    assert motion_for_beat("use", 0) == "zoom_in_slow"
-    assert motion_for_beat("use", 1) == "zoom_out_slow"
-    assert motion_for_beat(None, 2) == "zoom_in_slow"
+def test_motion_for_panel_product_cut_zooms_into_product():
+    # 제품 강조 컷은 항상 안쪽(제품)으로 줌인. 연속 컷은 강/약 줌인을 번갈아 경계를 살린다.
+    p0 = StoryboardPanel(index=0, beat="proof", product_lock=True)
+    p1 = StoryboardPanel(index=1, beat="cta", product_lock=True)
+    assert motion_for_panel(p0, product_index=0) == "product_push_in"
+    assert motion_for_panel(p1, product_index=1) == "zoom_in_slow"
 
 
-def test_panel_motions_follow_beats_and_alternate():
+def test_motion_for_panel_general_cuts_alternate_zoom():
+    use = StoryboardPanel(index=0, beat="use")
+    assert motion_for_panel(use, general_index=0) == "zoom_in_slow"
+    assert motion_for_panel(use, general_index=1) == "zoom_out_slow"
+
+
+def test_panel_motions_follow_beats_and_product_locks():
     beats = ["hook", "problem", "discovery", "proof", "use", "cta"]
-    plan = resolve_plan(_profile(panels=6, beats=beats), env={})
-    # hook=push_in, proof/cta=static, 일반 컷(problem/discovery/use)만 줌인/아웃 교대.
+    locks = [False, False, False, True, False, True]
+    plan = resolve_plan(_profile(panels=6, beats=beats, product_locks=locks), env={})
+    # hook=push_in; 제품 컷(proof/cta)=제품 줌인(강/약 교대); 일반 컷만 줌인/아웃 교대.
     assert plan.panel_motions == [
         "push_in",
         "zoom_in_slow",
         "zoom_out_slow",
-        "static",
+        "product_push_in",
         "zoom_in_slow",
-        "static",
+        "zoom_in_slow",
     ]

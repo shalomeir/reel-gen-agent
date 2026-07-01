@@ -61,6 +61,25 @@ def _video_backend(plan: ProductionPlan):
     return None
 
 
+# 켄 번스 모션명 -> 영상 모델(Veo/Kling)에 넣을 카메라 무빙 지시문. 컷마다 카메라를
+# 다르게 움직여야 컷 변화가 살고, 제품 컷은 제품으로 밀고 들어가야 강조가 된다.
+_MOTION_DIRECTIVE: dict[str, str] = {
+    "push_in": "slow cinematic push-in, camera drifts closer",
+    "product_push_in": "slow push-in zooming into the product, product stays sharp and centered",
+    "zoom_in_slow": "very slow, subtle zoom-in",
+    "zoom_out_slow": "very slow, subtle zoom-out revealing more of the scene",
+    "static": "locked-off static shot, no camera movement",
+}
+
+
+def _veo_prompt(base_prompt: str, motion: str) -> str:
+    """패널 프롬프트에 컷 모션 카메라 지시문을 덧붙인다(영상 모델이 실제로 줌하도록)."""
+    directive = _MOTION_DIRECTIVE.get(motion)
+    if not directive:
+        return base_prompt
+    return f"{base_prompt}. Camera: {directive}." if base_prompt else directive
+
+
 def _music_bpm(tempo: str | None) -> int | None:
     """MusicSpec.tempo 문자열("136 bpm")에서 bpm 정수를 뽑는다. 없으면 None."""
     if not tempo:
@@ -89,6 +108,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         made = False
         if veo is not None:
             try:
+                base = panel.prompt or profile.storyboard.global_prompt or ""
                 veo.render_panel(
                     panel.still_image,
                     dur,
@@ -96,7 +116,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
                     m.height,
                     m.fps,
                     clip,
-                    prompt=panel.prompt or profile.storyboard.global_prompt or "",
+                    motion=motion,
+                    prompt=_veo_prompt(base, motion),
                 )
                 made = True
             except Exception:
