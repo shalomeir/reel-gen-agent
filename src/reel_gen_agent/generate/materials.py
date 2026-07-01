@@ -73,14 +73,6 @@ _MOTION_DIRECTIVE: dict[str, str] = {
 }
 
 
-def _veo_prompt(base_prompt: str, motion: str) -> str:
-    """패널 프롬프트에 컷 모션 카메라 지시문을 덧붙인다(영상 모델이 실제로 줌하도록)."""
-    directive = _MOTION_DIRECTIVE.get(motion)
-    if not directive:
-        return base_prompt
-    return f"{base_prompt}. Camera: {directive}." if base_prompt else directive
-
-
 def _shot_subject(panel: StoryboardPanel, product_name: str) -> str:
     """이 컷의 피사체 한 줄. 제품 강조 컷이면 제품, 아니면 인물 중심."""
     if panel.product_lock:
@@ -88,18 +80,37 @@ def _shot_subject(panel: StoryboardPanel, product_name: str) -> str:
     return "the beauty creator"
 
 
+def _speech_directive(speaking: bool) -> str:
+    """발화 지시문([ADR.md] ADR-0012). 나레이션(기본)이면 영상에서 말하는 느낌을 없애 립싱크
+    불일치를 막고, 온카메라 발화가 필요할 때만 영상 모델이 립싱크로 직접 말하게 한다.
+    """
+    if speaking:
+        return "The person speaks to the camera with natural, realistic lip-sync."
+    return (
+        "The person is NOT talking: mouth relaxed and mostly closed, no lip movement, no speaking, "
+        "no lip-sync (voiceover is added separately)."
+    )
+
+
 def _multishot_prompt(
-    seg_panels: list[StoryboardPanel], motions: list[str], product_name: str, style: str
+    seg_panels: list[StoryboardPanel],
+    motions: list[str],
+    product_name: str,
+    style: str,
+    speaking: bool,
 ) -> str:
     """세그먼트 안 패널들을 샷 리스트 멀티샷 프롬프트로 편다([multishot-segments.md]).
 
     앵커 이미지 1장 + 이 프롬프트로 영상 모델이 세그먼트 내부의 여러 컷을 스스로 만든다.
     컷마다 shot_type, 피사체(제품 컷은 제품), beat 동작, 카메라 무빙(제품 컷은 제품 줌인)을
-    담아 컷 변화를 유도한다. 인물·제품 일관은 명시적으로 요구한다.
+    담아 컷 변화를 유도한다. 인물·제품 일관과 발화 여부(립싱크)는 명시적으로 요구한다.
     """
     lines = [
         f"Multishot sequence of {len(seg_panels)} quick vertical 9:16 shots for a beauty short.",
         "Keep the same person and the same product consistent across every shot.",
+        "Natural realistic skin texture with visible pores; avoid excessive dewy sheen, greasy "
+        "highlights or plastic glossy skin.",
+        _speech_directive(speaking),
     ]
     if style:
         lines.append(style)
@@ -138,6 +149,38 @@ def _panel_dur(panel: StoryboardPanel) -> float:
     return max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
 
 
+# 컷 인덱스 홀짝으로 줌 배율을 크게 번갈아, 연속 영상에서 잘라낸 인접 서브컷의 프레이밍이
+# 확 달라져 컷 감지기가 경계를 잡게 한다(편집단계 beat-cut 몽타주, [multishot-segments.md]).
+# 제품 강조 컷은 더 세게 밀어 제품으로 줌인한다.
+_CUT_BASE_ZOOM = (1.0, 1.22)
+
+
+def _beat_cut_zoom(cut_index: int, product_lock: bool) -> float:
+    """서브컷의 줌 배율. 홀짝으로 크게 번갈고, 제품 컷은 추가로 밀어 넣는다."""
+    z = _CUT_BASE_ZOOM[cut_index % 2]
+    if product_lock:
+        z += 0.10  # 제품 강조: 제품으로 더 크게 줌인
+    return round(z, 3)
+
+
+def _extract_subcut(
+    seg_clip: str, start: float, dur: float, zoom: float, w: int, h: int, fps: int, out: str
+) -> str:
+    """세그먼트 클립의 [start, start+dur] 구간을 줌 프레이밍으로 잘라 서브컷을 만든다.
+
+    입력 영상(Veo)은 이미 움직이므로 정지 위험이 없다. 컷마다 zoom을 달리해 중앙 punch-in을
+    주면, 인접 서브컷의 경계 프레임이 확 달라져 fast_montage 컷 리듬이 살아난다.
+    """
+    vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h},setsar=1"
+    cmd = [
+        "ffmpeg", "-y", "-i", seg_clip, "-ss", f"{start:.3f}", "-t", f"{dur:.3f}",
+        "-vf", vf, "-r", str(fps), "-an",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", out,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    return out
+
+
 def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) -> Materials:
     """세그먼트 단위로 클립을 만든다([multishot-segments.md]).
 
@@ -155,12 +198,16 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     segments = plan.segments or [[i] for i in range(len(panels))]
     product_name = profile.product.name or ""
     style = profile.storyboard.global_prompt or ""
+    # 온카메라 발화(integrated)일 때만 영상 모델이 립싱크로 말하고 음성도 직접 낸다. 기본
+    # 나레이션(separate_tts/none)은 영상에서 말하는 느낌을 없애 립싱크 불일치를 막는다.
+    speaking = plan.voice_strategy == "integrated"
 
     clips: list[str] = []
     subs: list[str] = []
     spans: list[list[float]] = []
     total_dur = 0.0
     prev_last_frame: str | None = None
+    cut_index = 0  # 전체 서브컷 순번(줌 홀짝 번갈기용)
 
     for seg_pos, indices in enumerate(segments):
         anchor = panels[indices[0]]
@@ -171,18 +218,18 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
             plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
             for i in indices
         ]
-        clip = str(panels_dir / f"clip_{seg_pos}.mp4")
+        seg_clip = str(panels_dir / f"clip_{seg_pos}.mp4")
 
         made = False
         if veo is not None:
             try:
                 start_image = prev_last_frame or anchor.still_image
                 prompt = _multishot_prompt(
-                    [panels[i] for i in indices], motions, product_name, style
+                    [panels[i] for i in indices], motions, product_name, style, speaking
                 )
                 veo.render_panel(
-                    start_image, seg_dur, m.width, m.height, m.fps, clip,
-                    motion=motions[0], prompt=prompt,
+                    start_image, seg_dur, m.width, m.height, m.fps, seg_clip,
+                    motion=motions[0], prompt=prompt, generate_audio=speaking,
                 )
                 made = True
             except Exception:
@@ -190,26 +237,35 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         if not made:
             # 폴백: 세그먼트 앵커 스틸을 세그먼트 길이만큼 켄 번스 줌으로 렌더한다.
             ken.render_panel(
-                anchor.still_image, seg_dur, m.width, m.height, m.fps, clip, motion=motions[0]
+                anchor.still_image, seg_dur, m.width, m.height, m.fps, seg_clip, motion=motions[0]
             )
-        clips.append(clip)
 
-        # 자막: 세그먼트 안 각 패널을 최종 타임라인 구간에 매핑한다(모델 내부 컷과 무관하게
-        # 계획된 패널 경계에 자막을 건다).
+        # 편집단계 beat-cut 몽타주: 실 영상 세그먼트는 패널 경계로 재분할해 컷마다 줌을 달리한다.
+        # 켄 번스 폴백은 이미 앵커 스틸 하나라 재분할하지 않는다(그대로 한 컷).
         local = 0.0
         for i in indices:
             p = panels[i]
             d = _panel_dur(p)
+            if made:
+                zoom = _beat_cut_zoom(cut_index, p.product_lock)
+                sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
+                _extract_subcut(seg_clip, local, d, zoom, m.width, m.height, m.fps, sub_clip)
+                clips.append(sub_clip)
+                cut_index += 1
+            # 자막: 계획된 패널 구간에 시간 기반으로 건다(모델 내부 컷과 무관).
             if (p.subtitle_text or "").strip():
                 sub = str(panels_dir / f"sub_{p.index}.png")
                 render_subtitle_png(p.subtitle_text or "", m.width, m.height, sub)
                 subs.append(sub)
                 spans.append([total_dur + local, total_dur + local + d])
             local += d
+        if not made:
+            clips.append(seg_clip)  # 폴백은 세그먼트 통째로 한 컷
+            cut_index += 1
 
         total_dur += seg_dur
         if veo is not None and made and seg_pos + 1 < len(segments):
-            prev_last_frame = _last_frame(clip, str(panels_dir / f"lastframe_{seg_pos}.png"))
+            prev_last_frame = _last_frame(seg_clip, str(panels_dir / f"lastframe_{seg_pos}.png"))
 
     bgm_audio: str | None = None
     if plan.bgm != "none" and total_dur > 0:

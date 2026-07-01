@@ -32,9 +32,10 @@ def _palette_phrase(palette: list[str] | None) -> str:
 # 일반인처럼 밋밋하게 나오는 걸 막는 매력·인플루언서 디스크립터를 프롬프트에 항상 얹는다.
 _INFLUENCER_DESC = (
     "She is a highly attractive, camera-ready beauty influencer and TikTok/YouTube creator "
-    "(not a plain everyday person): striking, magnetic good looks, flawless glowing skin, "
-    "polished on-trend hair and subtle glam, expressive charismatic eyes, confident aspirational "
-    "creator vibe, photogenic and scroll-stopping"
+    "(not a plain everyday person): striking, magnetic good looks, healthy clear skin with "
+    "natural realistic texture and visible pores (matte-to-soft finish, not oily, wet or overly "
+    "shiny, no plastic glossy sheen), polished on-trend hair and subtle glam, expressive "
+    "charismatic eyes, confident aspirational creator vibe, photogenic and scroll-stopping"
 )
 
 
@@ -48,8 +49,9 @@ def _character_prompt(
     return (
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
         f"{age} {gender}. {_INFLUENCER_DESC}. Looking straight at the camera, natural soft "
-        f"indoor lighting, {loc} in the background, authentic UGC selfie aesthetic, high skin "
-        "detail, clean and bright. A fictional person, not a real or identifiable individual."
+        f"indoor lighting, {loc} in the background, authentic UGC selfie aesthetic, natural skin "
+        "texture with balanced lighting (avoid excessive dewy sheen or greasy highlights), clean "
+        "and bright. A fictional person, not a real or identifiable individual."
         + _palette_phrase(palette)
     )
 

@@ -19,4 +19,5 @@ class VideoBackend(Protocol):
         out_path: str,
         motion: str = "",
         prompt: str = "",
+        generate_audio: bool = False,
     ) -> str: ...

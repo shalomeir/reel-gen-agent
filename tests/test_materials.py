@@ -57,10 +57,10 @@ class _FakeVeo:
     def __init__(self):
         self.calls = []
 
-    def render_panel(self, still, dur, w, h, fps, out, motion="", prompt=""):
+    def render_panel(self, still, dur, w, h, fps, out, motion="", prompt="", generate_audio=False):
         from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 
-        self.calls.append((still, dur, prompt))
+        self.calls.append((still, dur, prompt, generate_audio))
         return KenBurnsBackend().render_panel(still, dur, w, h, fps, out, motion=motion)
 
 
@@ -71,10 +71,14 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
     plan = ProductionPlan(video_model="veo-3.1-lite-generate-001", segments=[[0, 1, 2, 3, 4, 5]])
     mats = build_materials(profile, plan, str(tmp_path / "run"))
-    assert len(fake.calls) == 1  # ≤15초 = 영상 모델 호출 1회
-    assert len(mats.shot_clips) == 1
+    assert len(fake.calls) == 1  # ≤15초 = 영상 모델 호출 1회(세그먼트 1개)
     # 멀티샷 프롬프트에 샷 리스트가 들어간다.
     assert "Shot 1:" in fake.calls[0][2] and "Shot 6:" in fake.calls[0][2]
-    # 자막은 여전히 패널별로 6개, 구간도 타임라인에 매핑된다.
+    # 기본 나레이션(voiceover)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
+    assert "NOT talking" in fake.calls[0][2]
+    assert fake.calls[0][3] is False  # generate_audio: 별도 TTS라 영상 오디오 끔
+    # 편집단계 beat-cut 몽타주: 한 세그먼트를 패널 경계로 6컷으로 재분할한다.
+    assert len(mats.shot_clips) == 6
+    # 자막은 패널별로 6개, 구간도 타임라인에 매핑된다.
     assert len(mats.subtitle_pngs) == 6
     assert mats.subtitle_spans[-1] == [5.0, 6.0]

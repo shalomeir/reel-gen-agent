@@ -51,6 +51,7 @@ class VeoBackend:
         out_path: str,
         motion: str = "",
         prompt: str = "",
+        generate_audio: bool = False,
     ) -> str:
         from google.genai import types
 
@@ -70,7 +71,9 @@ class VeoBackend:
             number_of_videos=1,
             duration_seconds=_veo_seconds(duration_sec),
             resolution="1080p" if width >= 1080 else "720p",
-            generate_audio=False,  # voiceover는 별도 TTS
+            # 기본 나레이션(voiceover)은 별도 TTS라 오디오를 끈다. 온카메라 발화(integrated)
+            # 일 때만 영상 모델이 립싱크 음성을 직접 낸다([ADR.md] ADR-0012).
+            generate_audio=generate_audio,
             # 인물(성인) 생성을 허용해야 캐릭터 image-to-video가 RAI 필터에 안 막힌다.
             person_generation="allow_adult",
             output_gcs_uri=self.gcs_uri,
@@ -97,23 +100,9 @@ class VeoBackend:
 
         # 패널 길이로 자르고 목표 해상도/프레임레이트로 맞춘다.
         vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            raw,
-            "-t",
-            f"{duration_sec:.3f}",
-            "-vf",
-            vf,
-            "-r",
-            str(fps),
-            "-an",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            out_path,
-        ]
+        cmd = ["ffmpeg", "-y", "-i", raw, "-t", f"{duration_sec:.3f}", "-vf", vf, "-r", str(fps)]
+        # integrated 발화면 네이티브 립싱크 음성을 보존, 기본은 오디오를 제거한다.
+        cmd += (["-c:a", "aac"] if generate_audio else ["-an"])
+        cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out_path]
         subprocess.run(cmd, check=True, capture_output=True)
         return out_path

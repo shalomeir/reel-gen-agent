@@ -40,8 +40,13 @@ def _wrap(text: str, font: Any, max_width: int, measure) -> list[str]:
     return lines
 
 
+# 자막 세로 중심 위치(높이 대비). 틱톡·릴스·쇼츠는 화면 위(계정·설명)와 아래(캡션·버튼)에
+# UI가 겹치므로, 위아래 끝을 피해 중앙보다 살짝 아래(안전 영역)에 둔다.
+_SUBTITLE_CENTER_Y = 0.68
+
+
 def render_subtitle_png(text: str, width: int, height: int, out_path: str) -> str:
-    """자막을 투명 PNG로 렌더한다. 폭을 넘기면 여러 줄로 접고 하단에 중앙 정렬한다."""
+    """자막을 투명 PNG로 렌더한다. 폭을 넘기면 여러 줄로 접고 안전 영역에 중앙 정렬한다."""
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     if text:
         font = _default_font(max(28, width // 18))
@@ -54,8 +59,9 @@ def render_subtitle_png(text: str, width: int, height: int, out_path: str) -> st
             line_h = max(p.getsize(ln or "A", font=font)[1] for ln in lines)
             gap = int(line_h * 0.25)
             block_h = len(lines) * line_h + (len(lines) - 1) * gap
-            # 블록 하단이 화면 하단 안전 영역(약 0.86 지점)에 닿도록 배치한다.
-            y = int(height * 0.86) - block_h
+            # 블록을 안전 영역 중심(_SUBTITLE_CENTER_Y)에 세로 중앙 정렬한다. 위아래 끝
+            # UI(계정·캡션·버튼)와 겹치지 않게 화면 끝에 붙이지 않는다.
+            y = int(height * _SUBTITLE_CENTER_Y) - block_h // 2
             for line in lines:
                 tw, _ = p.getsize(line, font=font)
                 x = max(margin, (width - tw) // 2)

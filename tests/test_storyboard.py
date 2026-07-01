@@ -56,6 +56,14 @@ def test_storyboard_always_has_panels_and_hook_first():
     assert sb.global_prompt  # 콘티 공통 맥락이 채워진다
 
 
+def test_subtitles_on_meaningful_cuts_not_forced_on_all():
+    # 의미 있는 컷(hook/cta 등)엔 자막이 있고, 모든 컷에 강제하지는 않는다(필러 자막 금지).
+    sb = build_storyboard(**_parts(pacing="fast_montage", duration=18.0))
+    have = [bool((p.subtitle_text or "").strip()) for p in sb.panels]
+    assert have[0]  # hook엔 있다
+    assert any(have) and not all(have)  # 일부 컷엔 있고, 전부 강제되진 않는다
+
+
 def test_fast_pacing_makes_more_cuts_than_slow():
     fast = build_storyboard(**_parts(pacing="fast_montage", duration=18.0))
     slow = build_storyboard(**_parts(pacing="slow_demo", duration=18.0))

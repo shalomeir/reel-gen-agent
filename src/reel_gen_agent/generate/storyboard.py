@@ -81,7 +81,8 @@ def _global_prompt(
     bits = [
         # 인물은 평범한 일반인이 아니라 매력적인 뷰티 인플루언서/틱톡커로 묘사한다(사용자 지시).
         f"character: an attractive, camera-ready beauty influencer / TikTok creator — "
-        f"{character.look or character.name or 'magnetic good looks, glowing skin, subtle glam'}",
+        f"{character.look or character.name or 'magnetic good looks, healthy natural skin, subtle glam'}"
+        ", natural realistic skin texture (not oily, wet or overly shiny, no plastic glossy sheen)",
         f"product: {product.name}",
         f"mood and tone: {', '.join(style.tone)}" if style.tone else "",
         _framing_directive(product),
@@ -95,15 +96,27 @@ def _global_prompt(
     return "; ".join(b for b in bits if b)
 
 
+# 메시지를 담는 beat에만 키워드 자막을 붙인다. 모든 컷에 강제하지 않는다(필러 자막 금지).
+# 그 외 beat(problem/use/reaction 등)는 자막 없이 두고, 필요하면 기획이 채운다. {name}=제품명.
+_BEAT_KEYWORDS: dict[str, str] = {
+    "discovery": "meet {name}",
+    "reveal": "meet {name}",
+    "cta": "try {name}",
+}
+
+
 def _subtitle_for(
     beat: str, index: int, style: StyleDimensions, product: ProductSpec
 ) -> str | None:
+    """의미 있는 컷에만 키워드 자막을 준다. 훅은 헤드라인, proof/benefit류는 usp, 리빌/CTA는
+    제품 소개·행동 유도. 나머지 컷은 자막 없이 둔다(모든 컷 강제 금지)."""
     if index == 0 and style.hook and style.hook.headline:
         return style.hook.headline
-    if beat in ("proof", "after", "result"):
+    if beat in ("proof", "after", "result", "benefit") and product.usp:
         return product.usp
-    if beat == "cta":
-        return f"try {product.name}"
+    template = _BEAT_KEYWORDS.get(beat)
+    if template:
+        return template.format(name=product.name)
     return None
 
 
