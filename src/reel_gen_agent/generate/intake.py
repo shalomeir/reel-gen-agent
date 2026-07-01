@@ -63,6 +63,8 @@ class IntakeResult:
     raw_brief: str | None
     product_url: str | None = None
     language: str | None = None
+    # 발화 방식: on_camera / voiceover / none. None이면 downstream 기본(voiceover).
+    delivery: str | None = None
     # 캐릭터·제품 소스가 존재하는 로컬 이미지 파일이면 그 절대경로(에셋 생성의 참조 이미지로 쓴다).
     character_image: str | None = None
     product_image: str | None = None
@@ -224,6 +226,8 @@ def generation_input_to_brief(
         lines.append(f"스타일: {style_desc}")
     if gen_input.meta.language:
         lines.append(f"언어: {gen_input.meta.language}")
+    if gen_input.delivery:
+        lines.append(f"발화: {gen_input.delivery}")
     return "\n".join(lines)
 
 
@@ -386,11 +390,28 @@ def normalized_input_to_brief(raw: str, text_client=None, base_dir: str | Path |
     return "\n".join(lines) or stripped
 
 
+def _normalize_delivery(value: str | None) -> str | None:
+    """발화 방식 문자열을 on_camera/voiceover/none으로 정규화한다. 못 알아보면 None(기본 유지)."""
+    if not value:
+        return None
+    v = value.strip().lower().replace("-", "_").replace(" ", "_")
+    if "on_camera" in v or "oncamera" in v:
+        return "on_camera"
+    if v in ("none", "no_voice", "silent"):
+        return "none"
+    if "voiceover" in v or "voice_over" in v or "narration" in v:
+        return "voiceover"
+    return None
+
+
 def intake(raw: str) -> IntakeResult:
     product_url = _labeled(
         raw, ["제품 URL", "제품 url", "product URL", "product url", "product_url"]
     )
     language = _labeled(raw, ["언어", "language", "locale"])
+    delivery = _normalize_delivery(
+        _labeled(raw, ["발화", "발화 방식", "delivery", "voice_mode", "voice mode"])
+    )
     product_src = _labeled(raw, ["제품", "product"])
     product_image_src = _labeled(raw, ["제품 이미지", "product image", "product_image"])
     character_src = _labeled(raw, ["캐릭터", "character", "모델"])
@@ -439,6 +460,7 @@ def intake(raw: str) -> IntakeResult:
         raw_brief=raw.strip() or None,
         product_url=product_url,
         language=language,
+        delivery=delivery,
         character_image=_local_image(character_image_src) or _local_image(character_src),
         product_image=_local_image(product_image_src) or _local_image(product_src),
     )

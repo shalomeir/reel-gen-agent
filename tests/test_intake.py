@@ -16,6 +16,27 @@ def test_text_brief_extracts_labeled_assets():
     assert r.raw_brief is not None
 
 
+def test_delivery_defaults_to_none_when_unspecified():
+    r = intake("발랄한 15초 언박싱 릴. 제품: serum")
+    assert r.delivery is None  # 없으면 downstream 기본(voiceover)
+
+
+def test_on_camera_delivery_is_parsed_from_brief():
+    r = intake("남자가 카메라 보고 말하는 릴. 제품: shirt\n발화: on_camera")
+    assert r.delivery == "on_camera"
+
+
+def test_generation_input_delivery_flows_into_brief_and_intake():
+    gi = GenerationInput(
+        objective="talking-to-camera reel",
+        product=ProductSpec(name="linen shirt"),
+        delivery="on_camera",
+    )
+    brief = generation_input_to_brief(gi)
+    assert "발화: on_camera" in brief
+    assert intake(brief).delivery == "on_camera"
+
+
 def test_absent_product_is_flagged_not_filled():
     r = intake("브랜드 무드 영상, 제품 없이 분위기만")
     assert r.product.present is False

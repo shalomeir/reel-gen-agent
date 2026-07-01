@@ -1,33 +1,18 @@
 {
-  "objective": "30대 후반 미국인 남성 틱톡커가 여름 휴가 기간 스타일링은 이렇게 하는 거라고 가볍고 재치 있게 직접 말하며 소개하는 15초 세로 숏폼. 초반에는 휴가 룩 팁을 빠르게 보여주고, 마지막에는 특정 의류 아이템인 가벼운 리넨 오픈카라 셔츠를 자연스럽게 추천한다.",
+  "objective": "미국인 남성 틱톡커가 여름 휴가 스타일링 팁을 재치 있게 직접 말하며 소개하고, 마지막에 가벼운 리넨 오픈카라 셔츠를 자연스럽게 추천하는 15초 세로 숏폼",
+  "delivery": "on_camera",
   "meta": {
     "duration_sec": 15,
-    "aspect_ratio": "9:16",
     "language": "en"
   },
   "product": {
-    "name": "Summer Vacation Linen Open-Collar Shirt",
-    "usp": "여름 휴가, 리조트 산책, 해변 근처 식사, 시티 트립까지 가볍게 걸치기 좋은 남성용 리넨 오픈카라 셔츠",
-    "spec": "lightweight men's linen open-collar vacation shirt for summer resort and travel styling",
-    "packaging_desc": "clean folded resort shirt presentation with breathable linen texture and relaxed summer styling",
-    "category": "men's summer vacation shirt",
-    "form": "lightweight linen open-collar shirt",
-    "colors": ["off-white", "sand beige", "soft blue"],
-    "key_features": ["breathable linen texture", "relaxed open collar", "vacation-ready fit", "easy smart-casual styling"],
-    "affordances": ["wear open over a white tee", "button halfway for dinner styling", "show fabric texture close to camera", "pair with shorts and sunglasses", "final reveal as the key clothing item"]
+    "name": "Lightweight Linen Open-Collar Summer Shirt",
+    "category": "men's summer shirt",
+    "usp": "여름 휴가와 리조트 룩에 가볍게 걸치는 남성용 리넨 오픈카라 셔츠"
   },
   "model": {
     "age": "late-30s",
     "gender": "male",
-    "look": "American adult male creator with an intelligent, witty, charismatic presence; sharp but approachable facial expression; confident direct-to-camera eye contact; stylish groomed appearance; someone who sounds smart, funny, and naturally persuasive without feeling like a salesman",
-    "body": "average fit build with relaxed confident posture",
-    "wardrobe": "clean summer vacation outfit, white tee, lightweight linen shirt, tailored shorts, sunglasses, casual watch, resort-smart styling"
-  },
-  "prompt": "남자 틱톡커가 카메라를 보며 직접 말한다.",
-  "voice": {
-    "enabled": true,
-    "type": "direct-to-camera witty American male TikTok creator voice",
-    "tone": "smart, playful, confident, conversational",
-    "pace": "fast"
+    "look": "witty, charismatic American male creator talking to camera"
   }
 }

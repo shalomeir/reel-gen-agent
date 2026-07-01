@@ -76,6 +76,8 @@ class PlanState(TypedDict, total=False):
     ref_voice_pace: str
     cut_count: int
     provenance: Any
+    # 이 실행의 크리에이티브 레인(랜덤 다양화). 레퍼런스가 style을 시딩하면 None(레인 미적용).
+    lane: Any
     style_feedback: str
     hook_feedback: str
     hook_attempts: int
@@ -105,6 +107,15 @@ def _intake_node(state: PlanState) -> dict:
             (".jpg", ".jpeg", ".png", ".webp")
         ):
             product_name = "product"
+        # 크리에이티브 레인: 레퍼런스가 없을 때(스타일을 시딩할 근거가 없을 때)만 실행마다
+        # 무작위로 골라 페이싱·음악 비중·나레이션 밀도를 다양화한다. 레퍼런스가 있으면 그 측정
+        # 스타일이 정본이라 레인을 적용하지 않는다(reference_seed가 이어서 style을 채운다).
+        from .variety import pick_lane
+
+        lane = pick_lane() if not result.reference_ref else None
+        style = StyleDimensions()
+        if lane is not None:
+            style.pacing = lane.pacing  # author_style이 보존한다(base.pacing 우선).
         return {
             "objective": result.objective,
             "product": ProductSpec(name=product_name),
@@ -112,9 +123,12 @@ def _intake_node(state: PlanState) -> dict:
             "product_image": result.product_image or "",
             "product_url": product_url,
             "meta": InputMeta(language=result.language or "en"),
-            "style": StyleDimensions(),
+            "style": style,
+            "lane": lane,
             "music": MusicSpec(),
-            "delivery": "voiceover",
+            # 발화 방식: 입력이 on_camera/none을 명시하면 그대로, 없으면 기본 voiceover.
+            # on_camera면 영상 모델(Kling/Veo)이 카메라 보고 직접 말한다(별도 TTS 나레이션 없음).
+            "delivery": result.delivery or "voiceover",
             "cut_count": 0,
             "hook_attempts": 0,
             "hook_feedback": "",
@@ -280,20 +294,23 @@ def _environment_node(state: PlanState) -> dict:
 
 def _music_node(state: PlanState) -> dict:
     with state["tracer"].node("music"):
-        return {
-            "music": derive_music(
-                state["objective"].goal, state["product"], state["style"].tone,
-                state["music"], state.get("text_client"), character=state["character"],
-                pacing=state["style"].pacing,
-                # music은 plan 마지막 노드다. 핑퐁으로 확정된 최종 훅과 스토리보드·아크·나레이션을
-                # 넘겨, 장르·리듬·다이내믹스는 스토리 전개에, prominence(→BGM 볼륨)는 나레이션
-                # 강도에 맞춰 LLM이 정하게 한다(하드코딩 아닌 노드별 LLM 판단).
-                hook=state["style"].hook,
-                storyboard=state["storyboard"],
-                narrative_arc=state.get("narrative_arc"),
-                narration=state["narration"],
-            )
-        }
+        music = derive_music(
+            state["objective"].goal, state["product"], state["style"].tone,
+            state["music"], state.get("text_client"), character=state["character"],
+            pacing=state["style"].pacing,
+            # music은 plan 마지막 노드다. 핑퐁으로 확정된 최종 훅과 스토리보드·아크·나레이션을
+            # 넘겨, 장르·리듬·다이내믹스는 스토리 전개에, prominence(→BGM 볼륨)는 나레이션
+            # 강도에 맞춰 LLM이 정하게 한다(하드코딩 아닌 노드별 LLM 판단).
+            hook=state["style"].hook,
+            storyboard=state["storyboard"],
+            narrative_arc=state.get("narrative_arc"),
+            narration=state["narration"],
+        )
+        # 크리에이티브 레인이 있으면 이 실행의 BGM 비중을 레인이 정한다(때론 BGM 중심으로).
+        lane = state.get("lane")
+        if lane is not None:
+            music.prominence = lane.music_prominence
+        return {"music": music}
 
 
 def _hook_node(state: PlanState) -> dict:
@@ -448,12 +465,14 @@ def _narration_node(state: PlanState) -> dict:
         with state["tracer"].node("narration"):
             from .planning_nodes import narration_lines
 
+            lane = state.get("lane")
             narration.lines = narration_lines(
                 state["text_client"], state["product"], state["style"], state["meta"],
                 [p.beat or "" for p in sb.panels], character=state["character"],
                 delivery_tone=state.get("ref_voice_tone") or None,
                 delivery_pace=state.get("ref_voice_pace") or None,
                 brief=state["objective"].goal,
+                density=(lane.narration_density if lane is not None else "normal"),
             )
     arc = [p.beat for p in sb.panels if p.beat]
     return {"narration": narration, "narrative_arc": arc}

@@ -92,6 +92,20 @@ def test_author_style_applies_valid_fields_and_preserves_hook():
     assert out.hook is hook or out.hook.headline == "Glow"  # hook 보존
 
 
+def test_author_style_preserves_preset_pacing():
+    # 크리에이티브 레인이 미리 정한 pacing(base.pacing)은 LLM이 덮지 않는다(레인 다양화 보존).
+    out = author_style(
+        StubTextClient([_style_json(pacing="fast_montage")]),
+        objective=Objective(goal="g"),
+        product=ProductSpec(name="p"),
+        character=ModelSpec(),
+        meta=InputMeta(),
+        base=StyleDimensions(pacing="slow_demo"),
+    )
+    assert out.pacing == "slow_demo"  # 레인이 정한 값 유지
+    assert out.tone == ["sensorial", "glowing"]  # 나머지 축은 LLM이 채운다
+
+
 def test_author_style_ignores_out_of_enum_values():
     out = author_style(
         StubTextClient([_style_json(pacing="turbo", motion="wild")]),

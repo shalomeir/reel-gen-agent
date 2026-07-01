@@ -116,7 +116,9 @@ def _apply(base: StyleDimensions, data: dict) -> StyleDimensions:
         cleaned = [str(t).strip() for t in tone if str(t).strip()]
         if cleaned:
             style.tone = cleaned[:5]
-    if data.get("pacing") in _PACING:
+    # base.pacing이 이미 있으면(레퍼런스 측정값 또는 크리에이티브 레인이 미리 정한 값) 보존한다.
+    # 실행마다 다른 레인으로 페이싱을 다양화하려면 그 선택이 LLM에 덮이면 안 된다(input/레인 우선).
+    if not base.pacing and data.get("pacing") in _PACING:
         style.pacing = data["pacing"]
     if data.get("motion") in _MOTION:
         style.motion = data["motion"]

@@ -46,6 +46,7 @@ def narration_lines(
     delivery_tone: str | None = None,
     delivery_pace: str | None = None,
     brief: str = "",
+    density: str = "normal",
 ) -> list[NarrationLine]:
     """패널 비트에 맞춘 짧은 나레이션 라인을 생성한다(비주얼-only 비트는 제외).
 
@@ -57,6 +58,10 @@ def narration_lines(
     # 대사량을 영상 길이에 맞춰 예산화한다(컷 수가 아니라 발화 시간이 기준). 대략 3초에 한 줄.
     word_budget = _narration_word_budget(meta.duration_sec)
     target_lines = max(2, round(meta.duration_sec / 3.0))
+    # sparse(BGM 중심 레인)면 대사를 최소로 줄여 음악이 끌고 가게 한다(대사 예산도 함께 축소).
+    if density == "sparse":
+        target_lines = max(1, target_lines // 2)
+        word_budget = max(8, word_budget // 2)
     tone_hint = ", ".join(style.tone) if style.tone else "natural, authentic"
     persona = character_brief(character) if character else "an attractive early-20s US creator"
     # 레퍼런스 발화의 결을 대사 어휘·호흡에 반영한다(코드가 스타일을 박지 않고 관측을 흘린다).
