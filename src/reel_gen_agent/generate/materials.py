@@ -17,6 +17,50 @@ from .schema import Materials, ProductionPlan, ReelProfile
 from .subtitles import render_subtitle_png
 
 
+def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> str | None:
+    """BGM을 만든다. plan.bgm=="gen"이면 1차 Lyria, 실패/그 외엔 합성 베드.
+
+    빠른 반복이 필요하면 `REEL_BGM=synth`로 Lyria를 끄고 합성 베드만 쓴다.
+    """
+    style_bits = [profile.music.style, profile.music.mood, profile.music.type]
+    prompt = ", ".join(b for b in style_bits if b) or "bright upbeat pop for a beauty short"
+    use_lyria = (
+        plan.bgm == "gen"
+        and os.environ.get("REEL_BGM", "").lower() != "synth"
+        and os.environ.get("GOOGLE_CLOUD_PROJECT")
+    )
+    if use_lyria:
+        try:
+            from .backends.lyria import LyriaMusicClient
+
+            return LyriaMusicClient().generate(
+                prompt, bpm, total_dur, str(Path(panels_dir) / "bgm.wav")
+            )
+        except Exception:
+            pass  # Lyria 실패 -> 합성 베드 폴백
+    return synth_music_bed(total_dur, bpm, str(Path(panels_dir) / "bgm.wav"))
+
+
+def _video_backend(plan: ProductionPlan):
+    """plan.video_model에 맞는 영상 백엔드. ken_burns/무설정이거나 REEL_VIDEO=ken_burns면 None.
+
+    None이면 build_materials가 켄 번스 폴백만 쓴다. Veo는 생성이 비싸고 느리므로,
+    빠른 반복이 필요하면 `REEL_VIDEO=ken_burns`로 강제로 끌 수 있다.
+    """
+    model = (plan.video_model or "ken_burns").lower()
+    if model == "ken_burns" or os.environ.get("REEL_VIDEO", "").lower() == "ken_burns":
+        return None
+    if model.startswith("veo"):
+        try:
+            from .backends.veo import VeoBackend
+
+            return VeoBackend(plan.video_model)
+        except Exception:
+            return None
+    # Kling 등 다른 백엔드는 아직 미배선 -> 켄 번스 폴백.
+    return None
+
+
 def _music_bpm(tempo: str | None) -> int | None:
     """MusicSpec.tempo 문자열("136 bpm")에서 bpm 정수를 뽑는다. 없으면 None."""
     if not tempo:
@@ -29,7 +73,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     panels_dir = Path(out_dir) / "panels"
     panels_dir.mkdir(parents=True, exist_ok=True)
     m = profile.meta
-    backend = KenBurnsBackend()
+    ken = KenBurnsBackend()
+    veo = _video_backend(plan)  # Veo(있으면) / None. 실패 시 패널별 켄 번스로 폴백.
     clips: list[str] = []
     subs: list[str] = []
     total_dur = 0.0
@@ -41,7 +86,23 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         clip = str(panels_dir / f"clip_{panel.index}.mp4")
         # plan.panel_motions는 패널 순서대로라 위치 i로 맞춘다(없으면 기본 모션).
         motion = plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
-        backend.render_panel(panel.still_image, dur, m.width, m.height, m.fps, clip, motion=motion)
+        made = False
+        if veo is not None:
+            try:
+                veo.render_panel(
+                    panel.still_image,
+                    dur,
+                    m.width,
+                    m.height,
+                    m.fps,
+                    clip,
+                    prompt=panel.prompt or profile.storyboard.global_prompt or "",
+                )
+                made = True
+            except Exception:
+                made = False  # Veo 실패 -> 이 컷은 켄 번스로 폴백
+        if not made:
+            ken.render_panel(panel.still_image, dur, m.width, m.height, m.fps, clip, motion=motion)
         clips.append(clip)
         total_dur += dur
         sub = str(panels_dir / f"sub_{panel.index}.png")
@@ -52,7 +113,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     if plan.bgm != "none" and total_dur > 0:
         # BGM bpm: MusicSpec.tempo(예: 레퍼런스 "136 bpm")가 있으면 우선, 없으면 컷 주기로 산정.
         bpm = _music_bpm(profile.music.tempo) or bpm_for_cuts(profile.storyboard.panels)
-        bgm_audio = synth_music_bed(total_dur, bpm, str(panels_dir / "bgm.wav"))
+        bgm_audio = _build_bgm(profile, plan, bpm, total_dur, str(panels_dir))
 
     # voice: 나레이션(voiceover)이면 비트별 대사를 각 패널 t_start에 정렬 배치해 합성한다.
     voice_audio = _build_voice(profile, str(panels_dir), total_dur)

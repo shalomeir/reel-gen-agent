@@ -36,6 +36,7 @@ class KenBurnsBackend:
         fps: int,
         out_path: str,
         motion: str = DEFAULT_MOTION,
+        prompt: str = "",
     ) -> str:
         total = max(1, int(round(duration_sec * fps)))
         # 원본 해상도에서 목표 종횡비로만 잘라낸다(crop은 x/y 생략 시 중앙). 최종 축소는
