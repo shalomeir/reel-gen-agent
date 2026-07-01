@@ -33,13 +33,17 @@ def _panel_refs(
     이어지게 한다(중간만 쓰면 결이 튀므로 전 컷 일관성 기준으로 주입).
     """
     refs: list[str] = []
-    if panel.subject_lock and character_image:
+    # 크리에이터는 한 사람 제품 영상에서 거의 모든 컷에 나온다. 그래서 캐릭터 이미지를 컷 종류와
+    # 무관하게 '항상' 일관성 기준으로 넣는다. 예전엔 subject_lock 컷에만 넣어서, 제품 강조 컷
+    # (product_lock)의 인물이 캐릭터 레퍼런스 없이 생성돼 컷마다 다른 인종/얼굴로 드리프트했다
+    # (한 영상에 흑인·백인이 섞이는 버그). 제품 컷이면 제품 이미지도 함께 참조로 넣는다.
+    if character_image:
         refs.append(character_image)
     if panel.product_lock and product_image:
         refs.append(product_image)
-    # 아무 잠금도 없으면 최소한 캐릭터를 일관성 기준으로 넣는다.
-    if not refs:
-        refs = [r for r in (character_image, product_image) if r]
+    # 캐릭터가 아예 없을 때만 제품이라도 넣는다.
+    if not refs and product_image:
+        refs.append(product_image)
     # 대표 key_visual은 이 컷의 앵커 자신이 아닌 한 룩 일관성 레퍼런스로 얹는다.
     if key_visual and key_visual != panel.still_image and key_visual not in refs:
         refs.append(key_visual)
@@ -60,6 +64,13 @@ def _fallback_still(panel, character_image: str | None, product_image: str | Non
 _KEY_VISUAL_VIBE = (
     "Match the overall lighting, color grade and mood/vibe of the provided key reference frame "
     "(use it for atmosphere and consistency, not to copy its exact composition)."
+)
+
+# 캐릭터 레퍼런스가 있을 때, 컷마다 같은 사람을 유지하도록 못 박는다. 스틸은 컷별 영상의 시작
+# 프레임이라, 여기서 인물이 바뀌면 영상도 인물이 바뀐다(한 영상에 다른 인종/얼굴이 섞이는 걸 방지).
+_CHARACTER_LOCK = (
+    "The person is the SAME individual as the provided character reference image — keep the same "
+    "face, ethnicity, skin tone, hair and age across every shot. Never change the person."
 )
 
 
@@ -99,7 +110,9 @@ def ensure_panel_stills(
         # reference-to-video가 아닌 한 콜라주 스틸을 그대로 넣으면 영상이 콜라주로 시작한다.
         from .product import SOLO_PERSON
 
-        prompt = f"{base}. {_SINGLE_MOMENT_RULE} {SOLO_PERSON}{vibe}"
+        # 캐릭터 이미지가 참조에 들어가면 '같은 사람 유지'를 명시해 컷 간 인물 드리프트를 막는다.
+        char_lock = f" {_CHARACTER_LOCK}" if character_image else ""
+        prompt = f"{base}. {_SINGLE_MOMENT_RULE} {SOLO_PERSON}{char_lock}{vibe}"
         out = str(panels_dir / f"still_{panel.index}.png")
         generated = False
         if image_client is not None:
