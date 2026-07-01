@@ -16,7 +16,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, TypedDict
 
-from .asset_bible import build_character_asset, build_key_visual, build_product_asset
+from .asset_bible import (
+    AssetGenerationError,
+    build_character_asset,
+    build_key_visual,
+    build_product_asset,
+)
 from .character import (
     character_brief,
     derive_character,
@@ -504,6 +509,23 @@ def _write_node(state: PlanState) -> dict:
         asset_bible.key_visual = build_key_visual(
             profile, state.get("image_client"), str(plan_dir), char_ref, prod_ref
         )
+        # 클라이언트가 있는데도 에셋 이미지가 한 장도 안 만들어졌으면 여기서 실패시킨다. 그대로
+        # 저장하면 execute의 stills가 폴백할 앵커 이미지조차 없어 "앵커 스틸 없음"으로 뒤늦게
+        # 터진다. 클라이언트가 없을 때(테스트·--no-images)의 '에셋 없이 진행'은 정상이라 건드리지
+        # 않는다. 실패 사유는 이미지 클라이언트가 남긴 마지막 오류(404/429/안전차단)를 그대로 싣는다.
+        img_client = state.get("image_client")
+        if img_client is not None and not (
+            asset_bible.product.hero_image
+            or asset_bible.character.key_shot_image
+            or asset_bible.key_visual
+        ):
+            reason = getattr(img_client, "last_error", None)
+            raise AssetGenerationError(
+                "에셋 이미지 생성에 모두 실패했습니다"
+                + (f" (원인: {reason})" if reason else "")
+                + ". 이미지 백엔드 접근 권한/쿼터를 확인하고 다시 시도하세요"
+                " (동시 실행 중이면 rate limit일 수 있습니다)."
+            )
         path = write_profile(profile, plan_dir, run_id)
         return {"profile_path": str(path)}
 

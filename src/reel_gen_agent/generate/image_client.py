@@ -30,6 +30,19 @@ HERO_CONTRAST = 1.04
 HERO_JPEG_QUALITY = 97
 
 
+def _is_not_found(exc: Exception) -> bool:
+    """모델 미존재/미접근(404 NOT_FOUND) 오류인지. 반복 재시도를 건너뛸지 판단하는 데 쓴다."""
+    s = str(exc)
+    return "404" in s or "NOT_FOUND" in s
+
+
+def _no_image_reason(response) -> str:
+    """이미지 없는 응답의 사유를 사람이 읽을 문자열로 뽑는다(안전 차단 등 원인 추적용)."""
+    reasons = [getattr(c, "finish_reason", None) for c in (getattr(response, "candidates", None) or [])]
+    feedback = getattr(response, "prompt_feedback", None)
+    return f"이미지 없는 응답(finish_reason={reasons}, prompt_feedback={feedback})"
+
+
 class ImageClient(Protocol):
     def generate(self, prompt: str, refs: list[str], out_path: str, hero: bool = False) -> str:
         """프롬프트와 reference 이미지들로 이미지를 만들어 out_path에 저장하고 경로를 돌려준다.
@@ -67,6 +80,13 @@ class NanoBananaImageClient:
         self.hero_model = (
             hero_model or os.environ.get("GEMINI_IMAGE_MODEL_HERO") or DEFAULT_HERO_IMAGE_MODEL
         )
+        # 마지막 실패 사유. 호출 측(에셋 빌더/플랜)이 조용한 폴백 대신 진짜 원인(404/429/안전차단)을
+        # 사용자에게 보여줄 수 있게 남긴다.
+        self.last_error: Exception | None = None
+        # 이 프로세스에서 NOT_FOUND(404)로 확인된 (백엔드, 모델) 조합. 히어로 Pro 모델이 특정
+        # 백엔드(예: 접근 권한 없는 Vertex 프로젝트)에 없으면 매 이미지마다 404를 반복해서 먹으므로,
+        # 한 번 확인된 조합은 이후 시도에서 건너뛴다. 백엔드별로 키를 둬 다른 백엔드에선 다시 시도한다.
+        self._unavailable: set[tuple[str, str]] = set()
 
     def _selections(self) -> list[tuple[str, dict]]:
         selections: list[tuple[str, dict]] = []
@@ -130,18 +150,27 @@ class NanoBananaImageClient:
         contents.append(prompt)
 
         attempts = self._attempts(hero)
+        last_err: Exception | None = None
         for selection in self._selections():
+            backend = selection[0]
             try:
                 client = make_client(selection)
-            except Exception:
+            except Exception as exc:
+                last_err = exc
                 continue
             for model, config in attempts:
+                # 이 백엔드에 없는 모델(404)로 이미 확인됐으면 건너뛴다(반복 낭비 방지).
+                if (backend, model) in self._unavailable:
+                    continue
                 try:
                     kwargs: dict[str, object] = {"model": model, "contents": contents}
                     if config is not None:
                         kwargs["config"] = config
                     response = client.models.generate_content(**kwargs)
-                except Exception:
+                except Exception as exc:
+                    last_err = exc
+                    if _is_not_found(exc):
+                        self._unavailable.add((backend, model))
                     continue
                 data = self._extract_bytes(response)
                 if data:
@@ -153,8 +182,13 @@ class NanoBananaImageClient:
                     from PIL import Image
 
                     Image.open(io.BytesIO(data)).convert("RGB").save(out_path)
+                    self.last_error = None
                     return out_path
-        raise RuntimeError("nano banana 이미지 생성 실패(모든 백엔드/모달리티)")
+                # 응답은 왔지만 이미지가 없다(대개 안전 차단): 사유를 잡아 마지막 오류로 둔다.
+                last_err = RuntimeError(_no_image_reason(response))
+        self.last_error = last_err
+        detail = last_err if last_err is not None else "사용 가능한 백엔드/키 없음"
+        raise RuntimeError(f"nano banana 이미지 생성 실패: {detail}") from last_err
 
 
 def fit_delivery_frame(
