@@ -157,7 +157,7 @@ def _visuals_node(state: ExecState) -> dict:
 
     이후 voice/bgm/sfx 3개 오디오 노드가 이 total_dur를 공유해 병렬로 트랙을 만든다.
     """
-    with state["tracer"].node("visuals"):
+    with state["tracer"].node("visuals") as span:
         profile = state["profile"]
         base_dir = state["plan_dir"].resolve()
         char_img = _resolve_asset(profile.asset_bible.character.key_shot_image, base_dir)
@@ -181,8 +181,10 @@ def _visuals_node(state: ExecState) -> dict:
             product_image=prod_img,
             key_visual=kv_img,
         )
-        # 영상 모델에 보낸 세그먼트 프롬프트를 매니페스트에 남긴다(리포트 "노드별 프롬프트").
+        # 영상 모델에 보낸 세그먼트 프롬프트를 매니페스트(리포트 "노드별 프롬프트")와 trace에 남긴다.
         video_prompt = "\n\n".join(visuals.prompts) or None
+        if video_prompt:
+            span.set(output=video_prompt)
         state["manifest"].nodes.append(
             NodeRun(name="visuals", artifacts=visuals.shot_clips, prompt=video_prompt)
         )

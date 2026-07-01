@@ -44,16 +44,19 @@ def run_planning(
     tracer = Tracer(session_id=run_id, run_id=run_id)
 
     graph = build_plan_graph()
-    final = graph.invoke(
-        {
-            "raw": raw,
-            "outputs_root": outputs_root,
-            "text_client": text_client,
-            "image_client": image_client,
-            "tracer": tracer,
-            "style_feedback": style_feedback,
-        }
-    )
+    try:
+        final = graph.invoke(
+            {
+                "raw": raw,
+                "outputs_root": outputs_root,
+                "text_client": text_client,
+                "image_client": image_client,
+                "tracer": tracer,
+                "style_feedback": style_feedback,
+            }
+        )
+    finally:
+        tracer.close()  # root span 종료 + Langfuse flush
     return Path(final["profile_path"])
 
 
@@ -99,10 +102,11 @@ def run_replan(
     # narrative 노드가 쓰는 값만 원본에서 시딩한다(정체성은 그래프가 건드리지 않는다).
     # style/music은 복사본을 넘겨 원본 객체를 변형하지 않는다(hook 노드가 style.hook을 갈아끼운다).
     seed_run = make_run_id(src_profile.objective.goal)
+    tracer = Tracer(session_id=seed_run, run_id=seed_run)
     state = {
         "text_client": text_client,
         "image_client": None,  # 그래프는 이미지 작업을 하지 않는다.
-        "tracer": Tracer(session_id=seed_run, run_id=seed_run),
+        "tracer": tracer,
         "objective": src_profile.objective,
         "product": src_profile.product,
         "meta": src_profile.meta,
@@ -119,7 +123,10 @@ def run_replan(
         "hook_feedback": "",
         "style_feedback": "",
     }
-    final = build_replan_graph().invoke(state)
+    try:
+        final = build_replan_graph().invoke(state)
+    finally:
+        tracer.close()  # root span 종료 + Langfuse flush
 
     # 새 훅 헤드라인으로 폴더를 명명한다(없으면 목적).
     new_hook = final["style"].hook

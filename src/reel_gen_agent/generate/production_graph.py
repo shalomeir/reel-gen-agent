@@ -17,7 +17,10 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
     run_id = output_dir_for(profile_path).name  # run 루트 폴더 이름 = run_id = trace run_id
     tracer = Tracer(session_id=run_id, run_id=run_id)
     graph = build_execute_graph()
-    final = graph.invoke(
-        {"profile_path": str(profile_path), "use_vlm": use_vlm, "tracer": tracer}
-    )
+    try:
+        final = graph.invoke(
+            {"profile_path": str(profile_path), "use_vlm": use_vlm, "tracer": tracer}
+        )
+    finally:
+        tracer.close()  # root span 종료 + Langfuse flush(없으면 이벤트 전송 안 됨)
     return final["manifest"]
