@@ -64,6 +64,14 @@ rich)는 이 코어와 분리된 패키지로, 같은 프로세스에서 직접 
 **결과**: 단계와 게이트가 그래프로 일반화되고, UI 교체나 미래의 웹 계층이 코어를 건드리지
 않는다. 대신 LangGraph 의존이 생긴다.
 
+**구현 현황(2026-07-01)**: plan/execute 두 페이즈를 모두 LangGraph `StateGraph`로 전환 완료
+(`generate/plan_graph.py`, `generate/execute_graph.py`). 초기에는 순차 함수였다가(이 문서
+초안의 "Milestone 2에서 얹는다") 실제 그래프로 이관했다. plan은 노드 사이 조건부 엣지로
+**hook ↔ storyboard 핑퐁 루프**를 돈다(storyboard가 훅 적합도를 판정, 부적합이면 hook 재호출).
+노드 span은 Tracer가 로컬 trace(+옵션 Langfuse)에 남긴다(ADR-0013). Send 팬아웃과
+verify->repair 유한 루프는 설계에 있으나 아직 미구현(향후 execute 그래프에 얹는다).
+흐름 정본은 [workflows.md](workflows.md).
+
 ## ADR-0003: pydantic 스키마가 분석과 생성의 유일한 경계
 
 **상태**: Accepted

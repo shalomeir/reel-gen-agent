@@ -72,31 +72,33 @@ flowchart LR
 
 ## Phase 1: Planning
 
+구현된 LangGraph(`generate/plan_graph.py`, `StateGraph(PlanState)`)의 실제 노드·엣지다.
+각 노드는 공유 상태(PlanState)를 읽고 부분 업데이트를 돌려주며, Tracer가 노드 span을 로컬
+trace(+옵션 Langfuse)에 남긴다([trace.py], [ADR.md] ADR-0013).
+
 ```mermaid
 flowchart TD
-    intake[intake<br/>입력 판별·검증] --> miss{캐릭터/제품<br/>있나?}
-    miss -- 없음 --> ask_intent[누락 의도 확인<br/>왜 없는지 캡처]
-    miss -- 있음 --> refq
-    ask_intent --> refq{레퍼런스<br/>있나?}
-    refq -- 있음 --> ref[reference_analysis<br/>analyze -> style_profile]
-    refq -- 없음 --> concept
-    ref --> concept[concept<br/>컨셉·5스타일차원·내러티브아크·카테고리]
-    concept --> hook[hook<br/>HookSet 생성]
-    hook --> hgate{{gate: hook}}
-    concept --> char[character_assets<br/>캐릭터 생성·나노바나나]
-    concept --> afford[product_analysis<br/>affordance·특징 추출]
-    afford --> prod[product_assets<br/>제품 카탈로그 생성·나노바나나]
-    concept --> env[environment<br/>환경 정의 텍스트 + 선택 이미지]
-    char --> agate{{gate: asset_bible}}
-    prod --> agate
-    env --> agate
-    hgate --> story[storyboard<br/>패널+콘티, 후크=패널0, 컷리듬 시딩]
-    agate --> story
-    story --> sgate{{gate: storyboard}}
-    sgate --> script[scripting<br/>대사·자막 스크립트 + 음악 정의]
-    script --> assemble_profile[profile_assembly<br/>ReelProfile 동결]
-    assemble_profile --> pgate{{gate: confirm<br/>본격 생성 시작}}
+    intake[intake<br/>입력 판별·검증] --> ref[reference_seed<br/>있으면 analyze -> 스타일·메타·음악·컷·인물·제품 시딩]
+    ref --> product[product<br/>제품 분석: 카테고리·USP·용기·affordance]
+    product --> char[character<br/>레퍼런스 인물 반영/브리프 도출, 기본 매력적 미인]
+    char --> env[environment<br/>장소·조명·무드 LLM 결정]
+    env --> music[music<br/>장르·무드·다이내믹·prominence]
+    music --> hook[hook<br/>유형·문구 LLM, 레퍼런스 시각 반영]
+    hook --> story[storyboard<br/>숏폼 전문가 LLM: 서사 컷·행동·카메라]
+    story -- hook 부적합 & 재시도여유 --> hook
+    story -- 적합 --> narr[narration<br/>캐릭터 페르소나 대사]
+    narr --> assets[assets<br/>캐릭터·제품·패키지 이미지 생성 plan/]
+    assets --> write[write_profile<br/>ReelProfile 동결 plan/]
 ```
+
+**hook ↔ storyboard 핑퐁(나중 추가).** storyboard 노드가 주어진 hook을 전체 스토리에
+녹여보고, 훅이 스토리를 잘 못 열면 `hook_fits=false`와 개선 힌트를 낸다. 조건부 엣지가 그
+힌트로 hook 노드를 다시 부르고(최대 `MAX_HOOK_ATTEMPTS`회) storyboard를 재실행한다. 이렇게
+"훅과 스토리보드를 함께" 맞춰 나간다. LLM이 없으면 storyboard는 결정론 템플릿으로 폴백하고
+핑퐁 없이 통과한다.
+
+게이트(ask/pass/run)는 CLI 모드에 따라 각 노드 뒤에 얹는다([product-design.md]). run 모드는
+모든 게이트를 자동 통과한다.
 
 ### 노드와 주요 task
 
@@ -194,29 +196,26 @@ flowchart TD
 
 ## Phase 2: Production
 
+구현된 LangGraph(`generate/execute_graph.py`, `StateGraph(ExecState)`)의 실제 노드·엣지다.
+현재는 선형이다. 재료(스틸·클립·오디오)는 materials 노드 안에서 세그먼트 단위로 만든다
+(멀티샷 ≤2회 호출, [multishot-segments.md]). Send 팬아웃과 verify->repair 유한 루프는
+설계에 있으나 아직 미구현(verify는 소프트 기록, 리페어 루프 없음) — 향후 이 그래프에 얹는다.
+
 ```mermaid
 flowchart TD
-    plan[production_planner<br/>의도+능력+리소스 -> ProductionPlan] --> fan{{Send 팬아웃}}
-    fan --> key[key_images<br/>컷별 핵심 스틸 - 선택]
-    fan --> shots[video_shots<br/>i2v / 멀티샷 / 켄번스 / canvas]
-    fan --> voice[voice<br/>모델통합 or 별도TTS or 없음]
-    fan --> bgm[bgm<br/>Lyria or 제공파일]
-    fan --> sfx[sfx - 선택]
-    key --> shots
-    shots --> asm[assemble<br/>concat + 오디오 mux + 자막 오버레이]
-    voice --> asm
-    bgm --> asm
-    sfx --> asm
+    load[load<br/>ReelProfile 로드, 디렉터리] --> plan[production_plan<br/>의도+능력+리소스 -> ProductionPlan]
+    plan --> stills[stills<br/>세그먼트 앵커 스틸 execute/, 단일순간]
+    stills --> materials[materials<br/>세그먼트 클립(멀티샷)·자막·BGM·voice]
+    materials --> asm[assemble<br/>concat + 자막 시간오버레이 + 오디오 mux]
     asm --> verify[verify<br/>conformance 하드 pass/fail]
-    verify -- fail --> router{repair_router<br/>결함 -> 대상 노드}
-    router -- 상한 미만 --> shots
-    router -- 상한 미만 --> asm
-    router -- 상한 초과 --> failout[실패 종료<br/>마지막 리포트]
-    verify -- pass --> describe[describe<br/>업로드용 제목·구조·멘트]
+    verify --> describe[describe<br/>업로드용 제목·구조·멘트]
     describe --> evaluate[evaluate<br/>rubric 소프트 점수 - 권고]
-    evaluate --> report[report<br/>최종 결과 MD 생성]
-    report --> final[finalize<br/>RunManifest, outputs]
+    evaluate --> report[report<br/>최종 결과 MD + run.json]
 ```
+
+산출물 배치: plan 산출물은 `plan/`(ReelProfile·캐릭터·제품), execute 생성물은
+`execute/`(앵커 스틸·클립·오디오), 결과물 3종(final.mp4/report.md/upload.md)+run.json은 run
+루트에 둔다.
 
 ### 노드와 주요 task
 
