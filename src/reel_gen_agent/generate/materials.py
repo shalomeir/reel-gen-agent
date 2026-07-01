@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from .audio import bpm_for_cuts, compose_aligned_narration, synth_music_bed
@@ -294,12 +295,18 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
                     motion=motions[0], prompt=prompt, generate_audio=speaking,
                 )
                 made = True
-            except Exception:
-                made = False  # 영상 모델 실패 -> 앵커 스틸 켄 번스로 폴백
+            except Exception as exc:
+                # 영상 모델 실패 -> 앵커 스틸 폴백. 조용히 삼키지 않고 원인을 노출한다.
+                made = False
+                print(
+                    f"[materials] Veo 세그먼트{seg_pos}(패널 {indices}) 실패 -> 스틸 폴백: {exc}",
+                    file=sys.stderr,
+                )
         if not made:
-            # 폴백: 세그먼트 앵커 스틸을 세그먼트 길이만큼 켄 번스 줌으로 렌더한다.
+            # 폴백: 앵커 스틸을 세그먼트 길이만큼 렌더한다. 줌(zoompan)은 덜그덕 지터 위험이
+            # 있어 폴백에서는 정지(static)로 깔끔하게 둔다. 매끄러운 줌은 영상 모델의 몫이다.
             ken.render_panel(
-                anchor.still_image, seg_dur, m.width, m.height, m.fps, seg_clip, motion=motions[0]
+                anchor.still_image, seg_dur, m.width, m.height, m.fps, seg_clip, motion="static"
             )
 
         # 편집단계 beat-cut 몽타주: 실 영상 세그먼트는 패널 경계로 재분할해 컷마다 줌을 달리한다.

@@ -12,6 +12,7 @@ from pathlib import Path
 from ..analysis.profile import Subject
 from .asset_bible import build_asset_bible
 from .character import character_brief, derive_character, voice_persona
+from .environment import derive_environment
 from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
@@ -20,7 +21,6 @@ from .profile_assembly import assemble_profile, write_profile
 from .reference_seed import seed_from_reference
 from .run_paths import create_run_dir, make_run_id
 from .schema import (
-    EnvironmentSpec,
     HookRequest,
     InputMeta,
     ModelSpec,
@@ -49,11 +49,6 @@ def run_planning(
         raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
 
     product = ProductSpec(name=(result.product.source or "product"))
-    # 장소 언급이 없으면 기본 환경은 등장인물 본인 방(실내)이다(specs/trd.md 기본 제작 포맷).
-    environment = EnvironmentSpec(
-        location="the creator's own bedroom, indoor",
-        lighting="soft natural indoor light",
-    )
     meta = InputMeta()
     style = StyleDimensions()
     music = MusicSpec()
@@ -81,6 +76,10 @@ def run_planning(
     # 캐릭터 노드: 레퍼런스 인물이 있으면 최대한 반영하고, 없으면 LLM이 브리프에서 도출한다.
     # 아무 단서 없으면 기본값(매력적인 20대 초반 미국 여성). 하드코딩하지 않는다(사용자 지시).
     character = derive_character(result.objective.goal, product, ref_subject, text_client)
+
+    # 환경 노드: 촬영 장소·조명·무드를 브리프·제품·캐릭터로 LLM이 정한다(장소 하드코딩 금지).
+    # 브리프가 장소를 말하면 따르고, 단서 없으면 기본(크리에이터 방).
+    environment = derive_environment(result.objective.goal, product, character, text_client)
 
     # 음악 노드: 장르·무드·다이내믹을 LLM이 문맥(브리프·톤·주인공 캐릭터)으로 정한다(스타일
     # 하드코딩 금지). 레퍼런스 음악은 힌트로만. bpm은 execute가 컷 리듬으로 맞춘다.
