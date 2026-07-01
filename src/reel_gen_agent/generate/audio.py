@@ -115,6 +115,14 @@ def compose_aligned_narration(
         [dur for _, dur, _ in made], made[0][2], total_dur
     )
 
+    # 마지막 대사가 실제로 끝나는 지점. 최대 압축(1.6배)으로도 total_dur를 넘으면, 트랙을 그만큼
+    # 늘려 대사를 자르지 않는다(mux에서 영상이 마지막 프레임을 유지하며 그만큼 늘어난다).
+    _NARRATION_TAIL_SEC = 0.35  # 마지막 대사 뒤 짧은 여운(툭 끊김 방지)
+    last_end = max(
+        start + dur / tempo for (_, dur, _), start in zip(made, line_starts, strict=True)
+    )
+    track_len = max(total_dur, last_end + _NARRATION_TAIL_SEC)
+
     inputs: list[str] = []
     filters: list[str] = []
     labels: list[str] = []
@@ -130,18 +138,19 @@ def compose_aligned_narration(
     if not labels:
         return None
 
-    cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={total_dur:.3f}"]
+    cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={track_len:.3f}"]
     for clip in inputs:
         cmd += ["-i", clip]
-    # 무음 베드([0])와 지연 배치한 대사들을 섞고 total_dur로 자른다.
-    mix = f"[0:a]{''.join(labels)}amix=inputs={len(labels) + 1}:normalize=0:duration=first[aout]"
+    # 무음 베드([0], track_len)와 지연 배치한 대사들을 섞는다. 베드가 마지막 대사 끝까지 있어
+    # 잘리지 않는다. duration=longest로 가장 긴 입력(베드)까지 유지한다.
+    mix = f"[0:a]{''.join(labels)}amix=inputs={len(labels) + 1}:normalize=0:duration=longest[aout]"
     cmd += [
         "-filter_complex",
         ";".join([*filters, mix]),
         "-map",
         "[aout]",
         "-t",
-        f"{total_dur:.3f}",
+        f"{track_len:.3f}",
         "-c:a",
         "pcm_s16le",
         out_path,
@@ -150,18 +159,34 @@ def compose_aligned_narration(
     return out_path
 
 
-def bpm_for_cuts(panels: list[StoryboardPanel], beats_per_cut: int = 1) -> int:
-    """평균 컷 길이로 목표 bpm을 잡는다. 컷이 비트 위에 떨어지도록.
+# 숏폼에 어울리는 경쾌한 BGM 템포 대역(bpm). 컷당 1비트면 대개 이보다 느리므로, 컷에 비트를
+# 정수배로 맞추면서 이 대역으로 끌어올려 음악이 축 처지지 않게 한다(사용자 지시: 더 신나게).
+SHORTFORM_BPM_MIN = 100
+SHORTFORM_BPM_MAX = 140
 
-    bpm = 60 / 평균_컷_초 * beats_per_cut. 통상 30~200 범위로 클램프.
+
+def bpm_for_cuts(
+    panels: list[StoryboardPanel],
+    target_min: int = SHORTFORM_BPM_MIN,
+    target_max: int = SHORTFORM_BPM_MAX,
+) -> int:
+    """평균 컷 길이에 비트를 맞추되, 숏폼용 경쾌한 대역(기본 100~140bpm)으로 올린 bpm을 낸다.
+
+    컷당 1비트 bpm(60/평균초)은 컷이 길면 매우 느려(예: 1.2초/컷 -> 50bpm) 음악이 처진다. 그래서
+    컷당 비트를 2배씩 늘려(정수배라 컷은 여전히 비트 위에 떨어진다) target 대역 안으로 끌어올린다.
     """
     durs = [(p.t_end or 0.0) - (p.t_start or 0.0) for p in panels]
     durs = [d for d in durs if d > 0]
     if not durs:
         return 120
     mean = sum(durs) / len(durs)
-    bpm = round(60.0 / mean * beats_per_cut)
-    return max(30, min(200, bpm))
+    bpm = 60.0 / mean  # 컷당 1비트
+    # 정수배(2,4,8...)로 올려 경쾌한 대역에 맞춘다. 너무 빠르면 절반으로 내린다.
+    while bpm < target_min:
+        bpm *= 2
+    while bpm > target_max:
+        bpm /= 2
+    return int(round(max(60, min(180, bpm))))
 
 
 def bgm_cut_sync_ok(bpm: int, panels: list[StoryboardPanel], tol: float = 0.15) -> bool:

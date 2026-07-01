@@ -20,14 +20,16 @@ from pathlib import Path
 import typer
 
 from .analysis.analyze import analyze_video
+from .analysis.profile import VideoProfile
 from .analysis.reference import _find_project_root, download_via_script
 from .analysis.reference import add_reference as add_reference_flow
 from .analysis.rubric import evaluate_video
+from .analysis.similarity import SimilarityReport, compare_profiles
 from .generate.conformance import verify_conformance
-from .generate.gates import GateConfig
+from .generate.intake import intake, validate_purpose
 from .generate.planning_graph import run_planning
 from .generate.production_graph import run_production
-from .generate.schema import GenerationInput, RunManifest, Storyboard
+from .generate.schema import GenerationInput, ReelProfile, RunManifest, Storyboard
 from .generate.text_client import make_text_client
 
 app = typer.Typer(
@@ -229,21 +231,71 @@ def verify(
         raise typer.Exit(code=1)
 
 
+def _load_profile(source: str, *, use_gemini: bool) -> VideoProfile:
+    """VideoProfile을 얻는다: JSON이면 그대로 로드, 영상이면 analyze로 산출."""
+    if source.endswith(".json"):
+        return VideoProfile.model_validate_json(_read(source))
+    return analyze_video(source, use_gemini=use_gemini)
+
+
+def _print_similarity(report: SimilarityReport) -> None:
+    """유사도 리포트를 사람이 읽게 stderr로 요약 출력한다."""
+    verdict = "유사" if report.passed else "상이"
+    typer.echo(
+        f"유사도 overall={report.overall} (임계 {report.threshold}) -> {verdict}", err=True
+    )
+    for ax in report.axes:
+        mark = "O" if ax.score >= 0.6 else "X"
+        typer.echo(f"  [{mark}] {ax.key:9s} {ax.score:.2f}  {ax.detail}", err=True)
+
+
+@app.command()
+def compare(
+    reference: str = typer.Option(..., "--reference", help="레퍼런스: VideoProfile JSON 또는 영상"),
+    output: str = typer.Option(..., "--output", help="생성물: VideoProfile JSON 또는 영상"),
+    out: str | None = typer.Option(None, help="SimilarityReport JSON 저장 경로(미지정 시 stdout)"),
+    no_gemini: bool = typer.Option(
+        False, "--no-gemini", help="영상 입력을 분석할 때 Gemini 지각 계층을 끈다"
+    ),
+) -> None:
+    """생성물이 레퍼런스와 같은 결인지 유사도를 잰다(SimilarityReport JSON, 미달 시 exit!=0).
+
+    두 입력은 각각 VideoProfile JSON이거나 영상 파일이다. 영상이면 analyze로 프로필을 만든다.
+    계약은 specs/similarity-loop.md.
+    """
+    ref = _load_profile(reference, use_gemini=not no_gemini)
+    gen = _load_profile(output, use_gemini=not no_gemini)
+    report = compare_profiles(ref, gen)
+    payload = json.dumps(report.model_dump(), ensure_ascii=False, indent=2)
+    if out:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(payload + "\n", encoding="utf-8")
+        typer.echo(f"저장: {out}", err=True)
+    else:
+        typer.echo(payload)
+    _print_similarity(report)
+    if not report.passed:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def plan(
     brief: str = typer.Argument(..., help="영상 목적/브리프 또는 입력"),
     outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
-    yes: bool = typer.Option(False, "-y", "--yes", help="모든 게이트 자동 승인"),
     no_llm: bool = typer.Option(False, "--no-llm", help="LLM 없이(후크 생략) 결정론 콘티만"),
+    no_images: bool = typer.Option(False, "--no-images", help="이미지 생성 없이(폴백만)"),
 ) -> None:
-    """입력에서 ReelProfile을 만들어 outputs/<run_id>/에 저장한다.
+    """입력에서 ReelProfile을 만들어 outputs/<run_id>/에 저장한다(확인 게이트 없이 한 번에).
 
-    기본은 실제 텍스트 LLM(Vertex Gemini 3.1 Pro, 옵션 Claude)으로 후크를 생성한다.
-    키가 없으면 자동으로 결정론 콘티만 만든다.
+    영상 목적이 명확하지 않으면 거절한다. 그 외에는 목적만으로 나머지를 추론해 채운다.
     """
-    cfg = GateConfig(mode="run" if yes else "ask")
     client = None if no_llm else make_text_client()
-    path = run_planning(brief, outputs, gate=cfg, text_client=client)
+    ok, reason = validate_purpose(brief, text_client=client)
+    if not ok:
+        typer.echo(f"거절: {reason}", err=True)
+        raise typer.Exit(code=2)
+    img = None if no_images else _make_image_client()
+    path = run_planning(brief, outputs, text_client=client, image_client=img)
     typer.echo(f"ReelProfile: {path}", err=True)
 
 
@@ -275,20 +327,84 @@ def run(
     no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
     no_llm: bool = typer.Option(False, "--no-llm", help="텍스트 LLM 없이 결정론 콘티만"),
     no_images: bool = typer.Option(False, "--no-images", help="이미지 생성 없이(폴백만)"),
+    max_iters: int = typer.Option(
+        1, "--max-iters", help="레퍼런스가 있을 때 유사도 미달이면 재계획·재생성할 최대 횟수"
+    ),
+    no_similarity: bool = typer.Option(
+        False, "--no-similarity", help="레퍼런스가 있어도 유사도 비교/루프를 건너뛴다"
+    ),
 ) -> None:
-    """plan -> execute를 한 번에 돌린다(런 모드, 게이트 자동 통과).
+    """입력 -> ReelProfile -> production을 한 번에 밀어붙인다(확인 게이트 없음).
 
-    실 텍스트 LLM(Gemini 3.1 Pro)과 이미지(Nano Banana)로 ReelProfile을 만들고 곧장
-    영상까지 생성한다. 키가 없으면 각각 자동으로 결정론/폴백 경로로 내려간다.
+    입력이 ReelProfile JSON이면 계획을 건너뛰고 바로 production을 실행한다. 그 외에는 입력에
+    영상 목적이 명확히 서술됐는지 먼저 확인하고(없으면 거절), 목적만으로 나머지를 추론해
+    ReelProfile을 만든 뒤 production으로 간다. 레퍼런스가 있고 max_iters>1이면, 생성물을 다시
+    analyze해 레퍼런스와 유사도를 비교하고, 미달이면 축별 델타를 plan 피드백으로 밀어 넣어
+    재계획·재생성한다(유사해질 때까지, 최대 max_iters회, specs/similarity-loop.md).
     """
+    # ReelProfile이 주어지면 계획을 건너뛰고 바로 production.
+    if brief.endswith(".json") and Path(brief).exists():
+        try:
+            ReelProfile.model_validate_json(Path(brief).read_text(encoding="utf-8"))
+        except Exception:
+            pass  # ReelProfile이 아니면 일반 브리프로 진행
+        else:
+            typer.echo("ReelProfile 감지 -> 바로 production 실행", err=True)
+            manifest = run_production(brief, use_vlm=not no_vlm)
+            typer.echo(f"영상: {manifest.final_video}", err=True)
+            return
+
     text = None if no_llm else make_text_client()
+    # 영상 목적이 제대로 서술되지 않았으면 실행 거절(그 외에는 목적만으로 나머지 추론).
+    ok, reason = validate_purpose(brief, text_client=text)
+    if not ok:
+        typer.echo(f"거절: {reason}", err=True)
+        raise typer.Exit(code=2)
     img = None if no_images else _make_image_client()
-    path = run_planning(
-        brief, outputs, gate=GateConfig(mode="run"), text_client=text, image_client=img
-    )
-    typer.echo(f"ReelProfile: {path}", err=True)
-    manifest = run_production(str(path), use_vlm=not no_vlm)
-    typer.echo(f"영상: {manifest.final_video}", err=True)
+
+    # 레퍼런스가 있으면 한 번만 analyze해 비교 기준으로 재사용한다.
+    ref_path = intake(brief).reference_ref
+    ref_profile: VideoProfile | None = None
+    if ref_path and not no_similarity and Path(ref_path).exists():
+        typer.echo(f"레퍼런스 분석: {ref_path}", err=True)
+        ref_profile = analyze_video(ref_path, use_gemini=text is not None)
+
+    feedback = ""
+    best: tuple[float, str] | None = None  # (overall, final_video)
+    iters = max(1, max_iters) if ref_profile is not None else 1
+    for i in range(iters):
+        if i > 0:
+            typer.echo(f"[반복 {i + 1}/{iters}] 유사도 미달 -> 피드백 재계획", err=True)
+        path = run_planning(
+            brief, outputs, text_client=text, image_client=img, style_feedback=feedback,
+        )
+        typer.echo(f"ReelProfile: {path}", err=True)
+        manifest = run_production(str(path), use_vlm=not no_vlm)
+        typer.echo(f"영상: {manifest.final_video}", err=True)
+
+        if ref_profile is None or not manifest.final_video:
+            return
+        final_video = manifest.final_video
+        gen_profile = analyze_video(final_video, use_gemini=text is not None)
+        report = compare_profiles(ref_profile, gen_profile)
+        # 유사도 리포트를 생성물 폴더에 남겨 증거로 보존한다(레퍼런스 대비 결 일치도).
+        sim_path = Path(final_video).parent / "similarity.json"
+        sim_path.write_text(
+            json.dumps(report.model_dump(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _print_similarity(report)
+        if best is None or report.overall > best[0]:
+            best = (report.overall, final_video)
+        if report.passed:
+            typer.echo(f"레퍼런스와 유사 달성(overall={report.overall}).", err=True)
+            return
+        feedback = report.feedback()  # 다음 반복에 밀어 넣을 축별 델타
+
+    if best is not None:
+        typer.echo(
+            f"최대 반복 종료. 최고 유사도 overall={best[0]} -> {best[1]}", err=True
+        )
 
 
 @app.command()

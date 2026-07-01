@@ -152,7 +152,7 @@ def estimate_cost(
         f"단가는 공개 근사치(기준일 {PRICING_AS_OF})이며 실제 청구와 다를 수 있음",
         "ken_burns/합성 BGM 등 로컬 폴백은 $0으로 계산",
         "기획·카피 텍스트 LLM(컨셉/훅/스토리보드/대사)은 별도 planning 단계라 미포함",
-        "SFX(ElevenLabs)·Kling O3는 배선되면 자동 반영, 현재 미배선분은 미집계",
+        "SFX는 플랜이 켰을 때만 집계(컷 sfx 큐 기준). Kling O3는 배선되면 자동 반영",
         "이미지 수는 스틸 있는 패널 기준 추정(사용자 제공 스틸이 섞일 수 있음)",
     ]
 
@@ -184,6 +184,13 @@ def estimate_cost(
     if plan and plan.voice_strategy == "separate_tts":
         chars = sum(len(ln.text) for ln in profile.narration.lines if ln.text.strip())
         line = _line("나레이션", _tts_model(plan, env), chars, note="대사 글자수 기준")
+        if line:
+            lines.append(line)
+
+    # SFX(ElevenLabs): 플랜이 켰을 때만, sfx 큐가 있는 컷 수(상한 4)만큼 클립을 만든다.
+    if plan and plan.sfx and env.get("ELEVENLABS_API_KEY"):
+        sfx_count = min(4, sum(1 for p in profile.storyboard.panels if (p.sfx or "").strip()))
+        line = _line("SFX", "elevenlabs-sfx", sfx_count, note="효과음 큐 있는 컷 수 기준")
         if line:
             lines.append(line)
 

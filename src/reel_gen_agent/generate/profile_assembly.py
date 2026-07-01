@@ -15,6 +15,7 @@ from .schema import (
     MusicSpec,
     NarrationSpec,
     Objective,
+    ProductionIntent,
     ProductSpec,
     Provenance,
     ReelProfile,
@@ -26,9 +27,16 @@ from .schema import (
 def assemble_profile(parts: dict) -> ReelProfile:
     objective: Objective = parts["objective"]
     product: ProductSpec = parts["product"]
+    music: MusicSpec = parts.get("music") or MusicSpec()
+    # 음악 노드의 오디오 결정(베드 유무·SFX)을 이식 가능한 생산 의도로 옮긴다. execute가 해소한다.
+    production_intent = ProductionIntent(
+        bgm_pref="gen" if (music.bgm or "bed") != "none" else "none",
+        sfx_pref=bool(music.sfx),
+    )
     return ReelProfile(
         objective=objective,
         product=product,
+        production_intent=production_intent,
         # meta는 스토리보드가 쓴 것과 같아야 한다(길이·fps 정렬). 빠지면 프로필 meta가 기본
         # 14초로 남아 스토리보드(레퍼런스 길이)와 어긋난다.
         meta=parts.get("meta") or InputMeta(),
@@ -38,7 +46,7 @@ def assemble_profile(parts: dict) -> ReelProfile:
         asset_bible=parts.get("asset_bible") or AssetBible(),
         storyboard=parts.get("storyboard") or Storyboard(),
         narration=parts.get("narration") or NarrationSpec(),
-        music=parts.get("music") or MusicSpec(),
+        music=music,
         provenance=parts.get("provenance") or Provenance(),
     )
 

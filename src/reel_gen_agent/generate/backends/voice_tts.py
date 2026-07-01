@@ -33,6 +33,32 @@ def _persona_gender(voice_desc: str) -> str:
     ):
         return "male"
     return "female"
+
+
+# 발화 결(desc) -> eleven_v3 오디오 태그. v3는 텍스트 앞 [whispering] 같은 태그로 연기를 바꾼다.
+# 레퍼런스 관측 톤/페이스를 태그로 옮겨 '결'을 맞춘다(코드가 스타일을 박지 않고 관측을 반영).
+_TONE_TAGS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("whisper",), "[whispering]"),
+    (("soft", "gentle", "tender", "delicate"), "[softly]"),
+    (("calm", "soothing", "serene", "relaxed"), "[calmly]"),
+    (("warm", "appreciative", "intimate"), "[warmly]"),
+    (("excited", "enthusiastic", "energetic", "upbeat", "hyped"), "[excited]"),
+    (("cheerful", "happy", "playful"), "[cheerfully]"),
+    (("confident", "bold", "assertive"), "[confidently]"),
+)
+
+
+def _delivery_tags(voice_desc: str) -> str:
+    """voice_desc에서 eleven_v3 연기 태그를 뽑는다(느린 페이스면 [slowly] 추가). 없으면 빈 문자열."""
+    d = (voice_desc or "").lower()
+    tags: list[str] = []
+    for keys, tag in _TONE_TAGS:
+        if any(k in d for k in keys) and tag not in tags:
+            tags.append(tag)
+    if "slow" in d and "[slowly]" not in tags:
+        tags.append("[slowly]")
+    # 상충 방지: 흥분 계열과 나직 계열이 함께 잡히면 앞선(관측 우선) 것만 남긴다.
+    return " ".join(tags[:2])
 # 이름으로 못 찾거나 계정 조회가 막힐 때 쓰는 접근 가능한 여성 프리메이드 보이스 ID(폴백).
 _FALLBACK_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 # eleven_v3: 다국어 표현력이 가장 좋아 한국어·영어 나레이션 기본값([ai-model-records.md] §6).
@@ -101,6 +127,12 @@ class ElevenLabsVoiceClient:
         from elevenlabs.client import ElevenLabs
 
         client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
+        # eleven_v3면 발화 결(voice_desc)을 오디오 태그로 텍스트 앞에 붙여 연기를 맞춘다.
+        # 다른 모델은 태그를 그대로 읽어버리므로 붙이지 않는다.
+        if "v3" in (self.model or "").lower():
+            tags = _delivery_tags(voice_desc)
+            if tags:
+                text = f"{tags} {text}"
         voices: list | None = None
         voice_id = self.voice_id
         if not voice_id:

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
 from .plan_graph import build_plan_graph
@@ -22,11 +21,15 @@ def run_planning(
     raw: str,
     outputs_root: str,
     *,
-    gate: GateConfig,
     text_client: TextClient | None = None,
     image_client: ImageClient | None = None,
+    style_feedback: str = "",
 ) -> Path:
-    """입력 -> ReelProfile(plan/ 하위 JSON). plan 그래프를 컴파일해 한 번 실행한다."""
+    """입력 -> ReelProfile(plan/ 하위 JSON). plan 그래프를 컴파일해 한 번 실행한다(한 번에 밀기).
+
+    style_feedback이 있으면(유사도 루프의 재계획) 스토리보드 등에 레퍼런스 정합 지시로 반영한다.
+    HITL/게이트는 없다(run 방식으로 입력→ReelProfile→production 일괄, 확인 단계 없음).
+    """
     result = intake(raw)
     if result.objective is None:
         raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
@@ -43,6 +46,7 @@ def run_planning(
             "text_client": text_client,
             "image_client": image_client,
             "tracer": tracer,
+            "style_feedback": style_feedback,
         }
     )
     return Path(final["profile_path"])

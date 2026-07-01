@@ -20,27 +20,34 @@ DEFAULT_CHARACTER = ModelSpec(
     age="early 20s",
     gender="female",
     look=(
-        "a celebrity-level, supermodel-tier gorgeous early-20s American woman with Western "
-        "features, stunning flawless symmetrical features, radiant clear complexion, magnetic "
-        "head-turning aspirational beauty, effortless minimal-makeup glam"
+        "an exceptionally attractive early-20s American woman with Western features — the kind of "
+        "conventionally stunning, camera-magnetic face you see on a top viral beauty influencer / "
+        "TikTok creator / A-list celebrity: model-tier flawless symmetrical features, big expressive "
+        "eyes, radiant clear glowing complexion, glossy healthy hair, an aspirational head-turning "
+        "'it-girl' look, effortless minimal-makeup glam, highly photogenic and charismatic on camera"
     ),
 )
 
 # 매력도는 '기본 편향'이다(강제 고정 아님). 브리프/레퍼런스가 다른 외모를 분명히 원하면 그걸 따른다.
 _ATTRACTIVE = (
-    "Default bias (override only if the brief clearly asks for a different look): the person is "
-    "celebrity-level, supermodel-tier gorgeous — a stunning, flawless, head-turning beauty."
+    "Default bias (override only if the brief clearly asks for a different look): make the creator "
+    "exceptionally, conventionally attractive — a top viral beauty influencer / TikToker / "
+    "celebrity-tier face: model-tier, flawless, magnetic and highly photogenic, the aspirational "
+    "'it-girl/it-guy' look people find beautiful, not plain or average."
 )
 
 _PROMPT = (
-    "Define the on-camera creator/model for a vertical short-form beauty ad.\n"
+    "Define the on-camera creator/model for a vertical short-form beauty ad. Short-form beauty is "
+    "carried by aspirational, very good-looking creators, so lean attractive.\n"
     "Brief: {brief}\nProduct: {product}\n{ref}\n"
     "Rules: If the reference describes a person, MATCH that person (same gender, age range, "
     "ethnicity/nationality, look). Otherwise infer a fitting creator from the brief. If still "
-    f"unspecified, default to a strikingly beautiful early-20s American (Western) woman.\n{_ATTRACTIVE}\n"
+    "unspecified, default to an exceptionally attractive early-20s American (Western) woman who "
+    f"looks like a top viral beauty influencer / TikToker / celebrity.\n{_ATTRACTIVE}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"age": str, "gender": str, "look": str}}. '
-    "The look field must include nationality/ethnicity and attractiveness/beauty cues."
+    "The look field must include nationality/ethnicity and strong, specific attractiveness/beauty "
+    "cues (influencer/celebrity-tier, photogenic, magnetic)."
 )
 
 

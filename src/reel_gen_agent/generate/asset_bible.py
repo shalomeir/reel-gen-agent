@@ -1,8 +1,9 @@
-"""asset_bible 노드: 캐릭터·제품 에셋 이미지를 나노바나나로 생성한다.
+"""에셋 생성 헬퍼: 캐릭터/제품 레퍼런스 이미지를 나노바나나로 만든다.
 
-캐릭터는 **정면샷**으로 만든다(멀티샷을 이어붙일 때 얼굴 일관성의 근거, specs/trd.md
-"기본 제작 포맷"). 제품은 카탈로그 히어로 샷. 이 두 이미지가 execute의 컷별 스틸 생성에서
-reference·폴백으로 쓰인다. 이미지 클라이언트가 없거나 실패하면 에셋 없이 진행한다.
+각 에셋은 해당 노드(character/product)에서 그 단계에 생성한다(별도 통합 assets 노드 없음).
+공통 이미지 코드는 여기서 재사용한다. 캐릭터는 **정면 레퍼런스 시트**(얼굴 일관성 근거,
+중립 배경 - 환경은 컷별 스틸에서 입힌다). 제품은 카탈로그 히어로 + 풀 패키지 샷. 이 이미지들이
+execute의 컷별 스틸 생성에서 reference·폴백으로 쓰인다. 클라이언트가 없거나 실패하면 에셋 없이 진행.
 """
 
 from __future__ import annotations
@@ -11,13 +12,12 @@ from pathlib import Path
 
 from .image_client import ImageClient
 from .schema import (
-    AssetBible,
     AssetView,
     CharacterProfile,
-    EnvironmentSpec,
     ModelSpec,
     ProductProfile,
     ProductSpec,
+    ReelProfile,
 )
 
 
@@ -29,28 +29,29 @@ def _palette_phrase(palette: list[str] | None) -> str:
     return f" Color grading and overall tones in this palette: {tones}. Match this mood and warmth."
 
 
-def _character_prompt(
-    character: ModelSpec, environment: EnvironmentSpec, palette: list[str] | None
-) -> str:
-    # 인물 정체성·매력도는 character 노드가 이미 정했다(look). 여기서 매력/외모를 다시
-    # 하드코딩하지 않고 그 결정을 그대로 쓴다(사용자 의도 존중). 촬영 형식만 규정한다.
-    look = character.look or "an attractive early-20s woman, effortless natural look"
+def _character_prompt(character: ModelSpec, palette: list[str] | None) -> str:
+    # 인물 정체성·매력도는 character 노드가 이미 정했다(look). 여기서 다시 하드코딩하지 않고
+    # 그 결정을 쓴다. 레퍼런스 시트라 배경은 중립(깨끗한 실내)으로 — 실제 환경은 컷별 스틸이 입힌다.
+    look = character.look or "an exceptionally attractive early-20s woman, aspirational influencer look"
     age = character.age or "early 20s"
     gender = character.gender or "female"
-    loc = environment.location or "the creator's own bedroom, indoor"
     return (
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
-        f"{age} {gender}. Looking straight at the camera, natural soft indoor lighting, "
-        f"{loc} in the background, authentic UGC selfie aesthetic, natural skin texture with "
-        "balanced lighting (avoid excessive dewy sheen or greasy highlights), clean and bright. "
+        f"{age} {gender}. An exceptionally attractive, aspirational top-influencer / celebrity-tier "
+        "face — conventionally beautiful, magnetic and highly photogenic (not plain or average). "
+        "Looking straight at the camera, natural soft indoor lighting, clean neutral bright "
+        "background, authentic UGC selfie aesthetic, natural skin texture with balanced lighting "
+        "(avoid excessive dewy sheen or greasy highlights), clean and bright. "
         "A fictional person, not a real or identifiable individual." + _palette_phrase(palette)
     )
 
 
 def _product_prompt(product: ProductSpec, palette: list[str] | None) -> str:
-    packaging = product.packaging_desc or "as described"
+    # 시각 정체성(카테고리·제형·용기·색·특징)을 실어 히어로가 곧 컷마다 재현할 기준이 되게 한다.
+    from .product import product_identity
+
     return (
-        f"Studio e-commerce catalog photo of {product.name}. Packaging: {packaging}. "
+        f"Studio e-commerce catalog photo of {product_identity(product)}. "
         "Clean seamless off-white background, soft even studio lighting, single hero "
         "product centered, subtle reflection, sharp focus, high detail, no text overlay, "
         "no hands, no human, vertical 9:16 framing, photorealistic." + _palette_phrase(palette)
@@ -59,65 +60,107 @@ def _product_prompt(product: ProductSpec, palette: list[str] | None) -> str:
 
 def _product_packaging_prompt(product: ProductSpec, palette: list[str] | None) -> str:
     """제품 박스·풀 패키지 카탈로그 컷. 정면 히어로 외에 개봉/박스 상태를 함께 잡는다."""
-    packaging = product.packaging_desc or "as described"
+    from .product import product_identity
+
     return (
-        f"Studio e-commerce catalog photo of {product.name} with its full packaging: "
-        f"the retail box and the product bottle/tube shown together. Packaging: {packaging}. "
+        f"Studio e-commerce catalog photo of {product_identity(product)} with its full packaging: "
+        "the retail box and the product bottle/tube shown together. "
         "Clean seamless off-white background, soft even studio lighting, three-quarter angle, "
         "subtle reflection, sharp focus, high detail, no text overlay, no hands, no human, "
         "vertical 9:16 framing, photorealistic." + _palette_phrase(palette)
     )
 
 
-def build_asset_bible(
+def build_character_asset(
     character: ModelSpec,
-    product: ProductSpec,
-    environment: EnvironmentSpec,
     image_client: ImageClient | None,
     out_dir: str,
     palette: list[str] | None = None,
-) -> AssetBible:
-    """캐릭터 정면샷 + 제품 히어로샷을 만들어 AssetBible을 채운다(상대 파일명으로 기록).
+) -> CharacterProfile:
+    """캐릭터 정면 레퍼런스 시트를 만들어 CharacterProfile로 돌려준다(character 노드에서 호출).
 
-    이미지 경로는 run 폴더 기준 상대명(character.png/product.png)으로 저장해 ReelProfile을
-    이식 가능하게 둔다. execute가 폴더 기준으로 절대경로를 해소한다.
+    이미지 경로는 run 폴더 기준 상대명(character.png)으로 저장해 ReelProfile을 이식 가능하게 둔다.
     """
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    char_prompt = _character_prompt(character, environment, palette)
+    prompt = _character_prompt(character, palette)
+    rel: str | None = None
+    if image_client is not None:
+        try:
+            image_client.generate(prompt, [], str(out / "character.png"), hero=True)
+            rel = "character.png"
+        except Exception:
+            rel = None
+    return CharacterProfile(name=character.name, prompt_used=prompt, key_shot_image=rel)
+
+
+def build_key_visual(
+    profile: ReelProfile,
+    image_client: ImageClient | None,
+    out_dir: str,
+    character_image: str | None = None,
+    product_image: str | None = None,
+) -> str | None:
+    """영상을 대표하는 키 비주얼 한 장을 만든다(plan 확정 시). 상대 파일명(key_visual.png) 반환.
+
+    캐릭터·제품 에셋을 레퍼런스로 넣고, ReelProfile의 스토리보드·스타일·환경을 종합해 "이 영상이
+    어떤 느낌으로 만들어질지"를 잘 보여주는 대표 순간(대개 중간 세그먼트의 제품 사용 장면)을
+    그린다. 커버로도, 중간 세그먼트 앵커 스틸로도 재활용 가능. 클라이언트 없거나 실패하면 None.
+    """
+    if image_client is None:
+        return None
+    panels = profile.storyboard.panels
+    # 대표 순간: 스토리보드 중간 패널(제품 사용/변화 지점)을 고른다. 없으면 제품 정체성만으로.
+    mid = panels[len(panels) // 2] if panels else None
+    from .product import product_identity
+
+    global_prompt = profile.storyboard.global_prompt or ""
+    moment = (mid.action if (mid and mid.action) else None) or (
+        f"the creator using {product_identity(profile.product)}, natural glowing result"
+    )
+    palette = profile.style.palette or []
+    prompt = (
+        f"{global_prompt}. Key representative hero frame of the whole short video: {moment}. "
+        "A single striking vertical 9:16 still that best captures the video's overall mood, styling "
+        "and story at a glance (cover/keyframe). Photorealistic, no on-screen text or captions."
+        + _palette_phrase(palette)
+    )
+    refs = [r for r in (character_image, product_image) if r]
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        image_client.generate(prompt, refs, str(out / "key_visual.png"), hero=True)
+        return "key_visual.png"
+    except Exception:
+        return None
+
+
+def build_product_asset(
+    product: ProductSpec,
+    image_client: ImageClient | None,
+    out_dir: str,
+    palette: list[str] | None = None,
+) -> ProductProfile:
+    """제품 히어로 + 풀 패키지 샷을 만들어 ProductProfile로 돌려준다(product 노드에서 호출)."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
     prod_prompt = _product_prompt(product, palette)
     pkg_prompt = _product_packaging_prompt(product, palette)
-
-    char_rel: str | None = None
     prod_rel: str | None = None
     views: list[AssetView] = []
     if image_client is not None:
-        try:
-            # 캐릭터 설정 샷·제품 카탈로그 모두 히어로 스틸(4K Pro)로 만든다(ai-model-records.md §3).
-            image_client.generate(char_prompt, [], str(out / "character.png"), hero=True)
-            char_rel = "character.png"
-        except Exception:
-            char_rel = None
         try:
             image_client.generate(prod_prompt, [], str(out / "product.png"), hero=True)
             prod_rel = "product.png"
         except Exception:
             prod_rel = None
         try:
-            # 풀 카탈로그: 박스·패키지 뷰도 plan 단계에서 함께 생성한다(사용자 지시).
             image_client.generate(pkg_prompt, [], str(out / "product_packaging.png"), hero=True)
             views.append(
                 AssetView(name="packaging", image="product_packaging.png", satisfied=True)
             )
         except Exception:
             pass
-
-    return AssetBible(
-        character=CharacterProfile(
-            name=character.name, prompt_used=char_prompt, key_shot_image=char_rel
-        ),
-        product=ProductProfile(
-            name=product.name, prompt_used=prod_prompt, hero_image=prod_rel, views=views
-        ),
-        environment=environment,
+    return ProductProfile(
+        name=product.name, prompt_used=prod_prompt, hero_image=prod_rel, views=views
     )

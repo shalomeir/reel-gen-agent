@@ -1,8 +1,12 @@
 """제품 분석 노드: 브리프(+레퍼런스 제품 힌트)에서 제품 스펙을 LLM이 추출한다.
 
 스토리보드·후크·제품 이미지가 제대로 되려면 제품을 이해해야 한다. 이름만 들고 가지 말고,
-카테고리·제형·용기·USP·가능한 사용 행동(affordances)을 뽑아 다른 노드가 문맥으로 쓴다.
-레퍼런스 제품의 시각 특성(카테고리/제형/용기/색)은 힌트로만 참고한다(사용자 제품을 대체 X).
+카테고리·제형·용기·색·식별 특징·USP·가능한 사용 행동(affordances)을 뽑아 다른 노드가 쓴다.
+
+제품 시각 정체성(카테고리/제형/용기/색/특징)은 execute의 모든 생성 단계에 일관 주입돼 컷마다
+제품이 흔들리지 않게 하는 앵커다(`product_identity`). 사용자 지시대로 "브랜드만 다르고 제품
+자체는 거의 같게": 레퍼런스 제품이 있으면 그 형태 정체성을 최대한 따르되, 브랜드명/라벨
+문구는 복제하지 않는다(사용자 제품명을 쓴다).
 """
 
 from __future__ import annotations
@@ -14,16 +18,22 @@ from .schema import ProductSpec
 from .text_client import TextClient
 
 _PROMPT = (
-    "Analyze the advertised product for a short-form beauty ad and fill its spec. Infer sensible "
-    "details from the name/brief; keep it realistic for this category. Do NOT invent a brand.\n"
+    "Analyze the advertised product for a short-form beauty ad and fill its spec so the SAME "
+    "product can be rendered consistently across many cuts. Infer sensible, realistic details from "
+    "the name/brief. Use the user's product name. Do NOT invent or copy a brand name or on-package "
+    "text.\n"
     "Product name/brief: {name}\nExtra brief: {brief}\n{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
-    '{{"name": str, "category": str, "usp": str, "packaging_desc": str, '
-    '"affordances": [str, ...]}}. '
-    "category e.g. 'glow serum', 'cushion foundation'. usp = the single most compelling one-liner. "
-    "packaging_desc = the container look (e.g. 'frosted glass dropper bottle'). affordances = "
-    "3-6 concrete on-camera actions the product enables (e.g. 'dropper onto hand', 'pat into "
-    "cheeks', 'texture close-up', 'mist over face')."
+    '{{"name": str, "category": str, "form": str, "packaging_desc": str, '
+    '"colors": [str, ...], "key_features": [str, ...], "usp": str, "affordances": [str, ...]}}. '
+    "category e.g. 'glow serum'. form = texture/type (e.g. 'lightweight jelly-to-mist'). "
+    "packaging_desc = the container look (e.g. 'frosted glass spray bottle with white pump'). "
+    "colors = 2-4 dominant product/packaging colors. key_features = 2-4 distinctive visual cues that "
+    "identify this exact product (e.g. 'white pump', 'clear frosted bottle', 'rose-gold cap'). "
+    "usp = the single most compelling one-liner. affordances = 3-6 concrete on-camera actions the "
+    "product enables (e.g. 'mist over face', 'texture close-up'). "
+    "If a reference product is given, MATCH its category/form/packaging/colors closely (same kind of "
+    "product), only without its brand/label."
 )
 
 
@@ -47,7 +57,45 @@ def _ref_hint(ref: Product | None) -> str:
         f"colors={', '.join(ref.colors)}" if ref.colors else "",
     ]
     hint = "; ".join(b for b in bits if b)
-    return f"Reference product visual traits (style hint only, keep the user's product): {hint}." if hint else ""
+    return (
+        f"Reference product to match visually (same kind of product, keep the user's name, do NOT "
+        f"copy its brand/label): {hint}."
+        if hint
+        else ""
+    )
+
+
+def _from_reference(name: str, ref: Product | None) -> ProductSpec:
+    """LLM 없이 쓰는 폴백. 레퍼런스 제품의 시각 특성을 그대로 정체성으로 옮긴다."""
+    base = ProductSpec(name=name or "product")
+    if ref is None or not ref.present:
+        return base
+    return ProductSpec(
+        name=name or "product",
+        category=ref.category,
+        form=ref.form,
+        packaging_desc=ref.packaging,
+        colors=list(ref.colors),
+    )
+
+
+def product_identity(product: ProductSpec) -> str:
+    """제품 시각 정체성 한 줄. 히어로 이미지·컷 스틸·영상 프롬프트가 공유해 컷마다 제품을 고정한다.
+
+    브랜드/라벨 문구는 넣지 않는다(형태 정체성만). 값이 비면 그 조각은 생략한다.
+    """
+    bits: list[str] = [product.name] if product.name else []
+    if product.category:
+        bits.append(f"a {product.category}")
+    if product.form:
+        bits.append(product.form)
+    if product.packaging_desc:
+        bits.append(f"in a {product.packaging_desc}")
+    if product.colors:
+        bits.append(f"{', '.join(product.colors)} tones")
+    if product.key_features:
+        bits.append(f"distinctive: {', '.join(product.key_features)}")
+    return ", ".join(bits) or (product.name or "the product")
 
 
 def derive_product(
@@ -56,25 +104,32 @@ def derive_product(
     reference_product: Product | None,
     text_client: TextClient | None,
 ) -> ProductSpec:
-    """브리프·레퍼런스로 ProductSpec을 채운다. LLM 우선, 실패/부재 시 이름만 있는 기본."""
-    base = ProductSpec(name=name or "product")
+    """브리프·레퍼런스로 ProductSpec을 채운다. LLM 우선, 실패/부재 시 레퍼런스 시각 특성 폴백."""
     if text_client is None:
-        return base
+        return _from_reference(name, reference_product)
     try:
         raw = text_client.complete(
             _PROMPT.format(name=name, brief=brief, ref=_ref_hint(reference_product)),
             temperature=0.6,
         )
         data = json.loads(_extract_json(raw))
-        affordances = [str(a).strip() for a in (data.get("affordances") or []) if str(a).strip()]
+
+        def _list(key: str) -> list[str]:
+            return [str(a).strip() for a in (data.get(key) or []) if str(a).strip()]
+
+        ref = reference_product if (reference_product and reference_product.present) else None
+        # LLM 값 우선, 비면 레퍼런스 시각 특성으로 메운다(제품을 최대한 레퍼런스와 같게).
         return ProductSpec(
             name=str(data.get("name") or name or "product"),
             usp=(str(data.get("usp")).strip() or None) if data.get("usp") else None,
-            spec=base.spec,
+            category=(str(data.get("category")).strip() or None) if data.get("category") else (ref.category if ref else None),
+            form=(str(data.get("form")).strip() or None) if data.get("form") else (ref.form if ref else None),
             packaging_desc=(str(data.get("packaging_desc")).strip() or None)
             if data.get("packaging_desc")
-            else None,
-            affordances=affordances,
+            else (ref.packaging if ref else None),
+            colors=_list("colors") or (list(ref.colors) if ref else []),
+            key_features=_list("key_features"),
+            affordances=_list("affordances"),
         )
     except Exception:
-        return base
+        return _from_reference(name, reference_product)

@@ -15,11 +15,11 @@
 관객 쪽으로 잡는다. 숏폼 제품 PPL이 거기에 몰려 있다.
 
 자기 API 키를 가져오면 무료로 숏폼을 만들기 시작할 수 있다. 타임라인 편집기도, 렌더
-팜도 없다. 제품을 설명하고, 몇 단계를 승인하면, mp4가 나온다.
+팜도 없다. 제품(또는 목적)만 주면 mp4가 나온다.
 
-`typer`와 `rich`로 만든 챗봇형 CLI다. 터미널에서 대화하듯 단계를 밟아 갈 수도 있고
-(챗 모드), 입력 파일 하나로 끝까지 한 번에 돌릴 수도 있다(런 모드). 두 모드는 같은
-파이프라인을 공유하고, 게이트(사람 확인 지점)를 어떻게 다루느냐만 다르다.
+`typer`와 `rich`로 만든 CLI다. 입력 하나(`run`)를 받아 `ReelProfile`을 만들고 영상까지 한 번에
+민다. 확인 게이트(HITL)는 없다. 입력이 이미 `ReelProfile`이면 바로 production으로 가고, 영상
+목적이 불명확하면 거절한다.
 
 내부에서는 안정적인 JSON 인터페이스를 통해 **분석**과 **생성**을 분리한다. 그래서 생성
 백엔드를 바꿔도 나머지를 건드리지 않는다. 핵심 발상은 스타일을 하드코딩하지 않는 것이다.
@@ -33,38 +33,34 @@
 - `add-reference` - 구현됨. URL 하나로 다운로드, 분석, 평가(Rubric), 프로필 저장, 카탈로그 기록까지. 레퍼런스 분석은 analyze + evaluate가 기본.
 - `evaluate` - 구현됨. 영상을 드라이버 Rubric으로 채점(`RubricResult` JSON, 기대 효과 서술 포함). 레퍼런스와 생성물에 같은 자를 댄다. [docs/rubric.md](docs/rubric.md) 참고.
 - `verify` - 구현됨. 영상이 의도대로 온전히 만들어졌는지 Conformance로 검증(하드 pass/fail). 레퍼런스 전부 PASS. [specs/conformance-gate.md](specs/conformance-gate.md) 참고.
-- `chat` / `run`(생성) - 설계됨, 단계별 구현 중. [docs/pipeline-design.md](docs/pipeline-design.md) 참고.
+- `run` / `plan` / `execute`(생성) - 구현됨(워킹 스켈레톤, 단계별 심화 중). 아래 참고.
 
-## 두 가지 모드
+## 실행 방식: 한 번에 미는 run
 
-생성 파이프라인은 단계마다 게이트(사람이 결과를 확인하고 수정하는 지점)를 둔다. 모드는
-이 게이트를 다루는 방식이 다를 뿐, 같은 파이프라인을 탄다.
+확인 게이트(HITL)나 챗 세션은 없다(향후 과제로 미룸). 입력 하나를 받아 `ReelProfile`을 만들고
+곧장 production까지 밀어붙이는 **`run` 일괄 실행**이 기본이다.
 
-- **챗 모드** (`reel-gen chat`): 대화형 챗봇으로 띄운다. 컨셉, 에셋 바이블, 스토리보드,
-  영상 게이트마다 멈춰서 결과를 보여주고, 사용자가 확인하거나 수정한 뒤 다음 단계로
-  넘어간다. 기본값은 HITL(사람 개입)이 켜진 상태다.
-- **런 모드** (`reel-gen run <입력>`): 입력 하나로 끝까지 한 번에 돌린다. 멈추는 곳 없이
-  모든 게이트를 자동 통과하고, 진행 상황을 출력한 뒤 mp4 경로를 돌려준다. 비대화 방식이라
-  스크립트나 CI에 걸기 좋다. 런 모드에서는 HITL이 불가능하다.
+- **`reel-gen run <입력>`**: 입력 -> `ReelProfile` -> 영상까지 한 번에. 진행 상황을 출력하고
+  mp4 경로를 돌려준다. 레퍼런스가 있으면 `--max-iters`로 생성물을 다시 분석해 레퍼런스와
+  **유사도를 비교하고 미달이면 재계획·재생성**한다(유사해질 때까지).
+- **`reel-gen plan <입력>` / `reel-gen execute <ReelProfile>`**: 같은 파이프라인을 두 구간으로
+  나눠 실행한다. 둘은 `ReelProfile` 스키마로만 통신한다.
 
-챗 모드에서도 사람 개입 없이 끝까지 밀어붙이고 싶으면 `--yes`(`-y`)를 준다. 챗 UI는
-그대로지만 게이트마다 멈추지 않고 자동 승인한다. 특정 게이트 하나만 건너뛰려면
-`--force-step-pass <step>`을 쓴다(반복 지정 가능).
+규칙:
+- 입력이 이미 **`ReelProfile` JSON이면 계획을 건너뛰고 바로 production**을 실행한다.
+- 입력에 **영상의 목적이 명확히 서술되지 않으면 실행을 거절**한다(exit≠0).
+- 목적이 있으면 그 목적만으로 캐릭터·제품·환경·음악 등 **나머지를 추론해 채운다**.
 
 ### 입력 형식
 
-`chat`과 `run`의 위치 인자(`<입력>`)는 세 가지 형태를 받는다. 무엇이 들어왔는지는 시스템이
-판별한다.
+`run`/`plan`의 위치 인자(`<입력>`)는 세 가지 형태를 받는다(무엇이 들어왔는지는 시스템이 판별).
 
-- **`generation_input.json` 파일 경로**: 제품, 스타일, 내러티브 등이 담긴 상위 구조화 입력.
-  컨셉부터 전체 파이프라인을 탄다. (이미 완성된 템플릿/스토리보드 JSON을 그대로 영상으로
-  뽑는 직행 경로는 별도 명령 `reel-gen execute`다. 아래 참고.)
-- **따옴표로 감싼 텍스트 브리프**: 만들고 싶은 영상을 자연어로 적되, 그 안에 참고할 영상,
-  제품, 캐릭터의 URL이나 로컬 경로를 섞어 넣는다. 컨셉 단계가 텍스트를 읽어 에셋을 뽑아내고
-  각각을 레퍼런스 영상 / 제품 / 캐릭터 이미지로 분류한 뒤 `generation_input`을 채운다.
-- **단일 에셋(이미지·영상·URL)**: 이미지나 영상 파일 경로, 혹은 URL 하나를 바로 넘긴다.
-  확장자와 내용으로 종류를 추정하고(영상은 레퍼런스, 이미지는 캐릭터/제품), 나머지 필드는
-  기본값이나 이어지는 대화로 채운다.
+- **텍스트 브리프**: 만들고 싶은 영상을 자연어로 적되, 그 안에 참고할 영상·제품·캐릭터의
+  URL이나 로컬 경로를 섞어 넣는다. 시스템이 각각을 레퍼런스 / 제품 / 캐릭터로 분류한다.
+- **JSON 파일 경로**: `generation_input.json`(상위 구조화 입력) 또는 완성된 `ReelProfile`
+  (있으면 계획을 건너뛰고 바로 production).
+- **단일 에셋(이미지·영상·URL)**: 확장자·내용으로 종류를 추정한다(영상=레퍼런스, 이미지=
+  캐릭터/제품).
 
 URL과 로컬 경로는 어느 형태에서든 섞어 쓸 수 있다. 텍스트 브리프 예시:
 
@@ -185,7 +181,7 @@ Lyria 3 Pro로 승격한다.
 
 ```bash
 reel-gen --help                # 전체 명령 목록
-reel-gen chat --help           # 특정 명령의 옵션
+reel-gen run --help            # 특정 명령의 옵션
 ```
 
 ### 레퍼런스 분석 (구현됨)
@@ -249,24 +245,25 @@ reel-gen verify path/to/video.mp4 --no-vlm
 fail이 하나라도 있으면 exit code가 0이 아니다(게이트). 계약과 체크 카탈로그는
 [specs/conformance-gate.md](specs/conformance-gate.md)에 있다.
 
-### 영상 생성 (설계됨, 구현 중)
+### 영상 생성 (구현됨, 심화 중)
+
+확인 게이트 없이 입력 하나로 끝까지 민다. 영상 목적이 없으면 거절한다.
 
 ```bash
-# 챗 모드: 게이트마다 멈춰 확인 (기본 HITL)
-reel-gen chat                          # 빈 상태에서 대화로 입력을 채워 간다
-reel-gen chat generation_input.json    # 입력 파일을 씨앗으로 시작
-reel-gen chat "이 선크림으로 데일리 루틴 릴, 레퍼런스 ./ref.mp4"   # 텍스트 브리프로 시작
-
-# 챗 모드지만 사람 개입 없이 자동 승인
-reel-gen chat generation_input.json --yes
-
-# 스토리보드 게이트 하나만 건너뛰기 (반복 지정 가능)
-reel-gen chat generation_input.json --force-step-pass storyboard
-
-# 런 모드: 한 번에 끝까지, 비대화, mp4 경로 출력
-reel-gen run generation_input.json     # 구조화된 JSON 입력
+# run: 입력 -> ReelProfile -> 영상까지 한 번에 (mp4 경로 출력)
 reel-gen run "https://brand.example/serum 으로 15초 언박싱, 캐릭터 ./model.jpg"   # 텍스트 브리프
-reel-gen run ./reference_video/fast-cut.mp4   # 단일 에셋(영상)을 바로
+reel-gen run generation_input.json                # 구조화된 JSON 입력
+reel-gen run ./reference_video/fast-cut.mp4       # 단일 에셋(영상)을 바로
+
+# 레퍼런스가 있으면 생성물을 다시 분석해 유사도 비교, 미달이면 재계획·재생성(최대 2회)
+reel-gen run "... reference: ./ref.mp4" --max-iters 2
+
+# 이미 만든 ReelProfile을 주면 계획을 건너뛰고 바로 production
+reel-gen run outputs/<run_id>/plan/ReelProfile-....json
+
+# 두 구간으로 나눠 실행 (ReelProfile 스키마로만 통신)
+reel-gen plan "..."                    # 입력 -> ReelProfile
+reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> 영상
 ```
 
 ### 템플릿 직행 실행 (`execute`)
@@ -295,12 +292,13 @@ reel-gen execute storyboard.json
 | `reel-gen add-reference <url>` | URL로 레퍼런스 추가(다운로드, 분석, 카탈로그). |
 | `reel-gen evaluate <video>` | 드라이버 Rubric으로 채점(`RubricResult` JSON, 기대 효과 서술 포함). |
 | `reel-gen verify <video>` | Conformance 무결성·적합성 검증(`ConformanceReport` JSON, fail 시 exit≠0). |
-| `reel-gen chat [<입력>]` | 대화형 챗 모드. 게이트마다 사람 확인(HITL). |
-| `reel-gen chat ... -y, --yes` | 챗 모드 유지, 모든 게이트 자동 승인(HITL 끔). |
-| `reel-gen chat ... --force-step-pass <step>` | 특정 게이트만 건너뜀. `<step>`: `concept`, `asset_bible`, `storyboard`, `video`. |
-| `reel-gen run <입력>` | 런 모드. 비대화로 한 번에 실행, 모든 게이트 자동 통과. |
-| `reel-gen execute <template.json>` | 완성된 템플릿 JSON을 곧장 영상으로. 카탈로그 이미지 로컬 경로가 없으면 멈춤. |
-| `<입력>` (`chat`/`run`) | `generation_input.json` 경로, 따옴표 텍스트 브리프, 또는 단일 에셋(이미지·영상·URL). |
+| `reel-gen compare --reference <A> --output <B>` | 생성물이 레퍼런스와 같은 결인지 유사도 채점(`SimilarityReport` JSON, 미달 시 exit≠0). A/B는 `VideoProfile` JSON 또는 영상. |
+| `reel-gen run ... --max-iters <n>` | 레퍼런스가 있으면 생성물을 다시 분석해 유사도를 비교하고, 미달이면 축별 델타를 피드백으로 재계획·재생성(최대 n회). |
+| `reel-gen run <입력>` | 입력->ReelProfile->영상 일괄(확인 게이트 없음). ReelProfile 입력이면 바로 production, 목적 없으면 거절. |
+| `reel-gen run ... --max-iters <n>` | 레퍼런스 있으면 유사도 미달 시 피드백 재계획·재생성(최대 n회). |
+| `reel-gen plan <입력>` | 입력 -> `ReelProfile`(profile.json). |
+| `reel-gen execute <ReelProfile.json>` | ReelProfile을 곧장 영상으로. 카탈로그 이미지 로컬 경로가 없으면 멈춤. |
+| `<입력>` (`run`/`plan`) | 텍스트 브리프, JSON 경로(generation_input 또는 ReelProfile), 또는 단일 에셋(이미지·영상·URL). |
 
 ## 동작 방식
 
@@ -314,11 +312,17 @@ reel-gen execute storyboard.json
   - 주요 팔레트, 밝기, 대비는 OpenCV
 - **지각 계층**(Gemini 멀티모달): 보이스 톤, 전체 느낌, 자막 스타일, 훅, 내러티브 아크.
 
-생성 파이프라인(설계됨)은 `generation_input.json`을 에셋 바이블(캐릭터, 제품 레퍼런스
-이미지)로, 분석된 컷 리듬을 씨앗으로 삼은 패널별 타이밍의 스토리보드 JSON으로, 그리고
-마지막으로 image-to-video와 ffmpeg를 거친 조립된 영상으로 바꾼다. 중요한 단계마다 사람이
-확인하고 수정하는 게이트가 걸리고, 모든 게이트를 통과시키는 비대화 런 모드도 있다.
-자세한 내용은 [docs/pipeline-design.md](docs/pipeline-design.md)에 있다.
+생성 파이프라인은 입력을 캐릭터·제품 에셋과 스토리보드로 펼쳐 `ReelProfile`로 동결하고
+(plan), 그 프로필을 영상 모델 능력에 맞춰 재료(영상 클립·voice·bgm·sfx·자막)를 병렬로 만들고
+조립·검증한다(execute). 확인 게이트 없이 `run`으로 한 번에 민다. 그래프 구조는
+[specs/workflows.md](specs/workflows.md), 단계 세부는 [docs/pipeline-design.md](docs/pipeline-design.md).
+
+레퍼런스와 생성물을 **같은 자로** 잰다. 레퍼런스를 분석하는 그 분석기가 생성물도 분석하고,
+`reel-gen compare`(= `run --max-iters`의 게이트)가 두 `VideoProfile`을 축별(컷 리듬, 보이스
+결, 음악, 비주얼 모션·팔레트, 톤, 자막, 아크)로 비교해 유사도를 낸다. 미달이면 축별 델타를
+plan 피드백으로 밀어 넣어 다시 만든다. 스타일 값을 코드에 박지 않으므로 다른 레퍼런스는
+다른 결과로 수렴한다(예: 느린 컷 레퍼런스는 느린 결과, 빠른 컷은 빠른 결과). 지각 라벨의
+판정자 분산에 강인하도록 유사도 metric은 보정돼 있다(설계: [specs/similarity-loop.md](specs/similarity-loop.md)).
 
 ## 도구 선택 근거
 
@@ -327,8 +331,7 @@ reel-gen execute storyboard.json
 - **PySceneDetect / librosa / OpenCV / ffmpeg** - 정형 계층용. 재현 가능하고 값싼 측정
   수치를 만들고, 게이트가 이를 비교한다.
 - **pydantic** - 단계를 잇는 스키마용. 생성 백엔드를 바꿔도 소비자가 깨지지 않는다.
-- **typer + rich** - 챗봇형 CLI용. 같은 명령이 대화형 챗 모드와 한 번에 도는 런 모드를
-  모두 제공하고, 사람이 확인하는 게이트를 rich로 그린다.
+- **typer + rich** - CLI용. `run` 일괄 실행과 진행 상황 출력을 담당한다(확인 게이트는 없음).
 - **uv** - 설치와 실행용. 바이너리 배포 없이 클론하고 `uv sync` 한 번으로 재현 가능한
   환경을 만든다.
 
@@ -365,10 +368,10 @@ concentrates.
 Bring your own API key and start making shorts for free. No timeline editor, no
 render farm: describe the product, approve a few steps, get an mp4.
 
-It is a chatbot-style CLI built with `typer` and `rich`. You can walk the steps
-conversationally in the terminal (chat mode), or run the whole thing end to end
-from a single input file (run mode). Both modes share one pipeline and differ only
-in how they treat the gates (the human-confirm points).
+It is a CLI built with `typer` and `rich`. You give it one input and it runs end to
+end — input to `ReelProfile` to video — with no human-confirm gates (`run`). If the
+input already is a `ReelProfile`, it goes straight to production; if the input has no
+clear video purpose, it is rejected.
 
 Under the hood it separates **analysis** from **generation** through a stable JSON
 interface, so the generation backend can change without touching the rest. The
@@ -387,44 +390,40 @@ one ruler.
   [docs/rubric.md](docs/rubric.md).
 - `verify` — implemented. Conformance check that the video was built intact as intended
   (hard pass/fail). All references PASS. See [specs/conformance-gate.md](specs/conformance-gate.md).
-- `chat` / `run` (generation) — designed, implemented stage by stage. See
-  [docs/pipeline-design.md](docs/pipeline-design.md).
+- `run` / `plan` / `execute` (generation) — implemented (walking skeleton, deepening
+  stage by stage). See below.
 
-## Two modes
+## How it runs: one-shot run
 
-The generation pipeline puts a gate (a point where a human reviews and edits the
-result) at every stage. The modes share one pipeline and only differ in how they
-treat those gates.
+There are no human-confirm gates or chat sessions (deferred to future work). You give
+one input; it builds a `ReelProfile` and pushes straight to production.
 
-- **Chat mode** (`reel-gen chat`): launches an interactive chatbot. It stops at the
-  concept, asset-bible, storyboard, and video gates to show the result, lets you
-  confirm or edit it, then moves on. Human-in-the-loop (HITL) is on by default.
-- **Run mode** (`reel-gen run <input>`): runs end to end from a single input. It
-  passes every gate automatically without stopping, prints progress, and returns
-  the mp4 path. Being non-interactive, it fits scripts and CI. HITL is not possible
-  in run mode.
+- **`reel-gen run <input>`**: input -> `ReelProfile` -> video, in one go. Prints
+  progress and returns the mp4 path. With a reference, `--max-iters` re-analyzes the
+  output, **compares similarity to the reference, and re-plans/re-generates if it
+  falls short** (until similar).
+- **`reel-gen plan <input>` / `reel-gen execute <ReelProfile>`**: the same pipeline
+  split into two stages that talk only through the `ReelProfile` schema.
 
-To push through chat mode without any human input, pass `--yes` (`-y`). The chat UI
-stays, but it auto-approves each gate instead of stopping. To skip a single gate,
-use `--force-step-pass <step>` (repeatable).
+Rules:
+- If the input is already a **`ReelProfile` JSON, it skips planning and renders
+  directly**.
+- If the input has **no clear video purpose, execution is rejected** (exit≠0).
+- Otherwise it infers everything else (character, product, environment, music, ...)
+  from that purpose.
 
 ### Input forms
 
-The positional argument (`<input>`) of `chat` and `run` accepts three forms; the
-system detects which one it got.
+The positional argument (`<input>`) of `run`/`plan` accepts three forms; the system
+detects which one it got.
 
-- **A `generation_input.json` file path**: a high-level structured input (product,
-  style, narrative, ...). Runs the full pipeline from the concept stage. (A fully
-  resolved template/storyboard JSON rendered straight to video is a separate
-  command, `reel-gen execute`. See below.)
-- **A quoted text brief**: describe the video you want in natural language, with
-  URLs or local paths to the reference video, product, and character embedded in
-  it. The concept stage reads the text, extracts the assets, classifies each as
-  reference video / product / character image, and fills `generation_input`.
-- **A single asset (image, video, or URL)**: pass an image or video file path, or a
-  URL, directly. The kind is inferred from extension and content (video as
-  reference, image as character/product), and the rest is filled from defaults or
-  the following conversation.
+- **A quoted text brief**: describe the video in natural language, with URLs or local
+  paths to the reference video, product, and character embedded. The system extracts
+  and classifies each as reference / product / character.
+- **A JSON file path**: `generation_input.json` (high-level structured input) or a
+  finished `ReelProfile` (skips planning, renders directly).
+- **A single asset (image, video, or URL)**: the kind is inferred from extension and
+  content (video as reference, image as character/product).
 
 URLs and local paths can be mixed in any form. Text brief example:
 
@@ -510,7 +509,7 @@ Every command takes `--help` to show its arguments and options.
 
 ```bash
 reel-gen --help                # all commands
-reel-gen chat --help           # options for one command
+reel-gen run --help            # options for one command
 ```
 
 ### Analyze a reference (implemented)
@@ -571,24 +570,25 @@ reel-gen verify path/to/video.mp4 --no-vlm         # deterministic checks only
 A single failing check makes the exit code non-zero (it is a gate). The contract and check
 catalog are in [specs/conformance-gate.md](specs/conformance-gate.md).
 
-### Generate a video (designed, in progress)
+### Generate a video (implemented, deepening)
+
+One input, pushed end to end with no confirm gates. Rejected if no video purpose.
 
 ```bash
-# Chat mode: stop at each gate to confirm (HITL by default)
-reel-gen chat                          # fill the input conversationally from empty
-reel-gen chat generation_input.json    # seed from an input file
-reel-gen chat "daily routine reel for this sunscreen, reference ./ref.mp4"  # text brief
-
-# Chat mode but auto-approve, no human input
-reel-gen chat generation_input.json --yes
-
-# Skip a single gate, e.g. storyboard (repeatable)
-reel-gen chat generation_input.json --force-step-pass storyboard
-
-# Run mode: end to end, non-interactive, prints the mp4 path
-reel-gen run generation_input.json     # structured JSON input
+# run: input -> ReelProfile -> video, in one go (prints the mp4 path)
 reel-gen run "15s unboxing of https://brand.example/serum, character ./model.jpg"  # text brief
-reel-gen run ./reference_video/fast-cut.mp4   # a single asset (video) directly
+reel-gen run generation_input.json               # structured JSON input
+reel-gen run ./reference_video/fast-cut.mp4      # a single asset (video) directly
+
+# with a reference: compare similarity, re-plan/re-generate if short (up to 2 iters)
+reel-gen run "... reference: ./ref.mp4" --max-iters 2
+
+# give a finished ReelProfile to skip planning and render directly
+reel-gen run outputs/<run_id>/plan/ReelProfile-....json
+
+# split into two stages (they talk only through the ReelProfile schema)
+reel-gen plan "..."                    # input -> ReelProfile
+reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> video
 ```
 
 ### Render a template directly (`execute`)
@@ -620,12 +620,11 @@ missing, since the video cannot be built without them.
 | `reel-gen add-reference <url>` | Add a reference from a URL (download, analyze, catalog). |
 | `reel-gen evaluate <video>` | Score a video on the driver rubric (`RubricResult` JSON, with expected-effect note). |
 | `reel-gen verify <video>` | Conformance integrity/fit check (`ConformanceReport` JSON, exit≠0 on fail). |
-| `reel-gen chat [<input>]` | Interactive chat mode. Human confirm at each gate (HITL). |
-| `reel-gen chat ... -y, --yes` | Stay in chat mode, auto-approve every gate (HITL off). |
-| `reel-gen chat ... --force-step-pass <step>` | Skip one gate. `<step>`: `concept`, `asset_bible`, `storyboard`, `video`. |
-| `reel-gen run <input>` | Run mode. Non-interactive, end to end, all gates pass. |
-| `reel-gen execute <template.json>` | Render a resolved template JSON straight to video. Stops if catalog image local paths are missing. |
-| `<input>` (`chat`/`run`) | A `generation_input.json` path, a quoted text brief, or a single asset (image, video, URL). |
+| `reel-gen run <input>` | input->ReelProfile->video in one go (no confirm gates). A ReelProfile input renders directly; rejected if no purpose. |
+| `reel-gen run ... --max-iters <n>` | With a reference, re-plan/re-generate on similarity shortfall (up to n). |
+| `reel-gen plan <input>` | input -> `ReelProfile` (profile.json). |
+| `reel-gen execute <ReelProfile.json>` | Render a ReelProfile straight to video. Stops if catalog image local paths are missing. |
+| `<input>` (`run`/`plan`) | A text brief, a JSON path (generation_input or ReelProfile), or a single asset (image, video, URL). |
 
 ## How it works
 
@@ -640,12 +639,12 @@ Two layers feed one profile:
 - **Perceptual layer** (Gemini multimodal): voice tone, overall feel, subtitle
   style, hook, narrative arc.
 
-The generation pipeline (designed) turns a `generation_input.json` into an asset
-bible (character and product reference images), a storyboard JSON with per-panel
-timing seeded from the analyzed cut rhythm, and finally an assembled video via
-image-to-video plus ffmpeg. Every important step is gated for human confirm and
-edit, with a non-interactive run mode that passes all gates. Details in
-[docs/pipeline-design.md](docs/pipeline-design.md).
+The generation pipeline expands an input into character/product assets and a
+storyboard, freezes it as a `ReelProfile` (plan), then builds the materials (video
+clips, voice, bgm, sfx, subtitles) in parallel against the video model's capability
+and assembles and verifies them (execute). It runs end to end via `run` with no
+confirm gates. Graph structure in [specs/workflows.md](specs/workflows.md), stage
+details in [docs/pipeline-design.md](docs/pipeline-design.md).
 
 ## Tooling choices
 
@@ -656,9 +655,8 @@ edit, with a non-interactive run mode that passes all gates. Details in
   measured numbers that are reproducible and cheap, which the Gate can compare.
 - **pydantic** for the schemas that connect stages, so the generation backend can
   be swapped without breaking consumers.
-- **typer + rich** for the chatbot-style CLI: the same command offers an
-  interactive chat mode and a one-shot run mode, with the human-confirm gates drawn
-  by rich.
+- **typer + rich** for the CLI: one-shot `run` execution with progress output (no
+  confirm gates).
 - **uv** for install and execution: no binary distribution, just clone and run
   `uv sync` once for a reproducible environment.
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, TypedDict
 
-from .asset_bible import build_asset_bible
+from .asset_bible import build_character_asset, build_key_visual, build_product_asset
 from .character import character_brief, derive_character, voice_persona
 from .environment import derive_environment
 from .hook import generate_hooks
@@ -26,10 +26,13 @@ from .profile_assembly import assemble_profile, write_profile
 from .reference_seed import seed_from_reference
 from .run_paths import create_run_dir
 from .schema import (
+    AssetBible,
+    CharacterProfile,
     HookRequest,
     InputMeta,
     MusicSpec,
     NarrationSpec,
+    ProductProfile,
     Provenance,
     StyleDimensions,
     VoiceSpec,
@@ -58,14 +61,18 @@ class PlanState(TypedDict, total=False):
     ref_subject: Any
     ref_hook: Any
     ref_product: Any
+    ref_voice_tone: str
+    ref_voice_pace: str
     cut_count: int
     provenance: Any
+    style_feedback: str
     hook_feedback: str
     hook_attempts: int
     storyboard: Any
     narration: Any
     narrative_arc: list
-    asset_bible: Any
+    character_profile: Any  # 캐릭터 노드가 생성한 에셋(이미지)
+    product_profile: Any  # 제품 노드가 생성한 에셋(이미지)
     profile_path: str
 
 
@@ -88,6 +95,8 @@ def _intake_node(state: PlanState) -> dict:
             "hook_feedback": "",
             "ref_subject": None,
             "ref_hook": None,
+            "ref_voice_tone": "",
+            "ref_voice_pace": "",
             "provenance": Provenance(
                 style_source="reference" if result.reference_ref else "llm",
                 reference_ref=result.reference_ref,
@@ -113,28 +122,42 @@ def _reference_node(state: PlanState) -> dict:
             "ref_subject": seed.subject,
             "ref_hook": seed.style.hook,
             "ref_product": seed.product,
+            "ref_voice_tone": seed.voice_tone or "",
+            "ref_voice_pace": seed.voice_pace or "",
         }
+
+
+def _plan_asset_dir(state: PlanState) -> str:
+    """이 run의 plan/ 폴더(에셋 이미지 저장 위치). 노드 어디서든 run_id로 해소한다."""
+    return str(create_run_dir(state["outputs_root"], state["tracer"].run_id) / "plan")
 
 
 def _product_node(state: PlanState) -> dict:
-    """제품 분석: 이름만 들고온 product를 카테고리·USP·용기·행동으로 채운다(레퍼런스 힌트 반영)."""
+    """제품 분석 + 제품 에셋 생성. 이 단계에서 제품 히어로·패키지 이미지까지 만든다(노드에서 처리)."""
     with state["tracer"].node("product"):
-        return {
-            "product": derive_product(
-                state["product"].name, state["objective"].goal, state.get("ref_product"),
-                state.get("text_client"),
-            )
-        }
+        product = derive_product(
+            state["product"].name, state["objective"].goal, state.get("ref_product"),
+            state.get("text_client"),
+        )
+        profile = build_product_asset(
+            product, state.get("image_client"), _plan_asset_dir(state),
+            palette=state["style"].palette,
+        )
+        return {"product": product, "product_profile": profile}
 
 
 def _character_node(state: PlanState) -> dict:
+    """캐릭터 도출 + 캐릭터 레퍼런스 시트 생성. 이 단계에서 인물 이미지까지 만든다(노드에서 처리)."""
     with state["tracer"].node("character"):
-        return {
-            "character": derive_character(
-                state["objective"].goal, state["product"], state.get("ref_subject"),
-                state.get("text_client"),
-            )
-        }
+        character = derive_character(
+            state["objective"].goal, state["product"], state.get("ref_subject"),
+            state.get("text_client"),
+        )
+        profile = build_character_asset(
+            character, state.get("image_client"), _plan_asset_dir(state),
+            palette=state["style"].palette,
+        )
+        return {"character": character, "character_profile": profile}
 
 
 def _environment_node(state: PlanState) -> dict:
@@ -153,6 +176,7 @@ def _music_node(state: PlanState) -> dict:
             "music": derive_music(
                 state["objective"].goal, state["product"], state["style"].tone,
                 state["music"], state.get("text_client"), character=state["character"],
+                pacing=state["style"].pacing,
             )
         }
 
@@ -215,7 +239,8 @@ def _storyboard_node(state: PlanState) -> dict:
         try:
             plan = plan_story_panels(
                 objective_goal=state["objective"].goal, hook=state["style"].hook,
-                cut_count=cut_n, text_client=text_client, **common,
+                cut_count=cut_n, text_client=text_client,
+                style_feedback=state.get("style_feedback", ""), **common,
             )
         except Exception:
             sb = build_storyboard(cut_count=n, **common)
@@ -235,9 +260,15 @@ def _route_after_storyboard(state: PlanState) -> str:
 
 def _narration_node(state: PlanState) -> dict:
     sb = state["storyboard"]
+    # voice의 '결'은 레퍼런스 관측(tone/pace)을 우선 싣는다. 없으면 캐릭터 페르소나 기본 연기.
     narration = NarrationSpec(
         delivery=state["delivery"],
-        voice=VoiceSpec(from_character=True, type=voice_persona(state["character"])),
+        voice=VoiceSpec(
+            from_character=True,
+            type=voice_persona(state["character"]),
+            tone=state.get("ref_voice_tone") or None,
+            pace=state.get("ref_voice_pace") or None,
+        ),
     )
     if state.get("text_client") is not None:
         with state["tracer"].node("narration"):
@@ -246,36 +277,38 @@ def _narration_node(state: PlanState) -> dict:
             narration.lines = narration_lines(
                 state["text_client"], state["product"], state["style"], state["meta"],
                 [p.beat or "" for p in sb.panels], character=state["character"],
+                delivery_tone=state.get("ref_voice_tone") or None,
+                delivery_pace=state.get("ref_voice_pace") or None,
             )
     arc = [p.beat for p in sb.panels if p.beat]
     return {"narration": narration, "narrative_arc": arc}
-
-
-def _assets_node(state: PlanState) -> dict:
-    with state["tracer"].node("assets"):
-        run_id = state["tracer"].run_id
-        out_dir = create_run_dir(state["outputs_root"], run_id)
-        plan_dir = out_dir / "plan"
-        plan_dir.mkdir(parents=True, exist_ok=True)
-        asset_bible = build_asset_bible(
-            state["character"], state["product"], state["environment"],
-            state.get("image_client"), str(plan_dir), palette=state["style"].palette,
-        )
-        return {"asset_bible": asset_bible}
 
 
 def _write_node(state: PlanState) -> dict:
     with state["tracer"].node("write_profile"):
         run_id = state["tracer"].run_id
         plan_dir = create_run_dir(state["outputs_root"], run_id) / "plan"
+        # AssetBible은 각 노드가 만든 캐릭터·제품 에셋 + 환경 스펙을 모아 조립한다(통합 노드 없음).
+        asset_bible = AssetBible(
+            character=state.get("character_profile") or CharacterProfile(name=state["character"].name),
+            product=state.get("product_profile") or ProductProfile(name=state["product"].name),
+            environment=state["environment"],
+        )
         profile = assemble_profile(
             {
                 "objective": state["objective"], "product": state["product"],
                 "meta": state["meta"], "character": state["character"], "style": state["style"],
-                "narrative_arc": state["narrative_arc"], "asset_bible": state["asset_bible"],
+                "narrative_arc": state["narrative_arc"], "asset_bible": asset_bible,
                 "storyboard": state["storyboard"], "narration": state["narration"],
                 "music": state["music"], "provenance": state["provenance"],
             }
+        )
+        # plan 확정: 캐릭터·제품·환경 에셋 + 프로필을 합쳐 영상 대표 키 비주얼 한 장을 만든다.
+        # asset_bible은 profile이 참조하는 같은 객체라, 여기 key_visual을 심으면 프로필에도 반영된다.
+        char_ref = str(plan_dir / asset_bible.character.key_shot_image) if asset_bible.character.key_shot_image else None
+        prod_ref = str(plan_dir / asset_bible.product.hero_image) if asset_bible.product.hero_image else None
+        asset_bible.key_visual = build_key_visual(
+            profile, state.get("image_client"), str(plan_dir), char_ref, prod_ref
         )
         path = write_profile(profile, plan_dir, run_id)
         return {"profile_path": str(path)}
@@ -286,12 +319,13 @@ def build_plan_graph():
     from langgraph.graph import END, START, StateGraph
 
     g = StateGraph(PlanState)
+    # 통합 assets 노드 없음: 캐릭터·제품 에셋은 각 노드가 그 단계에서 생성한다.
     for name, fn in [
         ("intake", _intake_node), ("reference_seed", _reference_node),
         ("product", _product_node),
         ("character", _character_node), ("environment", _environment_node),
         ("music", _music_node), ("hook", _hook_node), ("storyboard", _storyboard_node),
-        ("narration", _narration_node), ("assets", _assets_node), ("write_profile", _write_node),
+        ("narration", _narration_node), ("write_profile", _write_node),
     ]:
         g.add_node(name, fn)
     g.add_edge(START, "intake")
@@ -305,7 +339,6 @@ def build_plan_graph():
     g.add_conditional_edges(
         "storyboard", _route_after_storyboard, {"hook": "hook", "narration": "narration"}
     )
-    g.add_edge("narration", "assets")
-    g.add_edge("assets", "write_profile")
+    g.add_edge("narration", "write_profile")
     g.add_edge("write_profile", END)
     return g.compile()

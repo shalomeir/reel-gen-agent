@@ -102,6 +102,13 @@ class ProductSpec(BaseModel):
     usp: str | None = None  # 가장 어필할 한 줄
     spec: str | None = None  # 크기/제형/구성 등
     packaging_desc: str | None = None  # 패키지 외형 묘사
+    # 제품 시각 정체성. 컷마다 제품이 흔들리지 않게 이 값들을 모든 생성 단계(히어로 이미지·컷
+    # 스틸·영상 프롬프트)에 일관 주입한다. 브랜드/라벨은 복제하지 않되(text_visible 제외) 카테고리·
+    # 제형·용기·색 같은 형태 정체성은 레퍼런스와 거의 같게 잡는다(사용자 지시: 브랜드만 다르게).
+    category: str | None = None  # 예: "glow serum", "cushion foundation"
+    form: str | None = None  # 제형/질감(예: "lightweight jelly-to-mist", "cream")
+    colors: list[str] = Field(default_factory=list)  # 제품/패키지 주요 색
+    key_features: list[str] = Field(default_factory=list)  # 식별 특징(펌프/드로퍼/프로스티드 등)
     # product_analysis 노드가 뽑은 가능 행동 목록. 스토리보드가 사용 장면에 끌어 쓴다.
     affordances: list[str] = Field(default_factory=list)
 
@@ -128,11 +135,17 @@ class StyleSpec(BaseModel):
 
 
 class VoiceSpec(BaseModel):
-    """voice 음색 속성. 캐릭터(ModelSpec)에서 유도한다. on/off는 NarrationSpec.delivery."""
+    """voice 음색 속성. 캐릭터(ModelSpec)에서 유도한다. on/off는 NarrationSpec.delivery.
+
+    tone/pace는 발화의 '결'이다. 레퍼런스가 있으면 그 관측된 전달 방식(예: whispered soft,
+    slow)을 실어 TTS 연기와 대사 톤을 맞춘다. 없으면 None(캐릭터 페르소나 기본 연기).
+    """
 
     enabled: bool = True  # voice 되도록 사용. 실제 on/off는 delivery가 governs
-    type: str | None = None  # 음색/딕션
+    type: str | None = None  # 음색/딕션(캐릭터 페르소나)
     accent: str | None = None
+    tone: str | None = None  # 전달 톤(예: "calm, whispered, soft") - 레퍼런스 시딩
+    pace: str | None = None  # slow / medium / fast - 레퍼런스 시딩
     from_character: bool = True  # ModelSpec에서 유도했는지
 
 
@@ -145,6 +158,13 @@ class MusicSpec(BaseModel):
     # BGM 존재감(믹스 의도). 나레이션이 정보 전달이면 "background", 바이브 중심이고 나레이션이
     # 감탄사·최소면 "prominent"(발화 아래에서도 더 크게). 음악 노드(LLM)가 정하고 execute가 따른다.
     prominence: str = "background"  # background / prominent
+    # 이 컨셉이 음악 베드를 쓸지("bed") 배경음 없이 효과음만("none") 갈지. 음악 노드가 정한다.
+    bgm: str = "bed"  # bed / none
+    # 프로덕션 효과음(비-diegetic: 컷 전환 whoosh, 그래픽 액센트, 후크 라이저, 엔딩 징글)을
+    # 얹을지. 씬 내 자연음(분사·탭)은 영상 모델이 낸다. 예능식 편집 컨셉에서만 켠다(옵션).
+    sfx: bool = False
+    # 트랙에 보컬/가사가 있는지(있으면 배경으로 너무 묻지 않게 믹스 존재감을 올린다).
+    vocal: bool = False
 
 
 class SubtitleSpec(BaseModel):
@@ -262,7 +282,10 @@ class StyleDimensions(BaseModel):
     """
 
     tone: list[str] = Field(default_factory=list)
-    pacing: str | None = None  # fast_montage / slow_demo / mixed
+    pacing: str | None = None  # fast_montage / slow_demo / mixed (컷 빈도/성격)
+    # 샷 내부 모션 강도(still/gentle/dynamic). 컷 빈도(pacing)와 별개 축이다. 빠른 컷이라도
+    # 샷 안은 부드러울 수 있다(레퍼런스1: 빠른 컷 + gentle 모션). 레퍼런스 visual.motion에서 시딩.
+    motion: str | None = None  # still / gentle / dynamic
     cut_rhythm: CutRhythm = Field(default_factory=CutRhythm)
     hook: HookCandidate | None = None  # 채택된 후크
     subtitle: SubtitleSpec = Field(default_factory=SubtitleSpec)
@@ -321,6 +344,9 @@ class AssetBible(BaseModel):
     character: CharacterProfile = Field(default_factory=CharacterProfile)
     product: ProductProfile = Field(default_factory=ProductProfile)
     environment: EnvironmentSpec = Field(default_factory=EnvironmentSpec)
+    # 대표 키 비주얼(상대 파일명). plan 확정 시 캐릭터·제품·환경 에셋 + 프로필을 합쳐 만든
+    # "이 영상이 어떤 느낌인지" 한 장. 커버로도, 중간 세그먼트 앵커 스틸로도 재활용 가능.
+    key_visual: str | None = None
 
 
 # --- 스토리보드 ----------------------------------------------------------------
@@ -343,6 +369,10 @@ class StoryboardPanel(BaseModel):
     environment_lock: bool = True  # 환경 에셋 참조 여부
     prompt: str | None = None  # 패널 스틸 생성 프롬프트
     subtitle_text: str | None = None
+    # 이 컷의 프로덕션 효과음 큐(비-diegetic 편집 효과: 전환 whoosh, sparkle, 후크 라이저,
+    # 엔딩 징글). 씬 내 자연음이 아니다(그건 영상 모델 몫). 없으면 None. 스토리보드가 드물게
+    # 채우고, 플랜이 SFX를 켰을 때만 execute가 생성·믹스한다(옵션).
+    sfx: str | None = None
     cta_text: str | None = None
     still_image: str | None = None  # 생성된 스틸 경로
     key_image: str | None = None  # 컷별 핵심 스틸(선택)
@@ -469,6 +499,10 @@ class ProductionPlan(BaseModel):
     segments: list[list[int]] = Field(default_factory=list)
     bgm: str = "none"  # gen / file / none
     sfx: bool = False
+    # 영상 모델이 씬 오디오(효과음/앰비언스)를 함께 생성할지. 거의 항상 True(무음 영상 지양).
+    # 순차 영상 생성 단계에서 voice(integrated)·씬 효과음이 한 번에 나올 수 있음을 plan이 명시한다.
+    # voiceover면 이 씬 오디오는 나레이션 아래 낮게 깔리고, integrated면 그게 발화 트랙이 된다.
+    video_native_audio: bool = True
     fallbacks_applied: list[str] = Field(default_factory=list)
 
 
@@ -480,6 +514,8 @@ class Materials(BaseModel):
     voice_audio: str | None = None
     bgm_audio: str | None = None
     sfx_audio: list[str] = Field(default_factory=list)
+    # sfx_audio와 평행한 시작 시각(초). 최종 타임라인에서 각 SFX를 이 지점에 얹는다.
+    sfx_starts: list[float] = Field(default_factory=list)
     subtitle_pngs: list[str] = Field(default_factory=list)  # 패널별 자막 PNG(투명)
     # subtitle_pngs와 평행한 [start, end] 초 구간. 최종 타임라인에 시간 기반으로 덮는다.
     subtitle_spans: list[list[float]] = Field(default_factory=list)

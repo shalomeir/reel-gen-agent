@@ -18,11 +18,16 @@ from ..analysis.rubric import evaluate_video
 from .assemble import assemble
 from .conformance import verify_conformance
 from .describe import build_upload_kit, render_upload_md
-from .materials import build_materials
+from .materials import (
+    build_bgm_track,
+    build_sfx_track,
+    build_visuals,
+    build_voice_track,
+)
 from .production_plan import resolve_plan
 from .report import build_final_report, render_report_md
 from .run_context import new_manifest, output_dir_for, plan_dir_for
-from .schema import NodeRun, ReelProfile
+from .schema import Materials, NodeRun, ReelProfile
 from .stills import ensure_panel_stills
 
 
@@ -36,7 +41,12 @@ class ExecState(TypedDict, total=False):
     out_dir: Any
     plan_dir: Any
     exec_dir: Any
-    materials: Any
+    visuals: Any  # VisualMaterials(영상 클립+자막+total_dur), 병렬 오디오가 공유
+    voice_audio: Any
+    bgm_audio: Any
+    bgm_gain: Any
+    sfx_audio: Any
+    sfx_starts: Any
     final_video: str
     conf_dump: dict
     rubric_dump: dict
@@ -74,15 +84,35 @@ def _plan_node(state: ExecState) -> dict:
         return {"plan": plan}
 
 
+def _reuse_key_visual_as_anchor(profile, plan, base_dir: Path) -> None:
+    """대표 key_visual을 중간 세그먼트 앵커 스틸로 재활용한다(그 세그먼트 시작 프레임).
+
+    key_visual은 중간 패널의 대표 순간으로 그려졌으므로, 그 세그먼트의 앵커 스틸로 그대로 쓰면
+    자연스럽다(Veo 시작 프레임/ken_burns 폴백이 이걸 쓴다). 이미 스틸이 있으면 건드리지 않는다.
+    """
+    kv = _resolve_asset(profile.asset_bible.key_visual, base_dir)
+    segments = plan.segments or []
+    if not kv or not segments:
+        return
+    mid_seg = segments[len(segments) // 2]
+    if not mid_seg:
+        return
+    panel = profile.storyboard.panels[mid_seg[0]]
+    if not panel.still_image:
+        panel.still_image = kv
+
+
 def _stills_node(state: ExecState) -> dict:
     profile, plan = state["profile"], state["plan"]
     anchor_indices = {seg[0] for seg in plan.segments if seg}
+    base_dir = state["plan_dir"].resolve()  # 캐릭터·제품·키비주얼 에셋은 plan/ 안에 있다
+    # 대표 key_visual을 중간 세그먼트 앵커로 먼저 재활용(그만큼 새로 생성할 스틸이 준다).
+    _reuse_key_visual_as_anchor(profile, plan, base_dir)
     if not any(
         not p.still_image for p in profile.storyboard.panels if p.index in anchor_indices
     ):
         return {}
     with state["tracer"].node("stills"):
-        base_dir = state["plan_dir"].resolve()  # 캐릭터·제품 에셋은 plan/ 안에 있다
         char_img = _resolve_asset(profile.asset_bible.character.key_shot_image, base_dir)
         prod_img = _resolve_asset(profile.asset_bible.product.hero_image, base_dir)
         client = None
@@ -93,9 +123,10 @@ def _stills_node(state: ExecState) -> dict:
                 client = NanoBananaImageClient()
             except Exception:
                 client = None
+        kv_img = _resolve_asset(profile.asset_bible.key_visual, base_dir)
         filled = ensure_panel_stills(
             profile, str(state["exec_dir"]), client, char_img, prod_img,
-            anchor_indices=anchor_indices,
+            anchor_indices=anchor_indices, key_visual=kv_img,
         )
         state["manifest"].nodes.append(NodeRun(name="stills", artifacts=[]))
         if filled == 0:
@@ -107,20 +138,90 @@ def _stills_node(state: ExecState) -> dict:
     return {}
 
 
-def _materials_node(state: ExecState) -> dict:
-    with state["tracer"].node("materials"):
-        materials = build_materials(state["profile"], state["plan"], str(state["exec_dir"]))
-        state["manifest"].nodes.append(NodeRun(name="materials", artifacts=materials.shot_clips))
-        return {"materials": materials}
+def _visuals_node(state: ExecState) -> dict:
+    """순차 영상 생성(key image -> video, 컷별로 이전 컷 연결). 씬 오디오도 여기서 함께 난다.
+
+    이후 voice/bgm/sfx 3개 오디오 노드가 이 total_dur를 공유해 병렬로 트랙을 만든다.
+    """
+    with state["tracer"].node("visuals"):
+        profile = state["profile"]
+        base_dir = state["plan_dir"].resolve()
+        char_img = _resolve_asset(profile.asset_bible.character.key_shot_image, base_dir)
+        prod_img = _resolve_asset(profile.asset_bible.product.hero_image, base_dir)
+        # 영상 모델이 세그먼트에 실패하면 그 컷들만 개별 스틸을 생성해 몽타주를 유지한다(비용 0).
+        img_client = None
+        if os.environ.get("REEL_STILLS", "gen").lower() != "off":
+            try:
+                from .image_client import NanoBananaImageClient
+
+                img_client = NanoBananaImageClient()
+            except Exception:
+                img_client = None
+        kv_img = _resolve_asset(profile.asset_bible.key_visual, base_dir)
+        visuals = build_visuals(
+            profile, state["plan"], str(state["exec_dir"]),
+            image_client=img_client, character_image=char_img, product_image=prod_img,
+            key_visual=kv_img,
+        )
+        state["manifest"].nodes.append(NodeRun(name="visuals", artifacts=visuals.shot_clips))
+        return {"visuals": visuals}
+
+
+def _voice_node(state: ExecState) -> dict:
+    """나레이션 voice 트랙(delivery=voiceover일 때만). 영상 모델이 발화를 품는 integrated면 no-op.
+
+    병렬 노드라 공유 manifest는 건드리지 않는다(레이스 방지). 노드 기록은 fan-in(assemble)에서 한다.
+    """
+    with state["tracer"].node("voice"):
+        voice = build_voice_track(
+            state["profile"], str(state["exec_dir"]), state["visuals"].total_dur
+        )
+        return {"voice_audio": voice}
+
+
+def _bgm_node(state: ExecState) -> dict:
+    """BGM 트랙(거의 항상, plan.bgm!=none). 영상 생성과 무관하게 병렬로 만든다."""
+    with state["tracer"].node("bgm"):
+        bgm, gain = build_bgm_track(
+            state["profile"], state["plan"], str(state["exec_dir"]), state["visuals"].total_dur
+        )
+        return {"bgm_audio": bgm, "bgm_gain": gain}
+
+
+def _sfx_node(state: ExecState) -> dict:
+    """프로덕션 효과음 트랙(plan.sfx일 때만, 보수적). 씬 자연음은 영상 모델 몫이라 여기 없다."""
+    with state["tracer"].node("sfx"):
+        sfx_audio, sfx_starts = build_sfx_track(
+            state["profile"], state["plan"], str(state["exec_dir"])
+        )
+        return {"sfx_audio": sfx_audio, "sfx_starts": sfx_starts}
 
 
 def _assemble_node(state: ExecState) -> dict:
+    """visuals + 병렬 오디오 3종을 Materials로 합쳐 최종 mp4를 만든다(fan-in).
+
+    병렬 오디오 노드는 manifest를 안 건드리므로, 여기서 voice/bgm/sfx/assemble 기록을 모아 남긴다.
+    """
     with state["tracer"].node("assemble"):
+        v = state["visuals"]
+        for name in ("voice", "bgm", "sfx"):
+            state["manifest"].nodes.append(NodeRun(name=name))
+        materials = Materials(
+            shot_clips=v.shot_clips,
+            subtitle_pngs=v.subtitle_pngs,
+            subtitle_spans=v.subtitle_spans,
+            bgm_audio=state.get("bgm_audio"),
+            voice_audio=state.get("voice_audio"),
+            sfx_audio=state.get("sfx_audio") or [],
+            sfx_starts=state.get("sfx_starts") or [],
+            native_audio=v.native_audio,
+            bgm_gain=state.get("bgm_gain"),
+        )
         final_video = str(state["out_dir"] / "final.mp4")
-        assemble(state["materials"], state["profile"].meta, final_video)
+        assemble(materials, state["profile"].meta, final_video)
         m = state["manifest"]
         m.final_video = final_video
-        m.panel_segments = state["materials"].shot_clips
+        m.panel_segments = materials.shot_clips
         m.nodes.append(NodeRun(name="assemble", artifacts=[final_video]))
         return {"final_video": final_video}
 
@@ -171,16 +272,24 @@ def build_execute_graph():
     g = StateGraph(ExecState)
     for name, fn in [
         ("load", _load_node), ("production_plan", _plan_node), ("stills", _stills_node),
-        ("materials", _materials_node), ("assemble", _assemble_node), ("verify", _verify_node),
+        ("visuals", _visuals_node), ("voice", _voice_node), ("bgm", _bgm_node),
+        ("sfx", _sfx_node), ("assemble", _assemble_node), ("verify", _verify_node),
         ("describe", _describe_node), ("evaluate", _evaluate_node), ("report", _report_node),
     ]:
         g.add_node(name, fn)
-    order = [
-        "load", "production_plan", "stills", "materials", "assemble", "verify",
-        "describe", "evaluate", "report",
-    ]
-    g.add_edge(START, order[0])
-    for a, b in zip(order, order[1:], strict=False):
+    # load -> plan -> stills -> visuals(순차 영상) -> [voice, bgm, sfx 병렬] -> assemble -> ...
+    g.add_edge(START, "load")
+    g.add_edge("load", "production_plan")
+    g.add_edge("production_plan", "stills")
+    g.add_edge("stills", "visuals")
+    # fan-out: 오디오 3종을 병렬로. 각 노드는 plan 플래그로 self-gate(voiceover만 voice, plan.sfx만 sfx).
+    for audio in ("voice", "bgm", "sfx"):
+        g.add_edge("visuals", audio)
+        g.add_edge(audio, "assemble")  # fan-in: assemble은 셋을 모두 기다린다.
+    for a, b in [
+        ("assemble", "verify"), ("verify", "describe"),
+        ("describe", "evaluate"), ("evaluate", "report"),
+    ]:
         g.add_edge(a, b)
-    g.add_edge(order[-1], END)
+    g.add_edge("report", END)
     return g.compile()

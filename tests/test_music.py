@@ -19,3 +19,35 @@ def test_no_llm_uses_reference_music():
     m = derive_music("skincare reel", _PRODUCT, ["fresh"], ref, text_client=None)
     assert m.style == "lo-fi"
     assert m.tempo == "120 bpm"
+
+
+class _FakeText:
+    """derive_music LLM 경로용 가짜 텍스트 클라이언트(고정 JSON 반환)."""
+
+    def __init__(self, payload: str) -> None:
+        self._payload = payload
+
+    def complete(self, prompt: str, temperature: float = 0.7) -> str:
+        return self._payload
+
+
+def test_llm_decides_sfx_and_bgm_none():
+    # 음악 노드가 SFX/베드 유무를 결정하고 MusicSpec에 실어야 한다.
+    fake = _FakeText(
+        '{"style":"asmr ambient","mood":"calm","type":"texture","dynamics":"flat",'
+        '"prominence":"background","vocal":false,"bgm":"none","sfx":true}'
+    )
+    m = derive_music("asmr skincare", _PRODUCT, ["sensorial"], None, text_client=fake)
+    assert m.sfx is True
+    assert m.bgm == "none"
+
+
+def test_llm_vocal_track_becomes_prominent():
+    # 보컬/가사가 있으면 배경으로 묻지 않게 prominence를 올린다.
+    fake = _FakeText(
+        '{"style":"indie pop","mood":"upbeat","type":"song","dynamics":"build",'
+        '"prominence":"background","vocal":true,"bgm":"bed","sfx":false}'
+    )
+    m = derive_music("vibey grwm", _PRODUCT, ["fun"], None, text_client=fake)
+    assert m.vocal is True
+    assert m.prominence == "prominent"

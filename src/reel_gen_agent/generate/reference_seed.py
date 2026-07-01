@@ -32,6 +32,8 @@ class ReferenceSeed:
     narrative_arc: list[str]
     cut_count: int
     delivery: str = "voiceover"  # 레퍼런스의 발화 방식: voiceover / on_camera / none
+    voice_tone: str | None = None  # 레퍼런스 발화 톤(예: "calm, whispered, soft")
+    voice_pace: str | None = None  # 레퍼런스 발화 페이스(slow/medium/fast)
     subject: Subject = field(default_factory=Subject)  # 레퍼런스 등장 인물(캐릭터 시딩용)
     product: Product = field(default_factory=Product)  # 레퍼런스 제품 시각 특성(제품 분석 힌트)
     seeds: dict = field(default_factory=dict)
@@ -84,6 +86,7 @@ def seed_from_reference(ref_path: str, *, use_gemini: bool = True) -> ReferenceS
     style = StyleDimensions(
         tone=list(vp.tone),
         pacing=cut.mode,
+        motion=vp.visual.motion,
         cut_rhythm=CutRhythm(
             basis="beat_sync" if cut.sync == "beat_based" else "semantic_action",
             pattern=(f"{cut.count} cuts, mean {cut.mean_sec}s, {cut.mode}"),
@@ -111,6 +114,8 @@ def seed_from_reference(ref_path: str, *, use_gemini: bool = True) -> ReferenceS
         narrative_arc=list(vp.narrative_arc),
         cut_count=cut.count or 0,
         delivery=_delivery_from(vp),
+        voice_tone=vp.voice.tone,
+        voice_pace=vp.voice.pace,
         subject=vp.subject,
         product=vp.product,
         seeds={

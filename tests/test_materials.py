@@ -76,7 +76,9 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     assert "Shot 1:" in fake.calls[0][2] and "Shot 6:" in fake.calls[0][2]
     # 기본 나레이션(voiceover)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
     assert "NOT talking" in fake.calls[0][2]
-    assert fake.calls[0][3] is False  # generate_audio: 별도 TTS라 영상 오디오 끔
+    # 씬 오디오(효과음/앰비언스)는 거의 항상 켠다(무음 영상 지양). voiceover면 "말하지 않음"
+    # 지시로 씬 사운드만 나오고, 최종에서 나레이션 아래 낮게 깔린다.
+    assert fake.calls[0][3] is True  # generate_audio: 씬 오디오 생성 on
     # Veo는 피부 광택을 더 세게 억제하는 지시문을 쓴다(Kling 등 기본과 분기).
     assert "matte and natural" in fake.calls[0][2]
     # 편집단계 beat-cut 몽타주: 한 세그먼트를 패널 경계로 6컷으로 재분할한다.

@@ -22,8 +22,20 @@ def _panels(cut_sec):
     ]
 
 
-def test_bpm_for_one_second_cuts_is_60():
-    assert bpm_for_cuts(_panels(1.0)) == 60
+def test_bpm_lands_in_shortform_lively_band():
+    # 컷당 1비트는 처지므로(1.0s->60bpm) 정수배로 올려 경쾌 대역(100~140)에 넣는다.
+    for cut_sec in (1.0, 1.2, 2.0, 2.4):
+        bpm = bpm_for_cuts(_panels(cut_sec))
+        assert 100 <= bpm <= 140, (cut_sec, bpm)
+    # 1.0s 컷 -> 60 -> *2 = 120.
+    assert bpm_for_cuts(_panels(1.0)) == 120
+
+
+def test_bpm_stays_beat_aligned_with_cuts():
+    # 대역으로 올려도 정수배라 컷은 여전히 비트 위에 떨어진다(동기 유지).
+    panels = _panels(1.2)
+    bpm = bpm_for_cuts(panels)
+    assert bgm_cut_sync_ok(bpm, panels) is True
 
 
 def test_bpm_clamped_and_positive_for_empty():

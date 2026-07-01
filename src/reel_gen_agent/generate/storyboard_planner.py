@@ -34,6 +34,7 @@ class PanelPlan:
     action: str
     subtitle: str
     product_focus: bool
+    sfx: str = ""  # 이 컷의 짧은 효과음 큐(제품 상호작용 순간에만), 없으면 ""
 
 
 @dataclass
@@ -57,9 +58,11 @@ _PRINCIPLES = (
     "- Vary shot scale and camera per cut (macro texture, close-up, medium, wide, POV, "
     "over-the-shoulder, hands detail, push-in, whip-pan) so cuts read as distinct and dynamic.\n"
     "- Keep clear product moments; a concrete where/how-to-get (CTA) lands the ending.\n"
-    "- Make it DYNAMIC and high-energy: expressive faces and genuine reactions, movement and "
-    "gesture, purposeful camera moves (push-in on the product or face, quick zoom, snappy whip "
-    "cuts). Never blank, static posing at the camera.\n"
+    "- Ending insight: for a product promo, unless there is a clear reason to end otherwise, let the "
+    "FINAL cut land on the creator smiling warmly right at the camera, looking polished and "
+    "attractive — a pretty, inviting payoff. Prefer this close when nothing else is called for.\n"
+    "- Expressive faces and genuine reactions, real movement and gesture; never blank, static "
+    "posing at the camera. Match the energy/pace directive below.\n"
     "- The camera field per cut must be a concrete move (e.g. 'slow push-in', 'quick zoom to "
     "product', 'handheld orbit', 'whip pan') that the renderer will follow — not empty.\n"
     "- Keep it authentic UGC, not an infomercial; match the creator's persona and the tone."
@@ -94,14 +97,22 @@ def plan_story_panels(
     hook: HookCandidate | None,
     cut_count: int,
     text_client: TextClient,
+    style_feedback: str = "",
 ) -> StoryPlan:
-    """LLM으로 n컷 스토리보드를 짜고, 주어진 hook의 적합도를 함께 판정한다."""
+    """LLM으로 n컷 스토리보드를 짜고, 주어진 hook의 적합도를 함께 판정한다.
+
+    style.pacing에서 에너지 지시를 유도해 원칙에 얹는다(빠른 몽타주/느린 시연 구분). 유사도
+    루프의 style_feedback이 있으면 레퍼런스에 더 붙도록 추가 지시로 반영한다.
+    """
     from .character import character_brief
+    from .pacing import storyboard_energy
 
     n = max(1, cut_count)
     affor = ", ".join(product.affordances) if product.affordances else "n/a"
+    energy = storyboard_energy(style.pacing)
+    fb = f"\nReference-match feedback (apply): {style_feedback}\n" if style_feedback else ""
     prompt = (
-        f"{_PRINCIPLES}\n\n"
+        f"{_PRINCIPLES}\n{energy}\n{fb}\n"
         f"Video goal: {objective_goal}\n"
         f"Product: {product.name} (usp: {product.usp or 'n/a'}; can show: {affor})\n"
         f"Creator (protagonist): {character_brief(character)}\n"
@@ -111,9 +122,13 @@ def plan_story_panels(
         f"{n} cuts that tell the whole story (hook realized first, CTA last).\n"
         'Output raw JSON only (no markdown, no prose): '
         '{"hook_fits": bool, "hook_feedback": str, "panels": [{"beat": str, "shot_type": str, '
-        '"camera": str, "action": str, "subtitle": str, "product_focus": bool}]}. '
+        '"camera": str, "action": str, "subtitle": str, "product_focus": bool, "sfx": str}]}. '
         f"panels must have EXACTLY {n} items. action = the concrete on-screen action/effect for "
         "that cut (a single moment). subtitle = short keyword caption or empty string. "
+        "sfx = a SHORT cue for a PRODUCED, non-diegetic edit effect ONLY (e.g. 'transition whoosh', "
+        "'sparkle chime', 'hook riser', 'ending ding jingle') on the few cuts that want that "
+        "variety-show edited punch; empty string otherwise. Do NOT describe natural in-scene sounds "
+        "(spray/tap/pour) — the video model renders those. Most cuts should be empty. "
         "hook_feedback = if hook_fits is false, one line on what hook would work better."
     )
     raw = text_client.complete(prompt, temperature=0.8)
@@ -128,6 +143,7 @@ def plan_story_panels(
                 action=str(p.get("action") or "").strip(),
                 subtitle=str(p.get("subtitle") or "").strip(),
                 product_focus=bool(p.get("product_focus", False)),
+                sfx=str(p.get("sfx") or "").strip(),
             )
         )
     if not panels:

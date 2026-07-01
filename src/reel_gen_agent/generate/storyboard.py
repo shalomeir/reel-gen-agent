@@ -78,11 +78,14 @@ def _global_prompt(
     character: ModelSpec,
     environment: EnvironmentSpec,
 ) -> str:
+    from .product import product_identity
+
     bits = [
         # 인물 정체성·매력도는 character 노드가 정한 look을 그대로 쓴다(재하드코딩 금지, 의도 존중).
         f"character: {character.look or character.name or 'an attractive early-20s creator'}"
         ", natural realistic skin texture (not oily, wet or overly shiny, no plastic glossy sheen)",
-        f"product: {product.name}",
+        # 제품은 이름이 아니라 시각 정체성으로 실어 컷마다 같은 제품이 나오게 한다.
+        f"product (keep identical in every shot): {product_identity(product)}",
         f"mood and tone: {', '.join(style.tone)}" if style.tone else "",
         _framing_directive(product),
         f"color grading in warm tones matching this palette: {', '.join(style.palette)}"
@@ -225,6 +228,7 @@ def storyboard_from_panels(
                 environment_lock=True,
                 prompt=f"{global_prompt}. {local}",
                 subtitle_text=(pp.subtitle or None),
+                sfx=(pp.sfx or None),
             )
         )
     return Storyboard(global_prompt=global_prompt, panels=out)
