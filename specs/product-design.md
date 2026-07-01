@@ -33,7 +33,8 @@
 
 - **`reel-gen plan <입력>`**: Planning 페이즈를 돈다. 입력(영상 목적 + 캐릭터/제품 + 선택
   레퍼런스)에서 컨셉, 후크, 에셋, 환경, 스토리보드, 대사·자막·음악 정의를 펼쳐
-  `ReelProfile-{핵심컨셉}-{생성일시}.json`을 산출한다. 챗 모드면 게이트마다 확인/수정한다.
+  `ReelProfile-{핵심컨셉}-{생성일시}.json`을 산출한다. 챗 모드면 산출한 ReelProfile을 확인받고,
+  수정 요청이 있으면 반영해 다시 만든다.
 - **`reel-gen execute <ReelProfile.json>`**: Production 페이즈를 돈다. ReelProfile만 받아
   ProductionPlan 해소, 재료 병렬 생성, 조립, verify 루프, describe, evaluate, report까지
   돌려 `outputs/<run_id>/`에 영상과 산출물을 남긴다. 이미 생성된 에셋·클립이 있으면
@@ -41,36 +42,31 @@
 
 ## 한 번에: run과 chat
 
-같은 두 구간을 한 흐름으로 잇는 진입점이다. 게이트(사람 확인 지점)는 세 가지로 동작한다
-(자세한 건 [pipeline-design.md](../docs/pipeline-design.md)의 "휴먼 인 더 루프 게이트").
+같은 두 구간을 한 흐름으로 잇는 진입점이다. 단계별 사람 확인 게이트는 없다(개정 노트 참고).
+사람 확인은 `chat`이 그래프 밖에서 한 번, 최종 확인·수정 루프로 넣는다.
 
-- **챗 모드** (`reel-gen chat`): 대화형 챗봇으로 띄운다. plan 게이트마다 멈춰 결과를 보여주고,
-  사용자가 확인하거나 수정한 뒤 진행한다. ReelProfile confirm 게이트를 통과하면 같은 세션에서
-  execute로 넘어간다. 기본값은 HITL(사람 개입) 켜짐. 내부적으로는 plan과 execute가 분리돼 있다.
+- **챗 모드** (`reel-gen chat [시드]`): 대화형 챗봇으로 띄운다. 입력 없이 시작하면 목적·제품·
+  레퍼런스·바이브를 자연스럽게 물어(LLM 주도, 한 번에 하나씩) 채운다. 충분해지면 ReelProfile과
+  대표 이미지(key_visual)를 만들어 요약을 보여주고, 사용자가 확인(y)하면 같은 세션에서 execute로
+  넘어간다. 확인 대신 수정 요청을 주면 반영해 다시 만들어 보여준다(확인할 때까지 반복). 즉 단계별
+  게이트가 아니라 입력 수집 + 최종 확인·수정 루프다. 내부적으로는 plan과 execute가 분리돼 있다.
 - **런 모드** (`reel-gen run <입력>`): 입력 하나로 plan부터 execute까지 끝까지 한 번에 돌린다.
-  멈추지 않고 모든 게이트를 자동 통과하며, 진행 상황을 출력한 뒤 mp4 경로를 돌려준다.
-  비대화라 스크립트나 CI에 건다. 런 모드에서는 HITL이 불가능하다.
+  멈추지 않고 진행 상황을 출력한 뒤 mp4 경로를 돌려준다. 비대화라 스크립트나 CI에 건다.
+  레퍼런스가 있고 `--max-iters>1`이면 생성물을 다시 analyze해 유사도가 임계 미만일 때 재계획·
+  재생성한다(specs/similarity-loop.md).
 
-### 게이트 제어 플래그
-
-- `--help`: 모든 명령과 하위 명령의 도움말(typer 기본).
-- `-y`, `--yes`: 챗 모드를 유지하되 모든 게이트를 자동 승인한다. 챗 UI는 그대로지만 멈추지
-  않는다. "챗 모드인데 HITL은 끄고 싶다"를 위한 플래그다.
-- `--force-step-pass <step>`: 특정 게이트 하나만 건너뛴다(반복 지정 가능).
-  `<step>`은 `hook`, `asset_bible`, `storyboard`, `scripting`, `confirm`(plan 쪽)과
-  `video`(execute 쪽). 노드·게이트 목록의 정본은 [workflows.md](workflows.md).
-
-`reel-gen chat --yes`와 `reel-gen run`의 차이: 둘 다 멈추지 않지만, 전자는 챗 REPL UI를
-유지하고 후자는 순수 비대화로 진행 상황만 출력하고 종료한다. 런 모드가 스크립트와 CI의
+`reel-gen chat`과 `reel-gen run`의 차이: 전자는 챗 REPL로 입력을 채우고 최종 확인·수정 루프를
+돌고, 후자는 순수 비대화로 입력 하나를 받아 끝까지 밀어붙인다. 런 모드가 스크립트와 CI의
 기본 진입점이다.
 
-### 영상 단계 뒤 게이트 흐름
+### 영상 단계 뒤 흐름
 
-영상 단계 뒤에 **verify**(conformance, 하드 pass/fail)가 먼저 돌고, 통과하면 **evaluate**
-(rubric, 소프트 0~100점 + 기대 효과 서술)가 돈다. verify가 fail이면 evaluate로 가지 않고,
-문제 노드를 다시 돌려 verify가 통과할 때까지 반복한다. 무한 루프를 막으려고 최대 iteration
-count를 둔다(상한에 닿으면 마지막 리포트와 함께 실패로 종료). 자세한 동작은 아래
-"분석·검증·평가 명령"과 [testing-strategy.md](testing-strategy.md)에 있다.
+영상 단계 뒤에 **verify**(conformance)가 먼저 돌고, 이어 **evaluate**(rubric, 소프트 0~100점
++ 기대 효과 서술)가 돈다. 단독 CLI `verify`는 하드 pass/fail(fail이면 exit≠0)이지만, 그래프
+안에서는 현재 verify가 소프트로 기록만 하고 다음으로 진행한다. fail 시 문제 노드만 다시 돌려
+통과할 때까지 반복하는 하드 게이트+repair 유한 루프는 향후 과제다
+([../docs/Retrospective.md](../docs/Retrospective.md)). 자세한 동작은 아래 "분석·검증·평가
+명령"과 [testing-strategy.md](testing-strategy.md)에 있다.
 
 ## 입력 형식
 
@@ -127,9 +123,9 @@ reel-gen run ./reference_video/fast-cut.mp4
 reel-gen chat "이 선크림으로 데일리 루틴 릴, 레퍼런스 ./ref.mp4"
 ```
 
-## 분석·검증·평가 명령 (analyze / verify / evaluate)
+## 분석·검증·평가·비교 명령 (analyze / verify / evaluate / compare)
 
-세 명령은 생성과 독립으로 단독 실행할 수 있고, 동시에 생성 그래프 안에서 노드로 재사용한다.
+네 명령은 생성과 독립으로 단독 실행할 수 있고, 동시에 생성 그래프 안에서 노드로 재사용한다.
 같은 코드를 레퍼런스와 생성물에 똑같이 댄다.
 
 ### analyze - 영상 분석 (URL 또는 로컬 경로 -> VideoProfile)
@@ -168,9 +164,10 @@ reel-gen verify ./outputs/run/final.mp4 --input gen.json --storyboard board.json
 
 영상이 테크니컬하게 온전히 완성됐는지 본다. 역할:
 
-- **생성 그래프의 "영상 결과물 확인" 노드 게이트**. 여기서 pass가 안 되면 문제 노드를 다시
-  돌려 verify가 통과할 때까지 반복한다. 무한 루프를 막으려고 최대 iteration count를 둔다.
-- 별도 명령으로도 돌릴 수 있으나 단독 사용은 드물다(주로 그래프 안 게이트로 쓰인다).
+- **생성 그래프의 "영상 결과물 확인" 노드**. 현재 그래프 안에서는 소프트로 기록만 하고
+  진행한다. fail 시 문제 노드만 다시 돌려 통과할 때까지 반복하는 하드 게이트+repair 유한
+  루프는 향후 과제다([../docs/Retrospective.md](../docs/Retrospective.md)).
+- 별도 CLI(`reel-gen verify`)로 떼어 돌리면 하드 pass/fail이다(fail이면 exit≠0).
 
 계약과 체크 카탈로그는 [conformance-gate.md](conformance-gate.md).
 
@@ -187,6 +184,32 @@ verify를 통과한 최종 결과를 정성 평가한다. 역할:
   기준선을 잡는다).
 
 계약은 [rubric.md](rubric.md).
+
+### compare - 레퍼런스 대비 유사도 (하드 pass/fail + 개선 델타)
+
+```bash
+reel-gen compare --reference ./ref.mp4 --output ./outputs/run/final.mp4
+reel-gen compare --reference profiles/ref.json --output profiles/gen.json --out sim.json
+```
+
+생성물이 레퍼런스와 **같은 결**인지 잰다. verify(무결성)·evaluate(콘텐츠 효과성)와 달리, 두
+`VideoProfile`을 한 자로 재는 유사도 게이트다.
+
+입력 해소는 `analyze`를 재사용한다: `--reference`와 `--output`은 각각 프로필 JSON이거나
+영상이며, 영상이면 `_load_profile`이 먼저 `analyze`로 프로필을 뽑고, `.json`이면 그대로
+로드한다. 즉 두 입력이 무엇이든 최종적으로 **두 `VideoProfile`을 비교**하는 것이고, `compare`
+자체는 순수·결정론(모델 호출 없음)이다. reference/output은 대칭이라 둘 다 영상이든, 둘 다
+JSON이든, 섞여도 된다. 영상 재분석은 무겁고(특히 Gemini 지각 계층) 비결정적이라, 이미 프로필
+JSON이 있으면 그걸 넘겨 analyze를 건너뛰는 게 싸고 안정적이다. 역할:
+
+- 컷 리듬·보이스·음악·비주얼·자막·톤·아크를 축별로 0~1 채점하고 가중 합산해 `SimilarityReport`를
+  낸다. 임계 미달이면 exit≠0.
+- **런 모드 유사도 루프의 판정기**: `run --max-iters>1`이면 생성물을 다시 analyze해 compare하고,
+  미달 축의 개선 델타를 plan 피드백(`style_feedback`)으로 밀어 넣어 재계획·재생성한다. 이때
+  레퍼런스는 루프 시작 전 **한 번만** analyze해 프로필로 재사용하고, 매 반복은 생성물만 다시
+  분석한다(위 비용·결정성 이유).
+
+계약은 [similarity-loop.md](similarity-loop.md).
 
 ## execute 명령 (ReelProfile → 영상)
 

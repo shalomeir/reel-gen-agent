@@ -40,9 +40,11 @@
   말하는 연출은 꼭 필요할 때만, 그것도 멀티컷에서 목소리 일관이 필요하면 Kling O3 Pro
   reference-to-video로만 간다. 영상 모델 예산이 없어도 스틸을 켄 번스 모션으로 같은
   조립 경로에 태워 끝까지 돈다는 가정으로 저비용 폴백을 깐다.
-- **사람 확인 게이트를 일반화할 수 있다.** 모든 중요한 단계 뒤에 같은 게이트 추상이
-  붙고, ask(챗)/pass(`--force-step-pass`)/런 모드(전부 통과)가 한 그래프 위에서 돈다는
-  가정이다. 추상(`gates.py`)만 만들고 그래프 배선은 이번 범위에서 미뤘다(아래 3절).
+- **사람 확인은 노드별 게이트가 아니라 chat의 확인·수정 루프로 넣었다.** 초안은 모든
+  중요한 단계 뒤에 같은 게이트 추상(ask/pass/run)을 그래프에 배선하는 그림이었다. 실제로는
+  그래프 안 노드별 게이트 대신, `chat` 명령이 ReelProfile과 대표이미지를 만들어 보여주고
+  사용자가 확인(y)하거나 수정 요청을 주면 반영해 다시 만드는 루프로 사람 확인을 넣었다.
+  노드 단위 in-graph 게이트 배선은 여전히 범위 밖이다(아래 3절).
 - **결정은 코드가 아니라 노드별 LLM이 문맥으로 내린다.** 스타일 선택(캐릭터 외모, 음악
   장르·강도, 후크 유형, 촬영 환경, 대사, 스토리보드 컷·카메라, 제품 스펙)을 코드나 프롬프트에
   하드코딩하지 않고, 각 노드가 LLM으로 입력·레퍼런스·주인공 문맥에 맞게 정한다. 기본값은
@@ -94,12 +96,13 @@
 `specs/workflows.md`의 초기 설계에 있었으나 이번 범위에서 접은 것들이다. 지금 그래프는
 게이트 없이 입력 -> ReelProfile -> production을 일괄로 돈다(run 모드 동등).
 
-- **노드별 HITL 게이트와 대화형 `chat` 세션.** "모든 중요한 단계 뒤에 같은 게이트 추상
-  (ask/pass/run)을 얹는다"는 계획이었고 추상 자체(`generate/gates.py`의 `GateConfig`/
-  `resolve_gate`)는 만들어 뒀지만, 그래프에 배선하지 않았다. `run_planning`이 받는 `gate`
-  인자도 아직 쓰이지 않는다. 사람이 후크 후보를 고르고 asset_bible·storyboard·profile을
-  중간 확인/수정하는 흐름과, 이를 한 세션으로 잇는 `chat` 명령은 향후로 미룬다. 지금은
-  후크도 0번 후보를 자동 채택한다.
+- **그래프 안 노드별 HITL 게이트.** "모든 중요한 단계 뒤에 같은 게이트 추상(ask/pass/run)을
+  그래프에 얹는다"는 초안은 미뤘다. 대신 사람 확인은 `chat` 명령으로 넣었다(구현 완료):
+  대화형으로 목적·제품·바이브를 물어 채우고, ReelProfile과 대표이미지를 만들어 보여준 뒤
+  사용자가 확인하거나 수정 요청을 주면 반영해 다시 만드는 루프를 돌고, 확인하면 production으로
+  넘어간다. 남은 것은 그래프 내부에서 후크 후보를 고르고 노드 중간 산출물(asset_bible·
+  storyboard)을 확인/수정하는 세밀한 in-graph 게이트다. 지금 plan/run 경로는 후크 0번 후보를
+  자동 채택한다.
 - **verify 하드 pass/fail + `repair_router` 유한 루프.** conformance를 하드 게이트로 걸고,
   fail 시 결함 카테고리를 대상 노드로 매핑해(약한 샷 -> 영상 재생성, 자막 위치 -> 재조립,
   볼륨 -> 오디오 remux) 전체가 아닌 해당 노드만 다시 돌려 합치는 루프를 계획했다. 지금
@@ -157,11 +160,12 @@
   ([logging-strategy.md](../specs/logging-strategy.md)), 트레이스를 모아 게이트 점수와
   비용을 보고 자동으로 개선하는 루프까지는 못 갔다.
 
-## 4. analyze, verify, evaluate를 어떻게 짰나
+## 4. analyze, verify, evaluate, compare를 어떻게 짰나
 
-세 명령은 "분석기가 곧 채점기"라는 한 원리에서 갈라져 나온 단일 잣대다. analyze가
-프로파일을 만들고, verify와 evaluate가 각각 하드/소프트로 판정한다. 셋 다 레퍼런스와
-생성물에 같은 코드를 댄다. 그래프가 아직 미구현이어도 셋은 단독 CLI로 지금 동작한다.
+네 명령은 "분석기가 곧 채점기"라는 한 원리에서 갈라져 나온 단일 잣대다. analyze가
+프로파일을 만들고, verify와 evaluate가 각각 하드/소프트로 판정하며, compare가 두 프로파일의
+유사도를 잰다. 넷 다 레퍼런스와 생성물에 같은 코드를 댄다. 그래프가 아직 미구현이어도 넷은
+단독 CLI로 지금 동작한다.
 
 ### analyze (프로파일링)
 
@@ -201,9 +205,33 @@
   `--out`으로 JSON 저장.
 - **출력**: `RubricResult`(JSON)와 한 줄 요약(gated/flat 점수, 게이트 통과 여부, 통과/미달).
 
-### 셋의 관계
+### compare (Similarity, 하드 pass/fail + 개선 델타)
+
+- **하는 일**: 생성물이 레퍼런스와 **같은 결**인지 두 `VideoProfile`을 축별로 비교한다.
+  verify(무결성)·evaluate(콘텐츠 효과성)와 달리, 클립 하나가 아니라 두 프로파일을 한 자로
+  잰다. 계약은 [../specs/similarity-loop.md](../specs/similarity-loop.md).
+- **입력 해소는 analyze 재사용**: `--reference`와 `--output`은 각각 프로필 JSON이거나 영상이다.
+  영상이면 `_load_profile`이 먼저 analyze로 프로파일을 뽑고, `.json`이면 그대로 로드한다. 즉
+  둘이 무엇이든 결국 **두 `VideoProfile`을 비교**하는 것이고, `compare_profiles` 자체는
+  순수·결정론(모델 호출 없음)이다. reference/output은 대칭이라 조합이 자유롭다. 영상 재분석은
+  무겁고(특히 Gemini 지각 층) 비결정적이라, 이미 프로필 JSON이 있으면 그걸 넘겨 analyze를
+  건너뛰는 게 싸고 안정적이다.
+- **구성**: rhythm·voice·music·visual·subtitle·tone·narrative 7축을 0~1로 채점해 신뢰도
+  가중으로 합산한다. 정형 신호(리듬·비주얼·오디오)는 무겁게, Gemini 자유텍스트 라벨
+  (tone·narrative)은 매 분석마다 어휘가 흔들려 아주 가볍게 실어, 측정 노이즈가 게이트를
+  좌우하지 않게 했다.
+- **출력**: `SimilarityReport`(JSON). 단독 CLI에서는 임계 미달이면 exit≠0. 미달 축마다 사람이
+  읽을 개선 델타를 낸다.
+- **런 모드 루프의 판정기**: `run --max-iters>1`이면 생성물을 다시 analyze해 compare하고,
+  미달 축의 델타를 plan 피드백(`style_feedback`)으로 밀어 넣어 재계획·재생성한다. 이때
+  레퍼런스는 루프 시작 전 **한 번만** analyze해 재사용하고, 매 반복은 생성물만 다시 분석한다
+  (위 비용·결정성 이유).
+
+### 넷의 관계
 
 순서가 있다. analyze가 잣대(프로파일)를 만들고, verify가 먼저 하드로 거른 뒤, 통과한
-것만 evaluate가 소프트로 점수 낸다. 결과 산출물은 분석은 `profiles/`, 검증과 평가는
-`evals/`(conformance는 `evals/conformance/`)에 남기며, 모두 gitignore라 재생성 가능한
-산출물로 둔다.
+것만 evaluate가 소프트로 점수 낸다. compare는 여기에 레퍼런스가 있을 때만 붙는 네 번째
+자로, 생성물 프로파일을 레퍼런스 프로파일과 대조해 "닮았나"를 판정하고 그 델타로 재생성
+루프를 닫는다. 결과 산출물은 분석은 `profiles/`, 검증과 평가는
+`evals/`(conformance는 `evals/conformance/`), 유사도는 생성물 폴더의 `similarity.json`에
+남기며, 모두 gitignore라 재생성 가능한 산출물로 둔다.
