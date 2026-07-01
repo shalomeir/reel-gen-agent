@@ -187,6 +187,13 @@ outputs/<run_id>/  # generation_input.json, assets/, storyboard/, panels/, final
 이러면 게이트, 에셋 바이블, 스토리보드를 모두 돌려보면서 완성된 영상이 나온다. 전체
 컨셉, 템플릿 단계는 그다음이다.
 
+## Replan (execute --replan)
+
+`execute --replan`은 동결된 ReelProfile을 다시 접근한다. 목적, 제품, 모델은 그대로 두고
+(정체성 에셋은 재사용), 새 훅에서 서사(훅 <-> 스토리보드, 내레이션, 음악)를 다시 굴리고,
+key_visual을 재생성하고, 새 `ReelProfile-<new-keyword>.json`을 새 run 폴더에 써서
+production에 넘긴다. 자세한 내용은 [specs/replan.md](../specs/replan.md)를 본다.
+
 ## 보이스오버 (선택)
 
 기본은 꺼짐. 주 경로는 뮤직 베드 더하기 자막이다. 데모용으로 켤 때는 감정 태그를 단
