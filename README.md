@@ -97,12 +97,40 @@ uv sync                        # 개발 도구까지: uv sync --extra dev
 # 4. 환경 파일 준비
 cp .env.example .env           # 파일명을 .env로 바꾼 뒤 API 키를 채운다
 
-# 5. 필수 키 입력
+# 5. 필수 키 입력 (Google 자격 하나면 시작 가능)
 # GEMINI_API_KEY=...            # Google AI Studio에서 발급
 
 # 6. 확인
 uv run reel-gen --help
 ```
+
+### 키는 Google 하나로 시작한다
+
+이 에이전트는 **Google 자격 하나만 있으면 전 과정이 돈다.** 그리고 그 하나는 둘 중
+아무거나여도 된다.
+
+- **[Google AI Studio](https://aistudio.google.com/apikey)의 `GEMINI_API_KEY` 하나만
+  넣으면 기본 동작한다.** 레퍼런스 분석, 스틸 이미지(Nano Banana), 영상(Veo 3.1),
+  배경음악(Lyria 3), 나레이션 음성(Gemini TTS)까지 이 키 하나로 전부 생성한다. 별도
+  GCP 설정도, 결제 프로젝트도 필요 없다.
+- 아니면 **Vertex AI 자격**(`GOOGLE_CLOUD_PROJECT` + 서비스계정 JSON)만 채워도 된다. 같은
+  Veo/Lyria/분석이 Vertex 레인으로 돌아 Google Cloud 크레딧을 쓴다.
+- 둘 다 채우면 `GENAI_BACKEND=auto`가 **Vertex를 우선**한다(크레딧 활용). `gemini`/`vertex`로
+  강제할 수도 있다.
+
+즉 어느 쪽이든 Google 자격 한 가지는 필수다. 키가 하나도 없으면 `reel-gen analyze
+--no-gemini` 같은 정형 분석만 되고 생성은 못 한다.
+
+### 선택 키를 더 넣으면 좋아지는 것
+
+필수는 아니지만, 아래 키를 채우면 특정 부분의 품질이 눈에 띄게 올라간다.
+
+- **`ELEVENLABS_API_KEY`** - 나레이션 음성이 더 자연스러워진다. 나레이션(보이스오버가
+  아닌, 화면 밖 목소리) 방식일 때만 효과가 있다. 없으면 Gemini TTS로 내려간다.
+- **`FAL_KEY`** (fal.ai) - 영상을 Kling O3 모델로 생성한다. 기본 Veo보다 영상 퀄리티가
+  확실히 좋아진다.
+- **`FIRECRAWL_API_KEY`** - 레퍼런스 URL(쇼핑몰 상품 페이지 등)을 넣어 제품을 인식하는
+  성능이 확연히 좋아진다. 상품 페이지에서 제품 정보를 정확히 긁어온다.
 
 설치와 실행은 `uv`로 하고, 작업은 `uv sync`가 만든 프로젝트 로컬 `.venv` 안에서
 하길 권장한다. 전역 파이썬에 직접 깔지 않는 편이 의존성 충돌을 막는다. 저장소에는
@@ -127,12 +155,12 @@ uv sync
 
 ## 환경 설정
 
-`.env.example`을 `.env`로 복사한 뒤 필요한 키를 채운다. 현재 실행에 필수인 API 키는
-`GEMINI_API_KEY` 하나다. 이 키는 레퍼런스 영상의 비정형 분석과 Gemini 이미지 생성에 쓰인다.
-GCP 자격(`GOOGLE_CLOUD_PROJECT`와 서비스계정 JSON)을 함께 채우면 비정형 분석과 멀티모달
-호출이 `GENAI_BACKEND=auto` 규칙대로 Vertex AI로 돌아 Google Cloud 크레딧을 쓰고, 자격이
-없으면 `GEMINI_API_KEY`로 내려간다. 키가 없으면 `reel-gen analyze --no-gemini` 같은 정형
-분석만 가능하고, Gemini 기반 분석과 생성 단계는 돌릴 수 없다.
+`.env.example`을 `.env`로 복사한 뒤 필요한 키를 채운다. 실행에 필요한 건 Google 자격
+**하나**다. `GEMINI_API_KEY` 하나만 넣어도 분석, 이미지, 영상(Veo 3.1), 음악(Lyria 3),
+나레이션까지 전 과정이 이 키로 돈다. 대신 Vertex AI 자격(`GOOGLE_CLOUD_PROJECT`와 서비스계정
+JSON)만 채워도 같은 과정이 Vertex 레인으로 돌아 Google Cloud 크레딧을 쓴다. 둘 다 채우면
+`GENAI_BACKEND=auto`가 Vertex를 우선한다(`vertex`/`gemini`로 강제 가능). 어느 자격도 없으면
+`reel-gen analyze --no-gemini` 같은 정형 분석만 되고 생성 단계는 돌릴 수 없다.
 
 ```bash
 cp .env.example .env
@@ -145,11 +173,12 @@ cp .env.example .env
 스토리보드, 대사 스크립트, 톤 생성 기본값으로 쓰고, 필요할 때 `TEXT_MODEL_PRIORITY`를
 바꿔 Claude Opus로 전환할 수 있다. 이미지 생성은 Nano Banana(Gemini 네이티브 이미지)
 단일 경로다. 별도 이미지 provider나 폴백을 두지 않는다. 영상 생성은
-`VIDEO_PROVIDER`로 Vertex/Gemini API/fal 중 우선 provider를 정하고, 비워 두면 Google Cloud
-크레딧을 쓸 수 있는 Vertex Veo 3.1 Fast lane을 기본으로 둔다. `GEMINI_API_KEY`를 쓰는 Gemini API
-Veo Fast lane과 `FAL_KEY`를 쓰는 fal.ai Kling O3/Seedance lane은 폴백이나 실험 provider로 둔다.
-보이스오버 TTS는 ElevenLabs `eleven_v3`를 먼저 쓰고, 키가 없거나 실패할 때만 Gemini TTS로
-내려간다.
+`VIDEO_PROVIDER`로 Vertex/Gemini API/fal 중 우선 provider를 정한다. Vertex Veo 3.1 Fast와
+`GEMINI_API_KEY`를 쓰는 Gemini API Veo 3.1 Fast는 어느 쪽이든 단독으로 완결되고, 자격이 있는
+레인을 `GENAI_BACKEND` 규칙대로 고른다. `FAL_KEY`를 넣으면 fal.ai Kling O3 lane으로 올라가
+영상 퀄리티가 확실히 좋아진다. 나레이션 TTS는 `ELEVENLABS_API_KEY`가 있으면 `eleven_v3`로
+음성이 더 자연스러워지고, 없으면 Gemini TTS로 내려간다(효과는 보이스오버가 아닌 나레이션
+방식일 때만).
 효과음은 ElevenLabs 생성 SFX를 먼저 쓰고, 사용자가 넣은 로컬 효과음, 무음 폴백 순서로
 내려간다. 음악은 Lyria 3 생성 BGM, 로컬 음악, 무음 폴백 순서다. Lyria 3(Clip)은 한 번에
 30초까지 생성하고, 대부분 숏폼은 30초 이하라 Clip으로 충분하다. 30초를 넘는 트랙이 필요하면
@@ -157,7 +186,7 @@ Lyria 3 Pro로 승격한다.
 
 | 변수 | 필수 | 용도 |
 |---|---|---|
-| `GEMINI_API_KEY` | 예 | 멀티모달 분석 + 이미지 생성. [Google AI Studio](https://aistudio.google.com/apikey)에서 발급. |
+| `GEMINI_API_KEY` | 예(또는 Vertex 자격) | 이 키 하나로 분석, 이미지, 영상(Veo 3.1), 음악(Lyria 3), 나레이션(Gemini TTS)까지 전 과정이 돈다. [Google AI Studio](https://aistudio.google.com/apikey)에서 발급. Vertex 자격을 대신 쓸 수도 있다. |
 | `ANTHROPIC_API_KEY` | 아니오 | Claude API 키. 스토리보드, 대사 스크립트, 톤 생성 옵션. |
 | `GENAI_BACKEND` | 아니오 | 멀티모달 호출 백엔드. `auto`(기본)는 Vertex 자격이 있으면 Vertex, 없으면 `GEMINI_API_KEY`. `vertex`/`gemini`로 강제 가능. |
 | `GEMINI_ANALYSIS_MODEL` | 아니오 | 분석 모델. 기본 `gemini-2.5-flash`. |
@@ -172,11 +201,11 @@ Lyria 3 Pro로 승격한다.
 | `GEMINI_IMAGE_MODEL` | 아니오 | 이미지 모델(Nano Banana). 기본 `gemini-3.1-flash-image-preview`. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | 아니오 | Vertex AI image-to-video 모델과 단일 GCS 출력 prefix. 기본 `veo-3.1-fast-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | 아니오 | Vertex AI lane(영상 Veo + 분석 멀티모달)을 쓸 때 필요한 GCP 프로젝트와 서비스 계정 JSON 절대경로. |
-| `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 폴백 모델. 기본 `veo-3.1-fast-generate-preview`. |
-| `FAL_KEY`, `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. Kling O3 Standard/Seedance 2.0 Fast image-to-video 후보를 쓸 때 설정. |
-| `LYRIA_MODEL` | 아니오 | 배경 음악 모델(생성 단계). 기본은 Lyria 3(Clip, 30초 이하), 30초 초과 트랙은 Lyria 3 Pro. |
-| `ELEVENLABS_API_KEY` | 아니오 | 선택 보이스오버와 생성 효과음. SFX는 짧은 duration/count guardrail을 둔다. |
-| `FIRECRAWL_API_KEY` | 아니오 | 제품 URL 정보 추출. |
+| `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 모델(`GEMINI_API_KEY` 레인). 기본 `veo-3.1-fast-generate-preview`. |
+| `FAL_KEY`, `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. 넣으면 Kling O3 Standard/Seedance 2.0 Fast로 영상 퀄리티가 확실히 좋아진다. |
+| `LYRIA_MODEL` | 아니오 | 배경 음악 모델(생성 단계). 기본은 Lyria 3(Clip, 30초 이하), 30초 초과 트랙은 Lyria 3 Pro. Gemini 레인은 `LYRIA_GEMINI_MODEL`로 따로 지정 가능. |
+| `ELEVENLABS_API_KEY` | 아니오 | 넣으면 나레이션 음성이 더 자연스러워진다(나레이션 방식일 때만). 생성 효과음(SFX)도 여기서 나오며 짧은 duration/count guardrail을 둔다. |
+| `FIRECRAWL_API_KEY` | 아니오 | 넣으면 레퍼런스 URL(쇼핑몰 상품 페이지 등)에서 제품 인식 성능이 확연히 좋아진다. |
 | `LANGFUSE_*` | 아니오 | 실행 트레이싱과 관측. |
 
 비정형 분석은 `GENAI_BACKEND`가 고른 백엔드(Vertex 또는 `GEMINI_API_KEY`)로 돈다. 둘 다
@@ -489,9 +518,43 @@ brew install ffmpeg            # macOS
 # 3. Install deps (uv creates .venv and installs the reel-gen command)
 uv sync                        # with dev tools: uv sync --extra dev
 
-# 4. Verify
+# 4. Add one Google credential
+cp .env.example .env
+# GEMINI_API_KEY=...           # from Google AI Studio — this alone runs everything
+
+# 5. Verify
 uv run reel-gen --help
 ```
+
+### One Google credential is all you need
+
+The agent runs end to end on **a single Google credential**, and it can be
+either one.
+
+- **A single `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey)
+  runs the whole thing** — reference analysis, still images (Nano Banana), video
+  (Veo 3.1), background music (Lyria 3), and narration (Gemini TTS) all come from
+  this one key. No GCP setup, no billing project.
+- Or fill in **Vertex AI credentials** (`GOOGLE_CLOUD_PROJECT` + service-account
+  JSON) instead, and the same Veo/Lyria/analysis run on the Vertex lane using
+  Google Cloud credits.
+- With both set, `GENAI_BACKEND=auto` **prefers Vertex** (to spend credits); force
+  it with `gemini`/`vertex`.
+
+Either way you need one Google credential. With none, only `reel-gen analyze
+--no-gemini` deterministic analysis works; generation does not.
+
+### Optional keys that raise quality
+
+Not required, but each of these noticeably improves one part of the output.
+
+- **`ELEVENLABS_API_KEY`** — more natural narration voice. Only applies in
+  narration mode (an off-screen voice, not on-camera). Falls back to Gemini TTS
+  without it.
+- **`FAL_KEY`** (fal.ai) — renders video with Kling O3, a clear step up in video
+  quality over the default Veo lane.
+- **`FIRECRAWL_API_KEY`** — feed a reference URL (a shop product page, etc.) and
+  product recognition gets much better; it scrapes product details accurately.
 
 Activate the virtualenv uv created to call `reel-gen` directly, or wrap each call
 with `uv run reel-gen ...`.
@@ -520,7 +583,7 @@ cp .env.example .env
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | yes | Multimodal analysis + image generation. Get one at [Google AI Studio](https://aistudio.google.com/apikey). |
+| `GEMINI_API_KEY` | yes (or Vertex creds) | This one key runs the whole pipeline: analysis, images, video (Veo 3.1), music (Lyria 3), narration (Gemini TTS). Get one at [Google AI Studio](https://aistudio.google.com/apikey). Vertex credentials can be used instead. |
 | `ANTHROPIC_API_KEY` | no | Claude API key for optional storyboard, dialogue script, and tone generation. |
 | `GENAI_BACKEND` | no | Backend for multimodal calls. `auto` (default) uses Vertex when its credentials are set, otherwise `GEMINI_API_KEY`. Force with `vertex` or `gemini`. |
 | `GEMINI_ANALYSIS_MODEL` | no | Analysis model. Default `gemini-2.5-flash`. |
@@ -535,10 +598,11 @@ cp .env.example .env
 | `TTS_MODEL_PRIORITY` | no | TTS model priority. Defaults to ElevenLabs `eleven_v3`, then Gemini TTS fallback. |
 | `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | no | Vertex AI image-to-video model and GCS output path. Default `veo-3.1-fast-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | no | GCP project and service-account JSON path for the Vertex AI lane (video Veo + analysis multimodal). |
-| `GEMINI_VEO_MODEL` | no | Gemini API image-to-video fallback model. Default `veo-3.1-fast-generate-preview`. |
-| `FAL_KEY`, `FAL_VIDEO_MODEL` | no | Optional fal.ai video provider for Kling O3 Standard/Seedance 2.0 Fast image-to-video. |
-| `LYRIA_MODEL` | no | Background music model (generation stage). Defaults to Lyria 3 (Clip, up to 30s); tracks over 30s use Lyria 3 Pro. |
-| `ELEVENLABS_API_KEY` | no | Optional ElevenLabs voiceover and generated SFX. |
+| `GEMINI_VEO_MODEL` | no | Gemini API image-to-video model (the `GEMINI_API_KEY` lane). Default `veo-3.1-fast-generate-preview`. |
+| `FAL_KEY`, `FAL_VIDEO_MODEL` | no | Add it to render video with fal.ai Kling O3 Standard/Seedance 2.0 Fast — a clear step up in video quality. |
+| `LYRIA_MODEL` | no | Background music model (generation stage). Defaults to Lyria 3 (Clip, up to 30s); tracks over 30s use Lyria 3 Pro. Gemini lane can be set separately via `LYRIA_GEMINI_MODEL`. |
+| `ELEVENLABS_API_KEY` | no | Add it for a more natural narration voice (narration mode only). Generated SFX also comes from here, with short duration/count guardrails. |
+| `FIRECRAWL_API_KEY` | no | Add it and product recognition from a reference URL (a shop product page, etc.) gets much better. |
 
 The perceptual layer runs on whichever backend `GENAI_BACKEND` selects (Vertex or
 `GEMINI_API_KEY`). With neither set, the deterministic layer still produces a

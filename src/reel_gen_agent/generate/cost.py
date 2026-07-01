@@ -105,10 +105,16 @@ def _effective_video_model(plan: ProductionPlan | None, env: dict) -> str:
 
 
 def _bgm_model(plan: ProductionPlan | None, env: dict) -> str:
-    """실제 BGM 백엔드. plan.bgm=='gen'이고 GCP + REEL_BGM!=synth일 때만 Lyria, 아니면 합성."""
+    """실제 BGM 백엔드. plan.bgm=='gen'이고 Lyria 자격(Vertex 또는 Gemini) + REEL_BGM!=synth
+    일 때만 Lyria, 아니면 합성."""
     if not plan or plan.bgm != "gen":
         return "synth" if (plan and plan.bgm != "none") else "none"
-    if env.get("REEL_BGM", "").lower() == "synth" or not env.get("GOOGLE_CLOUD_PROJECT"):
+    has_lyria = (
+        env.get("GOOGLE_CLOUD_PROJECT")
+        or env.get("GEMINI_API_KEY")
+        or env.get("GOOGLE_API_KEY")
+    )
+    if env.get("REEL_BGM", "").lower() == "synth" or not has_lyria:
         return "synth"
     return env.get("LYRIA_MODEL") or "lyria-002"
 

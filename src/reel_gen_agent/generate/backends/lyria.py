@@ -1,9 +1,13 @@
-"""BGM 생성 백엔드. Lyria(Vertex predict). 실패하면 호출 측이 합성 베드로 폴백한다.
+"""BGM 생성 백엔드. Lyria(Vertex predict / Gemini API). 실패하면 호출 측이 합성 베드로 폴백한다.
 
-[ai-model-records.md] §5: 1차 Lyria(`LYRIA_MODEL`). genai SDK에는 단순 음악 생성 메서드가
-없어 Vertex AI `:predict` REST를 직접 호출한다(google-auth의 인증 세션 재사용). Lyria는
-리전 제약이 있어(대개 us-central1) `LYRIA_LOCATION`으로 고정한다. 응답은 base64 오디오다.
-컷 주기에 맞춘 bpm을 프롬프트에 실어 컷-음악 동기를 유도한다.
+[ai-model-records.md] §5: 1차 Lyria(`LYRIA_MODEL`). 어느 레인을 쓸지는 `select_backend()`가
+정한다(`GENAI_BACKEND=auto`면 Vertex 우선, 자격이 없으면 `GEMINI_API_KEY`).
+- Vertex AI lane: `:predict` REST를 직접 호출한다(google-auth 인증 세션 재사용). 리전 제약이
+  있어(대개 us-central1) `LYRIA_LOCATION`으로 고정한다. GA 모델(`lyria-002`).
+- Gemini Developer API lane: genai SDK의 Interactions API(`interactions.create`)로 Lyria 3를
+  호출한다(`GEMINI_API_KEY`). preview 계열 모델(`lyria-3-clip-preview`/`lyria-3-pro-preview`).
+어느 쪽이든 응답은 base64 오디오이고, 컷 주기에 맞춘 bpm을 프롬프트에 실어 컷-음악 동기를
+유도한다. Gemini 레인은 MP3를 낼 수 있어 out_path 확장자로 트랜스코딩해 계약(.wav)을 지킨다.
 
 Lyria 3 한계(반드시 이 기대치로 쓸 것):
 - **인스트루멘털 배경 베드에만 기대라.** 명확한 장르 + 템포 + 에너지 컨투어(강약)를 주면
@@ -36,7 +40,49 @@ class LyriaMusicClient:
         self.location = location or os.environ.get("LYRIA_LOCATION") or "us-central1"
         self.project = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
+    def _gemini_model(self) -> str:
+        """Gemini 레인용 Lyria 모델. Vertex ID(lyria-002)는 Gemini API에서 안 통하므로
+        clip preview로 교정한다. `LYRIA_GEMINI_MODEL` > `LYRIA_MODEL`(lyria-3-* 일 때만) 순."""
+        m = os.environ.get("LYRIA_GEMINI_MODEL") or self.model
+        return m if "lyria-3" in (m or "").lower() else "lyria-3-clip-preview"
+
     def generate(self, prompt: str, bpm: int, duration_sec: float, out_path: str) -> str:
+        from ...analysis.gemini_client import select_backend
+
+        selection = select_backend()
+        if selection is None:
+            raise RuntimeError("Lyria 자격 없음(GEMINI_API_KEY 또는 Vertex 자격 필요).")
+        if selection[0] == "vertex":
+            return self._generate_vertex(prompt, bpm, out_path)
+        return self._generate_gemini(selection, prompt, bpm, out_path)
+
+    def _generate_gemini(self, selection, prompt: str, bpm: int, out_path: str) -> str:
+        """Gemini Developer API(Interactions)로 Lyria 3 음악을 만든다(GEMINI_API_KEY).
+
+        Lyria 3는 MP3(clip) 또는 MP3/WAV(pro)를 base64로 돌려준다. 받은 오디오를 out_path
+        확장자로 트랜스코딩해 파이프라인 계약(.wav)을 지킨다(실제 길이 정렬은 assemble 단계).
+        """
+        import subprocess
+        from pathlib import Path
+
+        from ...analysis.gemini_client import make_client
+
+        client = make_client(selection)
+        interaction = client.interactions.create(
+            model=self._gemini_model(),
+            input=f"{prompt}, around {bpm} bpm",
+        )
+        audio = getattr(interaction, "output_audio", None)
+        data = getattr(audio, "data", None) if audio else None
+        if not data:
+            raise RuntimeError("Lyria(Gemini) 응답에 오디오 없음")
+        src = str(Path(out_path).with_suffix(".lyria.src"))
+        with open(src, "wb") as f:
+            f.write(base64.b64decode(data))
+        subprocess.run(["ffmpeg", "-y", "-i", src, out_path], check=True, capture_output=True)
+        return out_path
+
+    def _generate_vertex(self, prompt: str, bpm: int, out_path: str) -> str:
         import json as _json
 
         import google.auth
@@ -72,14 +118,18 @@ class LyriaMusicClient:
             for attempt in range(_MAX_ATTEMPTS_PER_MODEL):
                 try:
                     resp = session.post(
-                        url, data=_json.dumps(body),
-                        headers={"Content-Type": "application/json"}, timeout=180,
+                        url,
+                        data=_json.dumps(body),
+                        headers={"Content-Type": "application/json"},
+                        timeout=180,
                     )
                     resp.raise_for_status()
                     preds = resp.json().get("predictions") or []
                     b64 = (
-                        preds[0].get("bytesBase64Encoded") or preds[0].get("audioContent")
-                    ) if preds else None
+                        (preds[0].get("bytesBase64Encoded") or preds[0].get("audioContent"))
+                        if preds
+                        else None
+                    )
                     if not b64:
                         raise RuntimeError("Lyria 응답에 오디오 없음")
                     with open(out_path, "wb") as f:

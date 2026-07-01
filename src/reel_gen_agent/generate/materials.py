@@ -65,10 +65,15 @@ def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> st
     # 보컬은 시도하지 않는다(사용자 지시 + Lyria 3 한계): 항상 인스트루멘털 배경 베드.
     parts.append("instrumental background bed, no vocals")
     prompt = ", ".join(parts) or "modern, tasteful, professional instrumental background bed, no vocals"
+    # Lyria는 Vertex(GOOGLE_CLOUD_PROJECT) 또는 Gemini API(GEMINI_API_KEY) 어느 쪽으로도 돈다.
     use_lyria = (
         plan.bgm == "gen"
         and os.environ.get("REEL_BGM", "").lower() != "synth"
-        and os.environ.get("GOOGLE_CLOUD_PROJECT")
+        and (
+            os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+        )
     )
     if use_lyria:
         try:

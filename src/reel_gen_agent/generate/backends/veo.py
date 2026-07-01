@@ -1,8 +1,12 @@
-"""Veo 영상 백엔드. 패널 스틸 + 프롬프트로 image-to-video 클립을 만든다(Vertex lane 전용).
+"""Veo 영상 백엔드. 패널 스틸 + 프롬프트로 image-to-video 클립을 만든다(Vertex / Gemini API 양쪽).
 
-[ai-model-records.md] §4: Veo 3.1은 항상 Vertex AI lane으로 호출하고 출력은 GCS로 떨어진다
-(`VEO_OUTPUT_GCS_URI`). Veo는 4/6/8초만 만들므로, 짧은 컷은 최소 길이로 생성한 뒤 패널
-길이에 맞춰 자른다. voice는 나레이션(voiceover)이 기본이라 `generate_audio=False`로 둔다.
+[ai-model-records.md] §4: Veo 3.1은 두 레인으로 호출한다. 어느 레인을 쓸지는 `select_backend()`가
+정한다(`GENAI_BACKEND=auto`면 Vertex 우선, 자격이 없으면 `GEMINI_API_KEY`).
+- Vertex AI lane: 출력이 GCS로 떨어진다(`VEO_OUTPUT_GCS_URI` 필수). GA 모델 ID(`veo-3.1-*-001`).
+- Gemini Developer API lane: GCS 없이 File API로 바이트를 직접 내려받는다(`GEMINI_API_KEY`).
+  preview 계열 모델 ID(`veo-3.1-*-preview`, `GEMINI_VEO_MODEL`로 지정).
+Veo는 4/6/8초만 만들므로, 짧은 컷은 최소 길이로 생성한 뒤 패널 길이에 맞춰 자른다. voice는
+나레이션(voiceover)이 기본이라 `generate_audio=False`로 둔다.
 
 재시도 정책:
 - 일시적 오류(네트워크/타임아웃/응답 없음)는 tenacity로 지수 백오프 재시도한다.
@@ -98,6 +102,20 @@ class VeoBackend:
         self._text_client = text_client
         self._text_client_resolved = text_client is not None
 
+    def _resolve_model(self, backend: str) -> str:
+        """레인에 맞는 Veo 모델 ID를 고른다.
+
+        Gemini Developer API는 preview 계열 ID(`veo-3.1-*-preview`)를, Vertex는 GA
+        ID(`veo-3.1-*-001`)를 쓴다. plan이 이미 레인에 맞는 ID를 넘기면 그대로 쓰되, 레인과
+        어긋난 ID가 들어오면 해당 레인의 기본값으로 교정한다(교차 실행 방어).
+        """
+        is_preview = "preview" in (self.model or "").lower()
+        if backend == "gemini" and not is_preview:
+            return os.environ.get("GEMINI_VEO_MODEL") or "veo-3.1-fast-generate-preview"
+        if backend == "vertex" and is_preview:
+            return os.environ.get("VEO_MODEL") or "veo-3.1-fast-generate-001"
+        return self.model
+
     def _get_text_client(self):
         """RAI 재작성에 쓸 텍스트 LLM을 지연 확보한다(키 없으면 None)."""
         if not self._text_client_resolved:
@@ -130,8 +148,8 @@ class VeoBackend:
         wait=wait_exponential(multiplier=2, min=2, max=20),
         retry=retry_if_exception_type(_VeoTransientError),
     )
-    def _generate_video_uri(self, client, prompt: str, image, config) -> str | None:
-        """한 번의 Veo 생성 시도. 성공 시 영상 GCS URI, RAI 빈 결과면 None.
+    def _generate_video(self, client, prompt: str, image, config):
+        """한 번의 Veo 생성 시도. 성공 시 Video 객체, RAI 빈 결과면 None.
 
         일시적 오류(미완료/응답 없음/네트워크)는 _VeoTransientError로 올려 tenacity가 백오프
         재시도한다. RAI 필터로 결과가 비면 None을 돌려(예외 아님) 호출부가 프롬프트를 소프트닝해
@@ -170,7 +188,7 @@ class VeoBackend:
                 file=sys.stderr,
             )
             return None  # 프롬프트 소프트닝/재시도 신호
-        return videos[0].video.uri
+        return videos[0].video
 
     def render_panel(
         self,
@@ -190,25 +208,40 @@ class VeoBackend:
         from ...analysis.gemini_client import make_client, select_backend
 
         selection = select_backend()
-        if selection is None or selection[0] != "vertex":
-            raise RuntimeError("Veo는 Vertex 자격이 필요하다(GOOGLE_CLOUD_PROJECT + ADC).")
-        if not self.gcs_uri:
-            raise RuntimeError("VEO_OUTPUT_GCS_URI가 필요하다.")
+        if selection is None:
+            raise RuntimeError("Veo 자격 없음(GEMINI_API_KEY 또는 Vertex 자격 필요).")
+        backend = selection[0]
+        # Vertex는 GCS 출력이 필수, Gemini API는 File API로 바이트를 직접 받으므로 GCS가 필요 없다.
+        if backend == "vertex" and not self.gcs_uri:
+            raise RuntimeError("Veo Vertex 레인은 VEO_OUTPUT_GCS_URI가 필요하다.")
         client = make_client(selection)
+        self.model = self._resolve_model(backend)
 
         with open(still_path, "rb") as fh:
             image = types.Image(image_bytes=fh.read(), mime_type="image/png")
+        # Gemini 레인은 길이·해상도를 전용 env로 오버라이드할 수 있다(없으면 공통 규칙).
+        if backend == "gemini":
+            duration = int(
+                os.environ.get("GEMINI_VEO_DURATION_SECONDS") or _veo_seconds(duration_sec)
+            )
+            resolution = os.environ.get("GEMINI_VEO_RESOLUTION") or (
+                "1080p" if width >= 1080 else "720p"
+            )
+        else:
+            duration = _veo_seconds(duration_sec)
+            resolution = "1080p" if width >= 1080 else "720p"
+        # GCS 출력은 Vertex 레인에서만 붙인다(Gemini Developer API는 지원하지 않아 None으로 둔다).
         config = types.GenerateVideosConfig(
             aspect_ratio="9:16",
             number_of_videos=1,
-            duration_seconds=_veo_seconds(duration_sec),
-            resolution="1080p" if width >= 1080 else "720p",
+            duration_seconds=duration,
+            resolution=resolution,
             # 기본 나레이션(voiceover)은 별도 TTS라 오디오를 끈다. 온카메라 발화(integrated)
             # 일 때만 영상 모델이 립싱크 음성을 직접 낸다([ADR.md] ADR-0012).
             generate_audio=generate_audio,
             # 인물(성인) 생성을 허용해야 캐릭터 image-to-video가 RAI 필터에 안 막힌다.
             person_generation="allow_adult",
-            output_gcs_uri=self.gcs_uri,
+            output_gcs_uri=self.gcs_uri if backend == "vertex" else None,
         )
 
         # 원인-우선(cause-first) 재시도. 같은 run 안에선 스틸이 고정이라 원본 재시도는 결정론적
@@ -217,15 +250,15 @@ class VeoBackend:
         #  2) RAI 빈 결과 -> 최소 중립 프롬프트로 진단 probe(같은 이미지).
         #     - probe 성공 = 원인은 '프롬프트' -> 방향 살린 LLM 재작성으로 복원(실패 시 probe 결과 사용).
         #     - probe 실패 = 원인은 '입력 이미지' -> 프롬프트 완화는 무의미 -> 예외로 스틸 폴백.
-        # (일시적 오류는 _generate_video_uri 안에서 tenacity가 백오프 재시도한다.)
-        uri = self._generate_video_uri(client, prompt, image, config)
-        if not uri:
+        # (일시적 오류는 _generate_video 안에서 tenacity가 백오프 재시도한다.)
+        video = self._generate_video(client, prompt, image, config)
+        if not video:
             print(
                 "[veo] RAI 빈 결과 -> 원인 진단: 최소 중립 프롬프트 probe(같은 이미지)",
                 file=sys.stderr,
             )
-            probe_uri = self._generate_video_uri(client, _MINIMAL_PROMPT, image, config)
-            if not probe_uri:
+            probe_video = self._generate_video(client, _MINIMAL_PROMPT, image, config)
+            if not probe_video:
                 # 무해한 프롬프트로도 막힘 = 입력 이미지가 트리거. 프롬프트로는 못 뚫는다.
                 # 대개 생성 인물이 실존 인물과 유사한 경우다. 스틸 폴백으로 덮지 않고 거절시킨다.
                 raise VeoImageRAIError(
@@ -237,18 +270,23 @@ class VeoBackend:
                 "[veo] 원인=프롬프트(최소 프롬프트는 통과) -> LLM 재작성으로 방향 복원 시도",
                 file=sys.stderr,
             )
-            uri = self._generate_video_uri(client, self._rewrite_prompt(prompt), image, config)
-            if not uri:
-                uri = probe_uri  # 재작성도 막히면 통과 확인된 최소 프롬프트 결과를 쓴다
+            video = self._generate_video(client, self._rewrite_prompt(prompt), image, config)
+            if not video:
+                video = probe_video  # 재작성도 막히면 통과 확인된 최소 프롬프트 결과를 쓴다
 
         raw = str(Path(out_path).with_suffix(".veo.mp4"))
-        _download_gcs(uri, raw)
+        if backend == "vertex":
+            _download_gcs(video.uri, raw)
+        else:
+            # Gemini Developer API: File API로 바이트를 내려받아 로컬에 저장한다(GCS 미사용).
+            client.files.download(file=video)
+            video.save(raw)
 
         # 패널 길이로 자르고 목표 해상도/프레임레이트로 맞춘다.
         vf = f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
         cmd = ["ffmpeg", "-y", "-i", raw, "-t", f"{duration_sec:.3f}", "-vf", vf, "-r", str(fps)]
         # integrated 발화면 네이티브 립싱크 음성을 보존, 기본은 오디오를 제거한다.
-        cmd += (["-c:a", "aac"] if generate_audio else ["-an"])
+        cmd += ["-c:a", "aac"] if generate_audio else ["-an"]
         cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out_path]
         subprocess.run(cmd, check=True, capture_output=True)
         return out_path

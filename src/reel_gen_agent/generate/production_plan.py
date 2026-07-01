@@ -10,7 +10,8 @@ from __future__ import annotations
 from .capability import capability_for
 from .schema import ProductionPlan, ReelProfile, StoryboardPanel
 
-_VIDEO_KEYS = ("GOOGLE_CLOUD_PROJECT", "FAL_KEY")  # 하나라도 있으면 영상 백엔드 가능
+# 하나라도 있으면 영상 백엔드 가능(Vertex Veo / Gemini API Veo / fal Kling).
+_VIDEO_KEYS = ("GOOGLE_CLOUD_PROJECT", "GEMINI_API_KEY", "GOOGLE_API_KEY", "FAL_KEY")
 
 
 def _has_video_backend(env: dict[str, str]) -> bool:
@@ -44,11 +45,11 @@ def _select_video_model(env: dict[str, str]) -> str | None:
         model = (model if sep else "").strip() or lane.strip()
         if _lane_available(lane.strip(), env):
             return model
-    # 레거시 폴백(우선순위 미설정/자격 없음).
-    if env.get("VEO_MODEL"):
-        return env["VEO_MODEL"]
+    # 레거시 폴백(우선순위 미설정). 자격이 있는 레인만 고른다.
     if env.get("GOOGLE_CLOUD_PROJECT"):
-        return "veo-3.1-fast-generate-001"
+        return env.get("VEO_MODEL") or "veo-3.1-fast-generate-001"
+    if env.get("GEMINI_API_KEY") or env.get("GOOGLE_API_KEY"):
+        return env.get("GEMINI_VEO_MODEL") or "veo-3.1-fast-generate-preview"
     if env.get("FAL_KEY"):
         return "fal-ai/kling-video/o3/standard/image-to-video"
     return None
