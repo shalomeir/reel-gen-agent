@@ -38,17 +38,18 @@ _ATTRACTIVE = (
 )
 
 _PROMPT = (
-    "Define the on-camera creator/model for a vertical short-form beauty ad. Short-form beauty is "
-    "carried by aspirational, very good-looking creators, so lean attractive.\n"
+    "Define the on-camera creator/model for a vertical short-form video ad.\n"
     "Brief: {brief}\nProduct: {product}\n{ref}\n"
-    "Rules: If the reference describes a person, MATCH that person (same gender, age range, "
-    "ethnicity/nationality, look). Otherwise infer a fitting creator from the brief. If still "
-    "unspecified, default to an exceptionally attractive early-20s American (Western) woman who "
-    f"looks like a top viral beauty influencer / TikToker / celebrity.\n{_ATTRACTIVE}\n"
+    "Priority order (follow the most specific available): (1) If the reference describes a person, "
+    "MATCH that person (same gender, age range, ethnicity/nationality, look). (2) Otherwise infer a "
+    "fitting creator from the brief and product (e.g. a runner for running shoes, follow any stated "
+    "gender/age/ethnicity/vibe). (3) ONLY if still unspecified, fall back to the default: an "
+    f"exceptionally attractive early-20s American (Western) woman, top viral creator look.\n{_ATTRACTIVE}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"age": str, "gender": str, "look": str}}. '
-    "The look field must include nationality/ethnicity and strong, specific attractiveness/beauty "
-    "cues (influencer/celebrity-tier, photogenic, magnetic)."
+    "The look field includes nationality/ethnicity; add strong attractiveness cues only when the "
+    "brief/reference does not specify a different look (do not override an explicit look with "
+    "generic beauty cues)."
 )
 
 

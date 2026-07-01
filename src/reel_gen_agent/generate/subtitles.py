@@ -3,9 +3,10 @@
 자막 텍스트·타이밍은 스토리보드 패널에서 오므로 음성 인식·강제 정렬이 필요 없다.
 (docs/pipeline-design.md "자막과 이모지")
 
-이모지는 로컬 컬러 이모지 폰트(Apple Color Emoji / Noto Color Emoji)로 렌더한다. pilmoji
-기본 소스는 CDN에서 이모지 PNG를 내려받아 네트워크가 없거나 막히면 깨진다(tofu). 로컬 폰트
-소스로 오프라인·결정론 렌더를 보장하고, 로컬 폰트가 없을 때만 기본(온라인) 소스로 폴백한다.
+본문은 한글 glyph가 있는 폰트를 우선 사용하고, 이모지는 로컬 컬러 이모지 폰트(Apple Color
+Emoji / Noto Color Emoji)로 렌더한다. pilmoji 기본 소스는 CDN에서 이모지 PNG를 내려받아
+네트워크가 없거나 막히면 깨진다(tofu). 로컬 폰트 소스로 오프라인·결정론 렌더를 보장하고,
+로컬 폰트가 없을 때만 기본(온라인) 소스로 폴백한다.
 """
 
 from __future__ import annotations
@@ -28,10 +29,40 @@ _EMOJI_FONT_CANDIDATES = [
     "/usr/local/share/fonts/NotoColorEmoji.ttf",
 ]
 
+# 자막 본문 폰트 후보. Pillow 기본 폰트는 한글을 네모로 그리므로 CJK 폰트를 먼저 찾는다.
+_SUBTITLE_FONT_CANDIDATES = [
+    os.environ.get("REEL_SUBTITLE_FONT"),
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+    "/Library/Fonts/AppleGothic.ttf",
+    "~/Library/Fonts/NotoSansCJKkr-Bold.otf",
+    "~/Library/Fonts/NotoSansCJKkr-Regular.otf",
+    "~/Library/Fonts/NanumGothicBold.ttf",
+    "~/Library/Fonts/NanumGothic.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJKkr-Bold.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJKkr-Regular.otf",
+    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    "/usr/local/share/fonts/NotoSansCJKkr-Bold.otf",
+    "/usr/local/share/fonts/NotoSansCJKkr-Regular.otf",
+]
+
+
+def _first_existing_font_path(candidates: list[str | None]) -> str | None:
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = os.path.expanduser(candidate)
+        if os.path.exists(path):
+            return path
+    return None
+
 
 def _emoji_font() -> Any | None:
     """설치된 컬러 이모지 폰트를 연다. 없으면 None(그때만 온라인 소스로 폴백)."""
-    path = next((p for p in _EMOJI_FONT_CANDIDATES if p and os.path.exists(p)), None)
+    path = _first_existing_font_path(_EMOJI_FONT_CANDIDATES)
     if not path:
         return None
     # Apple/Noto는 고정 비트맵 strike만 있어 임의 크기가 안 된다. 가용 strike를 차례로 시도.
@@ -78,7 +109,7 @@ def _make_pilmoji(img: Any) -> Pilmoji:
 
 
 def _default_font(size: int) -> Any:
-    """기본 폰트를 요청 크기로 만든다. 구버전 Pillow는 size 인자가 없어 폴백한다.
+    """Pillow 기본 폰트를 요청 크기로 만든다. 구버전 Pillow는 size 인자가 없어 폴백한다.
 
     Pillow 버전에 따라 FreeTypeFont/ImageFont 중 하나가 오므로 반환형은 Any로 둔다.
     """
@@ -86,6 +117,17 @@ def _default_font(size: int) -> Any:
         return ImageFont.load_default(size=size)
     except TypeError:
         return ImageFont.load_default()
+
+
+def _subtitle_font(size: int) -> Any:
+    """자막 본문용 폰트를 만든다. 한글 지원 시스템 폰트가 없으면 Pillow 기본값으로 폴백한다."""
+    path = _first_existing_font_path(_SUBTITLE_FONT_CANDIDATES)
+    if path:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            pass
+    return _default_font(size)
 
 
 def _wrap(text: str, font: Any, max_width: int, measure) -> list[str]:
@@ -114,7 +156,7 @@ def render_subtitle_png(text: str, width: int, height: int, out_path: str) -> st
     """자막을 투명 PNG로 렌더한다. 폭을 넘기면 여러 줄로 접고 안전 영역에 중앙 정렬한다."""
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     if text:
-        font = _default_font(max(28, width // 18))
+        font = _subtitle_font(max(28, width // 18))
         margin = int(width * 0.06)
         max_width = width - 2 * margin
         # 밝은 배경에서도 글자가 묻히지 않도록 얇은 외곽선을 두른다(그림자 아님, 작은 반경).

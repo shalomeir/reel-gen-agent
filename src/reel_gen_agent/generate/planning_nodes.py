@@ -62,9 +62,10 @@ def narration_lines(
     # 레퍼런스 발화의 결을 대사 어휘·호흡에 반영한다(코드가 스타일을 박지 않고 관측을 흘린다).
     delivery_bits = ", ".join(b for b in (delivery_tone, delivery_pace) if b)
     delivery_hint = (
-        f"Delivery to write for: {delivery_bits}. Match this delivery in word choice and rhythm "
-        "(e.g. a whispered/soft/slow delivery uses fewer, quieter, unhurried words; an energetic "
-        "delivery uses punchier lines).\n"
+        f"REFERENCE delivery (TOP PRIORITY — this is observed from the reference video, follow it "
+        f"above the default register): {delivery_bits}. Match this delivery in word choice and "
+        "rhythm (e.g. a whispered/soft/slow delivery uses fewer, quieter, unhurried words; an "
+        "energetic delivery uses punchier lines).\n"
         if delivery_bits
         else ""
     )
@@ -76,21 +77,22 @@ def narration_lines(
             "concrete and specific, not robotic).\n"
         )
     else:
+        # 기본(폴백) 레지스터일 뿐이다. 위 Tone(스타일/레퍼런스/입력에서 온 값)을 먼저 따르고,
+        # 그게 다른 결을 원하면 그걸 우선한다. 특정 상투구('honestly obsessed', 'I finally found'
+        # 류)를 예시로 박지 않는다 — 그런 예시가 매번 같은 문장으로 수렴시키기 때문이다.
         tone_directive = (
-            "Write like a REAL creator sharing an honest reaction, NOT a TV ad or a product brochure. "
-            "First person ('I', 'my'), genuine feelings and specific sensory impressions, understated "
-            "and real. Do NOT explain/pitch the product like an advertiser. Avoid ad copy and "
-            "marketing cliches (no 'revolutionary', 'must-have', 'game-changer', 'transform your "
-            "life', 'say goodbye to'), and no hard sell or imperative CTA ('buy now', 'get yours', "
-            "'link in bio' as a command). If anything, end on a low-key personal note ('honestly "
-            "obsessed', 'kind of a staple for me now') — only if it feels natural, not a sales close.\n"
+            "Follow the Tone above first. If the Tone does not dictate otherwise, write in first "
+            "person as this specific creator, concrete and specific, not robotic ad copy. Avoid "
+            "generic marketing cliches ('revolutionary', 'must-have', 'game-changer', 'transform "
+            "your life', 'say goodbye to') and hard-sell CTAs ('buy now', 'get yours') unless the "
+            "brief calls for them. Do not reuse a fixed opener or catchphrase across videos.\n"
         )
     from .product import product_brief
 
     prompt = (
         f"You are {persona}, a real short-form creator (influencer / YouTuber / TikToker) speaking a "
-        f"first-person voiceover for a {meta.duration_sec:.0f}-second vertical beauty short that "
-        f"involves {product.name}. You are casually telling your followers what YOU genuinely felt "
+        f"first-person voiceover for a {meta.duration_sec:.0f}-second vertical short-form video "
+        f"about {product.name}. You are casually telling your followers what YOU genuinely felt "
         "and noticed using it — like talking to a friend, sharing a real experience.\n"
         # 제품 알맹이(효능·성분·사용법)를 실어 구체적이고 사실적인 언급이 나오게 한다(빈약한 대사 방지).
         f"About the product (draw on real, specific details; do not overclaim): {product_brief(product)}\n"

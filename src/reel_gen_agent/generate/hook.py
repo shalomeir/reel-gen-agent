@@ -12,10 +12,12 @@ from .schema import HOOK_TYPES, HookCandidate, HookRequest, HookSet
 from .text_client import TextClient
 
 _PROMPT = (
-    "Role: generate {count} first-1-3-second hooks for a 20-30s vertical beauty short.\n"
+    "Role: generate {count} first-1-3-second hooks for a 20-30s vertical short-form video ad.\n"
     "Product: {product}. Category: {category}. Tone: {tone}. Creator: {character}. "
     "Language: {language}.\n"
-    "Write hooks that fit this specific creator's persona above (what they would actually say/do).\n"
+    "Follow the product, category, tone and creator above FIRST — fit the hook to THIS input, not "
+    "to a generic beauty template. Write hooks that fit this specific creator's persona (what they "
+    "would actually say/do).\n"
     'Output raw JSON only (no markdown fences, no prose): {{"candidates": [{{'
     '"hook_type": "H1..H12", "headline": str, "bottom_caption": str, '
     '"no_text_visual": false, "visual_direction": str, "opening_beat": str, '

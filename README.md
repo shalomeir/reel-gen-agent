@@ -528,6 +528,8 @@ cp .env.example .env
 | `CLAUDE_MODEL` | no | Claude text model. Default `claude-opus-4-8`. |
 | `TEXT_MODEL_PRIORITY` | no | Text model priority for concept, hook, and storyboard generation. Defaults to Gemini 3.1 Pro, with Claude Opus as an option. |
 | `GEMINI_IMAGE_MODEL` | no | Image model (Nano Banana). Default `gemini-3.1-flash-image-preview`. |
+| `REEL_SUBTITLE_FONT` | no | Absolute path to a CJK-capable subtitle font. Blank uses the first available system font. |
+| `REEL_EMOJI_FONT` | no | Absolute path to a color emoji font. Blank uses Apple Color Emoji / Noto Color Emoji when available. |
 | `VIDEO_PROVIDER` | no | Preferred video provider. `vertex`, `gemini`, or `fal`; blank defaults to `vertex`. |
 | `VIDEO_MODEL_PRIORITY` | no | Video model priority. Defaults to Vertex Veo 3.1 Fast, Gemini Veo 3.1 Fast, then fal.ai Kling O3 Standard/Seedance 2.0 Fast candidates. |
 | `TTS_MODEL_PRIORITY` | no | TTS model priority. Defaults to ElevenLabs `eleven_v3`, then Gemini TTS fallback. |

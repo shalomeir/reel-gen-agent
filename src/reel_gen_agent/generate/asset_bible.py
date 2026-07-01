@@ -71,8 +71,8 @@ def _character_prompt(
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
         f"{age} {gender}. {ref_clause}"
         "Looking straight at the camera, natural soft indoor lighting, clean neutral "
-        "bright background, authentic UGC selfie aesthetic, clean and bright. "
-        "A fictional person, not a real or identifiable individual." + _palette_phrase(palette)
+        "bright background, a clean neutral reference portrait (scene styling is applied later "
+        "per shot). A fictional person, not a real or identifiable individual." + _palette_phrase(palette)
     )
 
 

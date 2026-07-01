@@ -66,7 +66,8 @@ _PRINCIPLES = (
     "tone; never blank, static posing at the camera. Match the energy/pace directive below.\n"
     "- The camera field per cut must be a concrete move (e.g. 'slow push-in', 'quick zoom to "
     "product', 'handheld orbit', 'whip pan') that the renderer will follow — not empty.\n"
-    "- Keep it authentic UGC, not an infomercial; match the creator's persona and the tone."
+    "- Match the creator's persona and the Tone above; let the input/reference decide the register "
+    "(don't default to a generic infomercial NOR a generic UGC testimonial)."
 )
 
 
@@ -113,8 +114,15 @@ def plan_story_panels(
     affor = ", ".join(product.affordances) if product.affordances else "n/a"
     energy = storyboard_energy(style.pacing)
     fb = f"\nReference-match feedback (apply): {style_feedback}\n" if style_feedback else ""
+    # 레퍼런스가 있으면(컷 리듬 출처가 reference) 그 페이싱·컷 구조·톤을 최우선으로 따르라고 못 박는다.
+    ref_lead = (
+        "A REFERENCE video defines this video's pacing, cut rhythm and overall tone — follow it as "
+        "the TOP PRIORITY (above generic defaults), while serving the goal and product.\n"
+        if getattr(style.cut_rhythm, "source", None) == "reference"
+        else ""
+    )
     prompt = (
-        f"{_PRINCIPLES}\n{energy}\n{fb}\n"
+        f"{_PRINCIPLES}\n{energy}\n{ref_lead}{fb}\n"
         f"Video goal: {objective_goal}\n"
         f"Product: {product_brief(product)}; can show: {affor}\n"
         f"Creator (protagonist): {character_brief(character)}\n"

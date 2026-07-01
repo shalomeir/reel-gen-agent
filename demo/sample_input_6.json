@@ -10,5 +10,12 @@
     "key_features": ["hydrating collagen care", "sprayable essence", "morning routine friendly"],
     "affordances": ["spray onto face", "hold bottle close to camera", "show dewy skin finish"]
   },
+  "model": {
+    "age": "mid-20s",
+    "gender": "female",
+    "look": "strikingly beautiful young woman with a warm deep brown skin tone and radiant glass-skin glow, elegant oval face, smooth luminous cheeks, softly defined high cheekbones, almond-shaped dark brown eyes with a calm confident gaze, neat softly arched brows, full naturally pink-brown lips with a gentle glossy smile, balanced delicate nose, clean jawline, long graceful neck, dark tight curly natural hair gathered into a high puff bun with soft curls framing the hairline, fresh approachable beauty-influencer presence, graceful and photogenic from close-up angles",
+    "body": "slim fit build with elegant shoulders, graceful posture, long neck, and a healthy polished beauty-model silhouette",
+    "wardrobe": "soft pastel pink sleeveless ribbed top, small silver hoop earrings, minimal natural makeup, glossy hydrated skin finish, feminine fresh skincare routine styling"
+  },
   "prompt": "reference https://www.tiktok.com/@biodance_global/video/7629597166104890654"
 }

@@ -2,8 +2,11 @@ import pytest
 from PIL import Image
 
 from reel_gen_agent.generate.subtitles import (
+    _SUBTITLE_FONT_CANDIDATES,
     LocalEmojiSource,
     _emoji_font,
+    _first_existing_font_path,
+    _subtitle_font,
     render_subtitle_png,
 )
 
@@ -32,6 +35,20 @@ def test_emoji_renders_in_color_offline(tmp_path):
     out = tmp_path / "emoji.png"
     render_subtitle_png("Glow ✨💕", 1080, 1920, str(out))
     assert _has_color_pixel(Image.open(out))  # 이모지가 컬러로 그려졌다(tofu/깨짐 아님)
+
+
+def test_korean_subtitle_uses_cjk_font_when_available(tmp_path):
+    font_path = _first_existing_font_path(_SUBTITLE_FONT_CANDIDATES)
+    if font_path is None:
+        pytest.skip("no local CJK subtitle font")
+
+    font = _subtitle_font(60)
+    assert getattr(font, "path", None) == font_path
+
+    out = tmp_path / "korean.png"
+    render_subtitle_png("잠깐만요 이거 진짜 괜찮은데요 ✨", 1080, 1920, str(out))
+    img = Image.open(out).convert("RGBA")
+    assert max(px[3] for px in img.getdata()) > 0
 
 
 def test_local_emoji_source_returns_png_bytes():
