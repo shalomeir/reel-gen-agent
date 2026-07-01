@@ -17,33 +17,30 @@ from ..analysis.profile import Product
 from .schema import ProductSpec
 from .text_client import TextClient
 
-# 얼굴에 착용하는 시트/하이드로겔 마스크는 반드시 투명·반투명으로 렌더한다. 영상 모델(특히 Veo)이
-# 따뜻한 조명 아래 투명 젤을 주황·갈색 끈적임으로 뭉개는 회귀를 막는다. 마스크가 아닌 제품엔 무해한
-# 조건부 지시라 항상 붙여도 된다.
-FACE_MASK_CLARITY = (
-    "If a sheet mask or hydrogel mask is worn on the face, render it as a clean, clear, translucent, "
-    "slightly milky-white gel sheet that conforms smoothly to the skin with neat eye, nose and mouth "
-    "openings; it must NOT look orange, amber, yellow, brown, sticky, melting, slimy or goopy, even "
-    "under warm lighting."
-)
 # 인물 중복(얼굴 2개) 버그 방지. 셀피/포트레이트 스틸과 영상 시작 프레임에 붙인다.
 SOLO_PERSON = "Exactly ONE person in the frame, solo — no second person and no duplicate faces."
 
 _PROMPT = (
-    "Analyze the advertised product for a short-form beauty ad and fill its spec so the SAME "
-    "product can be rendered consistently across many cuts. Infer sensible, realistic details from "
-    "the name/brief. Use the user's product name. Do NOT invent or copy a brand name or on-package "
+    "Analyze the advertised product for a short-form product ad and fill its spec so the SAME "
+    "product can be rendered consistently across many cuts. Report the product truthfully as WHATEVER "
+    "it actually is - it may be a cosmetic, but it may just as well be apparel, a bag, shoes, "
+    "eyewear, an accessory, a supplement, a device or a home item. Do NOT assume it is a beauty "
+    "cosmetic or nudge it toward skincare/makeup. Infer sensible, realistic details from the "
+    "name/brief. Use the user's product name. Do NOT invent or copy a brand name or on-package "
     "text.\n"
     "Product name/brief: {name}\nExtra brief: {brief}\n{web}{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"name": str, "category": str, "form": str, "packaging_desc": str, '
     '"colors": [str, ...], "key_features": [str, ...], "usp": str, "affordances": [str, ...]}}. '
-    "category e.g. 'glow serum'. form = texture/type (e.g. 'lightweight jelly-to-mist'). "
-    "packaging_desc = the container look (e.g. 'frosted glass spray bottle with white pump'). "
-    "colors = 2-4 dominant product/packaging colors. key_features = 2-4 distinctive visual cues that "
-    "identify this exact product (e.g. 'white pump', 'clear frosted bottle', 'rose-gold cap'). "
-    "usp = the single most compelling one-liner. affordances = 3-6 concrete on-camera actions the "
-    "product enables (e.g. 'mist over face', 'texture close-up'). "
+    "category = the true product type (e.g. 'glow serum', 'leather tote bag', 'running shoe', "
+    "'collagen supplement', 'sunglasses'). form = material/texture/type appropriate to it (e.g. "
+    "'lightweight watery serum', 'soft grained leather', 'knit upper'). packaging_desc = the "
+    "container or how it is presented (e.g. 'frosted glass bottle with pump', 'kraft gift box', "
+    "'no packaging - shown as the bare item'). colors = 2-4 dominant product/packaging colors. "
+    "key_features = 2-4 distinctive visual cues that identify this exact product. usp = the single "
+    "most compelling one-liner. affordances = 3-6 concrete on-camera actions THIS product enables "
+    "(fit them to the item, e.g. 'apply to skin', 'worn on the shoulder', 'laced up', 'texture "
+    "close-up'). "
     "If a reference product is given, MATCH its category/form/packaging/colors closely (same kind of "
     "product), only without its brand/label."
 )

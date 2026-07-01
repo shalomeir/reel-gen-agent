@@ -123,32 +123,34 @@ def _shot_subject(panel: StoryboardPanel, product_name: str) -> str:
     """이 컷의 피사체 한 줄. 제품 강조 컷이면 제품, 아니면 인물 중심."""
     if panel.product_lock:
         return f"the {product_name} product in focus" if product_name else "the product in focus"
-    return "the beauty creator"
+    return "the creator"
 
 
-# beat -> 화면 동작 묘사. beat "라벨 단어"(problem/cta 등)를 프롬프트에 그대로 넣으면 영상
-# 모델이 그 단어를 화면 자막으로 렌더해버린다. 그래서 라벨 대신 동작 문구로만 유도한다.
+# beat -> 화면 동작 묘사(폴백). beat "라벨 단어"(problem/cta 등)를 프롬프트에 그대로 넣으면 영상
+# 모델이 그 단어를 화면 자막으로 렌더해버려 라벨 대신 동작 문구로 유도한다. 스토리보드가 준
+# panel.action이 우선이고 이건 그게 빌 때만 쓰는 폴백이라, 제품 종류를 가리지 않게 중립으로 둔다
+# (스킨케어 전용 동작을 박으면 가방·신발 등 비코스메틱 제품이 왜곡된다).
 _BEAT_ACTION: dict[str, str] = {
-    "hook": "an eye-catching opening beauty moment, engaging expression",
-    "problem": "thoughtfully checking her skin",
+    "hook": "an eye-catching opening moment, engaging expression",
+    "problem": "a relatable everyday moment the product speaks to",
     "discovery": "presenting the product to the camera",
     "reveal": "presenting the product to the camera",
-    "use": "gently applying the product to her face",
-    "apply": "gently applying the product to her face",
-    "routine": "doing her skincare routine",
+    "use": "using the product naturally",
+    "apply": "using the product naturally",
+    "routine": "using the product as part of her routine",
     "reaction": "a delighted, pleased reaction",
-    "proof": "showing fresh, healthy-looking results with a happy expression",
-    "after": "showing fresh, healthy-looking results with a happy expression",
-    "result": "showing fresh, healthy-looking results with a happy expression",
-    "benefit": "showing fresh, healthy-looking results with a happy expression",
+    "proof": "showing the happy result with a pleased expression",
+    "after": "showing the happy result with a pleased expression",
+    "result": "showing the happy result with a pleased expression",
+    "benefit": "showing the happy result with a pleased expression",
     "demo": "demonstrating the product in use",
     "cta": "smiling warmly and invitingly at the camera",
 }
 
 
 def _beat_action(beat: str) -> str:
-    """beat를 화면 동작 문구로 바꾼다(라벨 단어는 넣지 않는다)."""
-    return _BEAT_ACTION.get(beat, "a natural beauty b-roll moment")
+    """beat를 화면 동작 문구로 바꾼다(라벨 단어는 넣지 않는다). 제품 중립 폴백."""
+    return _BEAT_ACTION.get(beat, "a natural product b-roll moment")
 
 
 def _speech_directive(speaking: bool) -> str:
@@ -163,34 +165,12 @@ def _speech_directive(speaking: bool) -> str:
     )
 
 
-# 피부 질감 지시문. 백엔드마다 광택을 다루는 성향이 달라 분기한다.
-# - 기본(Kling 등): 자연스러운 피부 질감 요청(그대로 유지).
-# - Veo: 피부 광택을 과장하는 경향이 있어 더 강하게 무광·비유광으로 억제한다(피부 부분만).
-_SKIN_DIRECTIVE_BASE = (
-    "Natural realistic skin texture with visible pores; avoid excessive dewy sheen, greasy "
-    "highlights or plastic glossy skin."
-)
-_SKIN_DIRECTIVE_VEO = (
-    "Skin must look matte and natural with realistic pores and texture; strongly avoid any wet, "
-    "oily, dewy or glossy sheen, shiny highlights, greasy or plastic-looking skin. Keep the skin "
-    "finish understated, not shiny and not glowing."
-)
-
-
-def _skin_directive(video_model: str | None) -> str:
-    """영상 백엔드별 피부 지시문. Veo만 광택을 더 세게 억제한다(사용자 지시)."""
-    if (video_model or "").lower().startswith("veo"):
-        return _SKIN_DIRECTIVE_VEO
-    return _SKIN_DIRECTIVE_BASE
-
-
 def _multishot_prompt(
     seg_panels: list[StoryboardPanel],
     motions: list[str],
     product_name: str,
     style: str,
     speaking: bool,
-    skin_directive: str,
     hook_visual: str = "",
     pacing: str | None = None,
     motion: str | None = None,
@@ -201,8 +181,8 @@ def _multishot_prompt(
     앵커 이미지 1장 + 이 프롬프트로 영상 모델이 세그먼트 내부의 여러 컷을 스스로 만든다.
     컷마다 shot_type, 피사체(제품 컷은 제품), beat 동작, 카메라 무빙(제품 컷은 제품 줌인)을
     담아 컷 변화를 유도한다. 편집 결(hard/fast vs gentle/slow)은 pacing에서 유도해, 레퍼런스가
-    느린 시연이면 컷이 하드하게 튀지 않게 한다(하드코딩 금지). 인물·제품 일관, 피부 질감,
-    발화 여부(립싱크)를 명시적으로 요구한다.
+    느린 시연이면 컷이 하드하게 튀지 않게 한다(하드코딩 금지). 인물·제품 일관, 발화 여부(립싱크)를
+    명시적으로 요구한다(외모·피부 질감 등 내용은 입력·시작 이미지에서 오게 두고 강제하지 않는다).
     """
     from .pacing import edit_directive, motion_directive
 
@@ -220,18 +200,9 @@ def _multishot_prompt(
         if product_identity
         else "Keep the same person and the same product consistent across every shot."
     )
-    from .product import FACE_MASK_CLARITY
-
     lines += [
         product_line,
         "Keep the same person consistent across every shot; exactly one person, no duplicate people.",
-        # 투명 하이드로겔 마스크가 얼굴에 씌워질 때 Veo가 주황 끈적임으로 뭉개는 것을 막는다.
-        FACE_MASK_CLARITY,
-        # Veo가 인물을 지나치게 사실적으로 바꾸며 매력도를 떨어뜨릴 때가 있어, 시작 이미지의
-        # 미모·매력을 그대로 유지하라고 명시한다(단, 플라스틱 아닌 자연스러움은 유지).
-        "Keep the person exactly as attractive and beautiful as the start image — flattering, "
-        "photogenic, camera-ready; do not make her look plainer or less attractive.",
-        skin_directive,
         _speech_directive(speaking),
         # 자막은 편집단계에서 따로 올리므로, 영상 모델이 화면에 글자를 그리면 안 된다.
         "Do not render any on-screen text, captions, subtitles, letters, words or watermarks; "
@@ -379,7 +350,6 @@ def build_visuals(
     # integrated는 발화까지 네이티브로 내야 하므로 항상 오디오 on. 발화 여부는 speech 지시가 가른다
     # (voiceover면 "말하지 않음"으로 씬 사운드만, integrated면 립싱크 발화까지).
     gen_audio = bool(plan.video_native_audio) or speaking
-    skin_directive = _skin_directive(plan.video_model)  # Veo만 피부 광택을 더 세게 억제
     # 생성된 훅의 시각 컨셉을 훅 컷 생성에 반영한다(첫 3초가 훅을 실현하도록).
     hook_visual = (profile.style.hook.visual_direction or "") if profile.style.hook else ""
 
@@ -408,7 +378,7 @@ def build_visuals(
                 start_image = prev_last_frame or anchor.still_image
                 prompt = _multishot_prompt(
                     [panels[i] for i in indices], motions, product_name, style, speaking,
-                    skin_directive, hook_visual, pacing=profile.style.pacing,
+                    hook_visual, pacing=profile.style.pacing,
                     motion=profile.style.motion, product_identity=product_id,
                 )
                 veo.render_panel(

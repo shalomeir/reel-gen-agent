@@ -165,21 +165,27 @@ def collect_materials(url: str, out_dir: str) -> ProductMaterials | None:
 
 
 _EXTRACT_PROMPT = (
-    "You are analyzing a real product from its store page for a short-form beauty ad. Using BOTH the "
+    "You are analyzing a real product from its store page for a short-form product ad. Using BOTH the "
     "product photos shown and the page text below, fill an accurate spec so the SAME product can be "
     "rendered consistently across many cuts and referenced by the hook and storyboard. Ground every "
     "field in what you actually see/read - do not invent. Use the real product's own name. Do NOT "
     "reproduce brand logos or on-package marketing text in later renders (that is handled downstream); "
     "here just report the product truthfully.\n\n"
     "{web}\n\n"
-    "Fill: name (the product's real name), category (e.g. 'hydrogel collagen sheet mask'), form "
-    "(texture/type, e.g. 'clear jelly-like hydrogel sheet'), packaging_desc (container look, e.g. "
-    "'flat foil sachet, 4 sheets'), colors (2-4 dominant product/packaging colors), key_features (2-4 "
-    "distinctive PHYSICAL/VISUAL cues that identify THIS product - shape, container type, material/"
-    "finish, color scheme; NOT brand names, logos, or printed marketing text), affordances (3-6 "
-    "concrete on-camera actions it enables, e.g. 'peel from pouch', 'smooth onto face', 'peel off to "
-    "reveal glow'), usp (single most compelling one-liner benefit), spec (size/count/format), "
-    "visual_summary (one line on how it looks on camera)."
+    "Report the product EXACTLY as it truly is - do NOT assume it is a beauty cosmetic or nudge it "
+    "toward skincare/makeup. It may be a cosmetic, but it may just as well be apparel, a bag, shoes, "
+    "eyewear, an accessory, a supplement, a device or a home item; classify it by what it actually "
+    "is. Fill: name (the product's real name), category (its true type, e.g. 'glow serum', 'leather "
+    "tote bag', 'running shoe', 'collagen supplement', 'sunglasses'), form (material/texture/type "
+    "appropriate to it, e.g. 'lightweight watery serum', 'soft grained leather', 'knit upper'), "
+    "packaging_desc (container or how it is presented, e.g. 'frosted glass bottle with dropper', "
+    "'kraft gift box', 'bare item, no packaging'), colors (2-4 dominant product/packaging colors), "
+    "key_features (2-4 distinctive PHYSICAL/VISUAL cues that identify THIS product - shape, container "
+    "type, material/finish, color scheme; NOT brand names, logos, or printed marketing text), "
+    "affordances (3-6 concrete on-camera actions it enables, fit them to THIS product - e.g. 'apply "
+    "to skin', 'worn on the shoulder', 'laced up', 'texture close-up'), usp (single most compelling "
+    "one-liner benefit), spec (size/count/format), visual_summary (one line on how it looks on "
+    "camera)."
 )
 
 

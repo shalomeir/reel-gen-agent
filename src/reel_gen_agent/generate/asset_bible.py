@@ -21,13 +21,14 @@ from .schema import (
 )
 
 # 패키지 텍스트 처리 지시. 실제 제품 사진을 참조로 쓰면 잔글씨까지 따라 그리다 뭉개진다.
-# 그래서 처음부터 크고 또렷한 브랜드명 한 개만 남기고, 성분·용량 같은 자잘한 인쇄 문구는
-# 그리지 말고 그 자리를 깔끔히 비우게 한다(뭉갠 가짜 텍스트 방지).
+# 그래서 크고 또렷한 글씨(브랜드명 등)는 원본 그대로 살리고, 성분·용량 같은 자잘한 인쇄 문구만
+# 지워 그 자리를 깔끔히 비운다. 원본에 없는 글씨나 placeholder/번역 문구는 절대 지어내지 않는다.
 _PACKAGE_TEXT_RULE = (
-    " Keep the packaging shape, colors and layout faithful, and render only the single most "
-    "prominent brand name if it is large and clearly legible; OMIT all small print, ingredient "
-    "lists, weights and fine sub-copy - leave those areas clean and blank rather than drawing tiny "
-    "unreadable or garbled text."
+    " Keep the packaging shape, colors and layout faithful to the real product. Preserve any large, "
+    "prominent text exactly as it appears on the real product (e.g. the main brand or product name); "
+    "only OMIT the small print - ingredient lists, weights and fine sub-copy - and leave those areas "
+    "clean and blank rather than drawing tiny unreadable text. Never invent, translate or add any "
+    "text, label or placeholder wording that is not actually on the real product."
 )
 
 
@@ -73,35 +74,49 @@ def _character_prompt(
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
         f"{age} {gender}. {ref_clause}{beauty} "
         "Looking straight at the camera, natural soft indoor lighting, clean neutral "
-        "bright background, authentic UGC selfie aesthetic, natural skin texture with balanced "
-        "lighting (avoid excessive dewy sheen or greasy highlights), clean and bright. "
+        "bright background, authentic UGC selfie aesthetic, clean and bright. "
         "A fictional person, not a real or identifiable individual." + _palette_phrase(palette)
     )
 
 
-def _product_prompt(product: ProductSpec, palette: list[str] | None) -> str:
+# 입력 제품 이미지가 있을 때, 텍스트 서술이 제품을 다른 물건으로 끌고 가지 않게 원본 충실을 못 박는다.
+_PRODUCT_FAITHFUL = (
+    " Match the reference product image EXACTLY: the same product, with the same shape, container, "
+    "material, proportions and colors. Do NOT substitute, restyle or turn it into a different-looking "
+    "product; reproduce the real one as faithfully as possible."
+)
+
+
+def _product_prompt(
+    product: ProductSpec, palette: list[str] | None, has_reference: bool = False
+) -> str:
     # 시각 정체성(카테고리·제형·용기·색·특징)을 실어 히어로가 곧 컷마다 재현할 기준이 되게 한다.
     from .product import product_identity
 
+    faithful = _PRODUCT_FAITHFUL if has_reference else ""
     return (
         f"Studio e-commerce catalog photo of {product_identity(product)}. "
         "Clean seamless off-white background, soft even studio lighting, single hero "
         "product centered, subtle reflection, sharp focus, high detail, no caption overlay, "
         "no hands, no human, vertical 9:16 framing, photorealistic."
-        + _PACKAGE_TEXT_RULE + _palette_phrase(palette)
+        + faithful + _PACKAGE_TEXT_RULE + _palette_phrase(palette)
     )
 
 
-def _product_packaging_prompt(product: ProductSpec, palette: list[str] | None) -> str:
+def _product_packaging_prompt(
+    product: ProductSpec, palette: list[str] | None, has_reference: bool = False
+) -> str:
     """제품 박스·풀 패키지 카탈로그 컷. 정면 히어로 외에 개봉/박스 상태를 함께 잡는다."""
     from .product import product_identity
 
+    faithful = _PRODUCT_FAITHFUL if has_reference else ""
     return (
         f"Studio e-commerce catalog photo of {product_identity(product)} with its full packaging: "
         "the retail box and the product bottle/tube shown together. "
         "Clean seamless off-white background, soft even studio lighting, three-quarter angle, "
         "subtle reflection, sharp focus, high detail, no caption overlay, no hands, no human, "
-        "vertical 9:16 framing, photorealistic." + _PACKAGE_TEXT_RULE + _palette_phrase(palette)
+        "vertical 9:16 framing, photorealistic."
+        + faithful + _PACKAGE_TEXT_RULE + _palette_phrase(palette)
     )
 
 
@@ -150,7 +165,7 @@ def build_key_visual(
     panels = profile.storyboard.panels
     # 대표 순간: 스토리보드 중간 패널(제품 사용/변화 지점)을 고른다. 없으면 제품 정체성만으로.
     mid = panels[len(panels) // 2] if panels else None
-    from .product import FACE_MASK_CLARITY, SOLO_PERSON, product_identity
+    from .product import SOLO_PERSON, product_identity
 
     global_prompt = profile.storyboard.global_prompt or ""
     moment = (mid.action if (mid and mid.action) else None) or (
@@ -160,7 +175,7 @@ def build_key_visual(
     prompt = (
         f"{global_prompt}. Key representative hero frame of the whole short video: {moment}. "
         "A single striking vertical 9:16 still that best captures the video's overall mood, styling "
-        f"and story at a glance (cover/keyframe). {SOLO_PERSON} {FACE_MASK_CLARITY} "
+        f"and story at a glance (cover/keyframe). {SOLO_PERSON} "
         "Photorealistic, no on-screen text or captions." + _palette_phrase(palette)
     )
     refs = [r for r in (character_image, product_image) if r]
@@ -187,8 +202,8 @@ def build_product_asset(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     refs = [r for r in (refs or []) if r]
-    prod_prompt = _product_prompt(product, palette)
-    pkg_prompt = _product_packaging_prompt(product, palette)
+    prod_prompt = _product_prompt(product, palette, has_reference=bool(refs))
+    pkg_prompt = _product_packaging_prompt(product, palette, has_reference=bool(refs))
     prod_rel: str | None = None
     views: list[AssetView] = []
     if image_client is not None:

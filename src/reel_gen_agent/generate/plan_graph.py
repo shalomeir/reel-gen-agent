@@ -330,6 +330,7 @@ def _narration_node(state: PlanState) -> dict:
                 [p.beat or "" for p in sb.panels], character=state["character"],
                 delivery_tone=state.get("ref_voice_tone") or None,
                 delivery_pace=state.get("ref_voice_pace") or None,
+                brief=state["objective"].goal,
             )
     arc = [p.beat for p in sb.panels if p.beat]
     return {"narration": narration, "narrative_arc": arc}

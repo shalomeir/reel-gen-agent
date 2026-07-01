@@ -20,6 +20,22 @@ def _narration_word_budget(duration_sec: float) -> int:
     return max(6, int(round(duration_sec * _NARRATION_WORDS_PER_SEC)))
 
 
+# 명시적으로 '직접 광고 톤'을 원한다는 브리프 신호. 기본 나레이션은 광고 아닌 자연스러운 UGC
+# 톤이고, 이런 신호가 있을 때만 광고 문구 억제를 해제한다(사용자 지시). 이 프로덕트 자체가 광고
+# 생성기라 광범위한 "광고"가 아니라 '광고처럼/하드셀/홍보 문구' 같은 명시 신호만 잡는다.
+_EXPLICIT_AD_HINTS = (
+    "광고 톤", "광고처럼", "광고 문구", "광고스럽", "직접 광고", "하드셀", "홍보 문구", "홍보성",
+    "세일즈", "판매 문구", "ad copy", "ad-style", "hard sell", "hard-sell", "salesy",
+    "commercial tone", "promotional copy",
+)
+
+
+def _is_explicit_ad(brief: str) -> bool:
+    """브리프가 명시적으로 광고 톤을 원하는지 판단한다(기본은 False = 자연스러운 UGC 톤)."""
+    b = (brief or "").lower()
+    return any(h.lower() in b for h in _EXPLICIT_AD_HINTS)
+
+
 def narration_lines(
     text_client: TextClient,
     product: ProductSpec,
@@ -29,6 +45,7 @@ def narration_lines(
     character: ModelSpec | None = None,
     delivery_tone: str | None = None,
     delivery_pace: str | None = None,
+    brief: str = "",
 ) -> list[NarrationLine]:
     """패널 비트에 맞춘 짧은 나레이션 라인을 생성한다(비주얼-only 비트는 제외).
 
@@ -51,6 +68,23 @@ def narration_lines(
         if delivery_bits
         else ""
     )
+    # 기본은 광고 아닌 자연스러운 크리에이터 톤. 브리프가 명시적으로 광고를 원하면 이 억제를 뺀다.
+    if _is_explicit_ad(brief):
+        tone_directive = (
+            "This is an ad, so promotional copy is fine: you may pitch the product and use a call to "
+            "action if it fits, while still sounding like this specific creator (first person, "
+            "concrete and specific, not robotic).\n"
+        )
+    else:
+        tone_directive = (
+            "Write like a REAL creator sharing an honest reaction, NOT a TV ad or a product brochure. "
+            "First person ('I', 'my'), genuine feelings and specific sensory impressions, understated "
+            "and real. Do NOT explain/pitch the product like an advertiser. Avoid ad copy and "
+            "marketing cliches (no 'revolutionary', 'must-have', 'game-changer', 'transform your "
+            "life', 'say goodbye to'), and no hard sell or imperative CTA ('buy now', 'get yours', "
+            "'link in bio' as a command). If anything, end on a low-key personal note ('honestly "
+            "obsessed', 'kind of a staple for me now') — only if it feels natural, not a sales close.\n"
+        )
     prompt = (
         f"You are {persona}, a real short-form creator (influencer / YouTuber / TikToker) speaking a "
         f"first-person voiceover for a {meta.duration_sec:.0f}-second vertical beauty short that "
@@ -58,13 +92,7 @@ def narration_lines(
         "and noticed using it — like talking to a friend, sharing a real experience.\n"
         f"Tone: {tone_hint}, authentic UGC, conversational.\n"
         f"{delivery_hint}"
-        "Write like a REAL creator sharing an honest reaction, NOT a TV ad or a product brochure. "
-        "First person ('I', 'my'), genuine feelings and specific sensory impressions, understated and "
-        "real. Do NOT explain/pitch the product like an advertiser. Avoid ad copy and marketing "
-        "cliches (no 'revolutionary', 'must-have', 'game-changer', 'transform your life', "
-        "'say goodbye to'), and no hard sell or imperative CTA ('buy now', 'get yours', 'link in "
-        "bio' as a command). If anything, end on a low-key personal note ('honestly obsessed', "
-        "'kind of a staple for me now') — only if it feels natural, not a sales close.\n"
+        f"{tone_directive}"
         f"Language: {meta.language} (default US English). The video has {len(beats)} cuts with these "
         f"beats in order: {beats}.\n"
         f"LENGTH BUDGET (critical): the whole voiceover must be at most {word_budget} words TOTAL "
