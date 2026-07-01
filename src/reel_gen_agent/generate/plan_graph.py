@@ -346,12 +346,71 @@ def _storyboard_node(state: PlanState) -> dict:
 
 
 def _route_after_storyboard(state: PlanState) -> str:
-    """훅이 스토리에 안 맞고 재시도 여유가 있으면 hook으로 되돌아가 핑퐁한다."""
+    """훅이 스토리에 안 맞고 재시도 여유가 있으면 hook으로 되돌아가 핑퐁한다.
+
+    핑퐁이 끝나면 "forward"를 돌려준다. 이 신호를 어느 노드로 보낼지는 그래프마다 다르게
+    매핑한다(plan은 style 보정으로, replan은 narration으로). _route_after_storyboard를 plan과
+    replan이 공유하므로, 반환값을 특정 노드명으로 박지 않고 중립 신호로 둔다.
+    """
     if state.get("text_client") is None:
-        return "narration"
+        return "forward"
     if state.get("hook_feedback") and state.get("hook_attempts", 0) < MAX_HOOK_ATTEMPTS:
         return "hook"
-    return "narration"
+    return "forward"
+
+
+def _style_node(state: PlanState) -> dict:
+    """style 초안(핵심 노드). hook·story 앞에서 style이 반드시 채워지게 한다.
+
+    레퍼런스가 있으면 분석 seed의 측정 style이 정본이므로 그대로 둔다(측정값을 덮지 않는다).
+    없으면 LLM이 목적·제품·캐릭터로 예비 style을 저술해 hook/story가 방향을 갖게 한다. LLM이
+    없으면 결정론 기본값으로 채운다. style은 이 시스템의 핵심 축이라 절대 비워 두지 않는다.
+    """
+    from .style import author_style, ensure_style_defaults
+
+    style = state["style"]
+    provenance = state.get("provenance")
+    src = getattr(provenance, "style_source", "llm") if provenance else "llm"
+    if src == "reference" and style.tone:
+        return {"style": style}  # 레퍼런스 측정 style은 정본, 덮지 않는다.
+    text_client = state.get("text_client")
+    if text_client is None:
+        return {"style": ensure_style_defaults(style, state.get("storyboard"), state["meta"])}
+    with state["tracer"].node("style"):
+        try:
+            authored = author_style(
+                text_client, objective=state["objective"], product=state["product"],
+                character=state["character"], meta=state["meta"], base=style,
+            )
+        except Exception:
+            return {"style": ensure_style_defaults(style, state.get("storyboard"), state["meta"])}
+        return {"style": authored}
+
+
+def _style_refine_node(state: PlanState) -> dict:
+    """style 보정. 확정된 hook·story를 극대화하도록 style을 다듬는다(레퍼런스 없을 때만).
+
+    레퍼런스가 있으면 측정 style이 정본이라 손대지 않는다. LLM이 없으면 초안 style을 유지한다.
+    replan에서도 같은 보정이 필요하나, replan 그래프는 별도로 이 노드를 배선한다.
+    """
+    from .style import author_style
+
+    style = state["style"]
+    provenance = state.get("provenance")
+    src = getattr(provenance, "style_source", "llm") if provenance else "llm"
+    text_client = state.get("text_client")
+    if src == "reference" or text_client is None:
+        return {}  # 변경 없음(레퍼런스 정본 유지 / LLM 부재)
+    with state["tracer"].node("style_refine"):
+        try:
+            refined = author_style(
+                text_client, objective=state["objective"], product=state["product"],
+                character=state["character"], meta=state["meta"], base=style,
+                storyboard=state.get("storyboard"), hook=style.hook,
+            )
+        except Exception:
+            return {}
+        return {"style": refined}
 
 
 def _narration_node(state: PlanState) -> dict:
@@ -421,6 +480,7 @@ def build_plan_graph():
         ("intake", _intake_node), ("reference_seed", _reference_node),
         ("product", _product_node),
         ("character", _character_node), ("environment", _environment_node),
+        ("style", _style_node), ("style_refine", _style_refine_node),
         ("music", _music_node), ("hook", _hook_node), ("storyboard", _storyboard_node),
         ("narration", _narration_node), ("write_profile", _write_node),
     ]:
@@ -430,11 +490,15 @@ def build_plan_graph():
     g.add_edge("reference_seed", "product")
     g.add_edge("product", "character")
     g.add_edge("character", "environment")
-    g.add_edge("environment", "hook")
+    # style 초안은 hook·story 앞에 둔다(style이 방향을 먼저 잡는다). 핑퐁이 끝나면 style_refine
+    # 이 확정된 hook·story에 맞춰 style을 보정한 뒤 narration으로 넘어간다.
+    g.add_edge("environment", "style")
+    g.add_edge("style", "hook")
     g.add_edge("hook", "storyboard")
     g.add_conditional_edges(
-        "storyboard", _route_after_storyboard, {"hook": "hook", "narration": "narration"}
+        "storyboard", _route_after_storyboard, {"hook": "hook", "forward": "style_refine"}
     )
+    g.add_edge("style_refine", "narration")
     # music은 plan의 마지막 노드다: 확정 훅·스토리·나레이션을 보고 음악을 정한 뒤 write로.
     g.add_edge("narration", "music")
     g.add_edge("music", "write_profile")
