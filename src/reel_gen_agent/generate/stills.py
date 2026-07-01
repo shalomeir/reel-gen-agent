@@ -59,7 +59,8 @@ def ensure_panel_stills(
         generated = False
         if image_client is not None:
             try:
-                panel.still_image = image_client.generate(prompt, refs, out)
+                # 컷 start 스틸은 영상 생성 reference로 주입되므로 히어로(4K Pro)로 만든다.
+                panel.still_image = image_client.generate(prompt, refs, out, hero=True)
                 generated = True
             except Exception:
                 generated = False

@@ -182,5 +182,6 @@ def generate_panel_images(
     for panel in storyboard.panels:
         prompt = f"First frame of this cut. {panel.prompt or ''}".strip()
         out = str(panels_dir / f"start_{panel.index}.png")
-        panel.still_image = image_client.generate(prompt, refs, out)
+        # 컷별 start image는 영상 생성 reference로 주입되므로 히어로(4K Pro)로 만든다.
+        panel.still_image = image_client.generate(prompt, refs, out, hero=True)
     return storyboard

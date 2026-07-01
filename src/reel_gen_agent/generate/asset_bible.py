@@ -76,12 +76,13 @@ def build_asset_bible(
     prod_rel: str | None = None
     if image_client is not None:
         try:
-            image_client.generate(char_prompt, [], str(out / "character.png"))
+            # 캐릭터 설정 샷·제품 카탈로그 모두 히어로 스틸(4K Pro)로 만든다(ai-model-records.md §3).
+            image_client.generate(char_prompt, [], str(out / "character.png"), hero=True)
             char_rel = "character.png"
         except Exception:
             char_rel = None
         try:
-            image_client.generate(prod_prompt, [], str(out / "product.png"))
+            image_client.generate(prod_prompt, [], str(out / "product.png"), hero=True)
             prod_rel = "product.png"
         except Exception:
             prod_rel = None

@@ -92,3 +92,5 @@ def test_generate_panel_images_fills_stills_with_refs(tmp_path):
     assert all(p.still_image for p in sb.panels)
     # 캐릭터·제품 이미지를 reference로 함께 넘긴다.
     assert client.calls[0][1] == ["char.png", "prod.png"]
+    # 컷 start image는 영상 reference로 주입되므로 히어로(4K Pro) 경로로 만든다.
+    assert all(call[3] is True for call in client.calls)

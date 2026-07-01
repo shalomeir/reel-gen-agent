@@ -14,11 +14,29 @@ from typing import Protocol
 from ..analysis.gemini_client import make_client, select_backend
 
 DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
+# 히어로 스틸(인물, 캐릭터 설정 샷, 제품 카탈로그, 컷 start/reference 이미지)은 Nano Banana
+# Pro로 승격한다(ai-model-records.md §3 히어로 이미지 팁). 인물 표현이 특히 여기서 좋아진다.
+DEFAULT_HERO_IMAGE_MODEL = "gemini-3.1-pro-image-preview"
+
+# 히어로 스틸 상수(ai-model-records.md §3). 기본 동작은 Pro 모델로 4K(9:16) 생성 후 원본
+# 그대로 저장이다. 처음부터 1080x1920으로 뽑지 않는 이유는 고해상도 생성물의 얼굴·피부·제품
+# 디테일이 더 살기 때문이다. 아래 TARGET/SHARPNESS/CONTRAST/JPEG 값은 최종 1080x1920 배포
+# 프레임이 꼭 필요할 때만 쓰는 옵션 마감 레시피(fit_delivery_frame)에 쓴다.
+HERO_IMAGE_SIZE = "4K"
+HERO_TARGET_W = 1080
+HERO_TARGET_H = 1920
+HERO_SHARPNESS = 1.16
+HERO_CONTRAST = 1.04
+HERO_JPEG_QUALITY = 97
 
 
 class ImageClient(Protocol):
-    def generate(self, prompt: str, refs: list[str], out_path: str) -> str:
-        """프롬프트와 reference 이미지들로 이미지를 만들어 out_path에 저장하고 경로를 돌려준다."""
+    def generate(self, prompt: str, refs: list[str], out_path: str, hero: bool = False) -> str:
+        """프롬프트와 reference 이미지들로 이미지를 만들어 out_path에 저장하고 경로를 돌려준다.
+
+        hero=True면 인물·캐릭터 설정 샷·제품 카탈로그·컷 start(영상 reference) 같은 고품질
+        스틸로 보고, 고해상도 생성 + 다운스케일 후처리 경로를 탄다(ai-model-records.md §3).
+        """
         ...
 
 
@@ -26,10 +44,10 @@ class StubImageClient:
     """정해 둔 경로에 빈 파일을 쓰는 테스트용 클라이언트(외부 호출 없음)."""
 
     def __init__(self) -> None:
-        self.calls: list[tuple[str, list[str], str]] = []
+        self.calls: list[tuple[str, list[str], str, bool]] = []
 
-    def generate(self, prompt: str, refs: list[str], out_path: str) -> str:
-        self.calls.append((prompt, refs, out_path))
+    def generate(self, prompt: str, refs: list[str], out_path: str, hero: bool = False) -> str:
+        self.calls.append((prompt, refs, out_path, hero))
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("stub-image")
         return out_path
@@ -43,8 +61,12 @@ class NanoBananaImageClient:
     측이 폴백(에셋 이미지 재사용)하게 한다.
     """
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(self, model: str | None = None, hero_model: str | None = None) -> None:
         self.model = model or os.environ.get("GEMINI_IMAGE_MODEL") or DEFAULT_IMAGE_MODEL
+        # 히어로 스틸은 Pro급으로 승격하되, 키/백엔드가 못 받으면 기본 모델로 폴백한다.
+        self.hero_model = (
+            hero_model or os.environ.get("GEMINI_IMAGE_MODEL_HERO") or DEFAULT_HERO_IMAGE_MODEL
+        )
 
     def _selections(self) -> list[tuple[str, dict]]:
         selections: list[tuple[str, dict]] = []
@@ -67,7 +89,29 @@ class NanoBananaImageClient:
                     return base64.b64decode(data) if isinstance(data, str) else data
         return None
 
-    def generate(self, prompt: str, refs: list[str], out_path: str) -> str:
+    def _attempts(self, hero: bool) -> list[tuple[str, object]]:
+        """(모델, config) 시도 순서. 히어로면 Pro+4K를 먼저 쓰고 기본 모델로 폴백한다."""
+        from google.genai import types
+
+        if hero:
+            img_cfg = types.ImageConfig(aspect_ratio="9:16", image_size=HERO_IMAGE_SIZE)
+            return [
+                (self.hero_model, types.GenerateContentConfig(
+                    response_modalities=["IMAGE"], image_config=img_cfg)),
+                (self.hero_model, types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"], image_config=img_cfg)),
+                # Pro/4K를 못 받는 키·백엔드를 위한 폴백(기본 모델, 컨트롤 없이).
+                (self.model, types.GenerateContentConfig(response_modalities=["IMAGE"])),
+                (self.model, None),
+            ]
+        # 이미지 모델은 기본이 이미지 응답이지만, 일부는 response_modalities 명시가 필요하다.
+        return [
+            (self.model, None),
+            (self.model, types.GenerateContentConfig(response_modalities=["IMAGE"])),
+            (self.model, types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"])),
+        ]
+
+    def generate(self, prompt: str, refs: list[str], out_path: str, hero: bool = False) -> str:
         from google.genai import types
 
         contents: list = []
@@ -77,20 +121,15 @@ class NanoBananaImageClient:
                     contents.append(types.Part.from_bytes(data=fh.read(), mime_type="image/jpeg"))
         contents.append(prompt)
 
-        # 이미지 모델은 기본이 이미지 응답이지만, 일부는 response_modalities 명시가 필요하다.
-        configs: list = [
-            None,
-            types.GenerateContentConfig(response_modalities=["IMAGE"]),
-            types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
-        ]
+        attempts = self._attempts(hero)
         for selection in self._selections():
             try:
                 client = make_client(selection)
             except Exception:
                 continue
-            for config in configs:
+            for model, config in attempts:
                 try:
-                    kwargs = {"model": self.model, "contents": contents}
+                    kwargs: dict[str, object] = {"model": model, "contents": contents}
                     if config is not None:
                         kwargs["config"] = config
                     response = client.models.generate_content(**kwargs)
@@ -98,7 +137,9 @@ class NanoBananaImageClient:
                     continue
                 data = self._extract_bytes(response)
                 if data:
-                    # PNG로 정규화해 저장(ffmpeg 입력 안정성).
+                    # 히어로도 4K 원본을 그대로 저장한다. 리사이즈/크롭은 하지 않는다
+                    # (asset/reference/컷 start용 4K는 native로 두는 편이 낫다,
+                    # ai-model-records.md §3). PNG로 정규화해 ffmpeg 입력을 안정화한다.
                     import io
 
                     from PIL import Image
@@ -106,3 +147,33 @@ class NanoBananaImageClient:
                     Image.open(io.BytesIO(data)).convert("RGB").save(out_path)
                     return out_path
         raise RuntimeError("nano banana 이미지 생성 실패(모든 백엔드/모달리티)")
+
+
+def fit_delivery_frame(
+    src_path: str,
+    out_path: str,
+    width: int = HERO_TARGET_W,
+    height: int = HERO_TARGET_H,
+) -> str:
+    """4K 히어로 스틸을 최종 배포 프레임(기본 1080x1920)으로 마감한다.
+
+    필요할 때만 쓰는 옵션 마감 레시피다(ai-model-records.md §3). 가로세로를 채우도록
+    스케일 후 센터크롭하고, 선명·대비를 살짝 올린다. JPEG 확장자면 quality=97로 저장한다.
+    기본 4K 자산은 native로 두므로 컷 start/reference에는 호출하지 않는다.
+    """
+    from PIL import Image, ImageEnhance
+
+    img = Image.open(src_path).convert("RGB")
+    src_w, src_h = img.size
+    scale = max(width / src_w, height / src_h)
+    img = img.resize((round(src_w * scale), round(src_h * scale)), Image.Resampling.LANCZOS)
+    left = (img.width - width) // 2
+    top = (img.height - height) // 2
+    img = img.crop((left, top, left + width, top + height))
+    img = ImageEnhance.Sharpness(img).enhance(HERO_SHARPNESS)
+    img = ImageEnhance.Contrast(img).enhance(HERO_CONTRAST)
+    if out_path.lower().endswith((".jpg", ".jpeg")):
+        img.save(out_path, quality=HERO_JPEG_QUALITY)
+    else:
+        img.save(out_path)
+    return out_path
