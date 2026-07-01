@@ -22,9 +22,9 @@ from reel_gen_agent.generate.schema import (
 
 
 def test_defaults_match_spec():
-    """기본값: 18초, 9:16, 1080x1920, 30fps."""
+    """기본값: 14초(기본 제작 포맷), 9:16, 1080x1920, 30fps."""
     m = InputMeta()
-    assert m.duration_sec == 18.0
+    assert m.duration_sec == 14.0
     assert m.aspect_ratio == "9:16"
     assert m.width == 1080
     assert m.height == 1920
@@ -32,9 +32,9 @@ def test_defaults_match_spec():
     assert m.resolution == "1080x1920"
 
 
-def test_default_duration_is_over_15():
-    """특별한 사유가 없으면 15초를 넘긴다."""
-    assert InputMeta().duration_sec > 15.0
+def test_default_duration_is_short_form_format():
+    """기본 제작 포맷은 14초(7초 멀티샷 2개)다."""
+    assert InputMeta().duration_sec == 14.0
 
 
 @pytest.mark.parametrize("dur", [15.0, 18.0, 22.0, 60.0, 1.0])
@@ -95,7 +95,7 @@ def test_zero_resolution_rejected():
 def test_generation_input_uses_meta_defaults():
     """GenerationInput이 기본 InputMeta를 그대로 받는다."""
     gi = GenerationInput(product=ProductSpec(name="serum"))
-    assert gi.meta.duration_sec == 18.0
+    assert gi.meta.duration_sec == 14.0
     assert gi.meta.fps == 30
     assert gi.meta.resolution == "1080x1920"
 

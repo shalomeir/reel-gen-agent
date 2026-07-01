@@ -54,8 +54,8 @@ def _status(checks, code):
 
 
 def test_template_duration_and_aspect_match():
-    container = Container(aspect_ratio="9:16", fps=30.0, duration_sec=18.0, resolution="1080x1920")
-    gen_input = GenerationInput(product=ProductSpec(name="x"))  # 기본 18s, 9:16, 30fps
+    container = Container(aspect_ratio="9:16", fps=30.0, duration_sec=14.0, resolution="1080x1920")
+    gen_input = GenerationInput(product=ProductSpec(name="x"))  # 기본 14s, 9:16, 30fps
     checks = _check_template(_facts(container), gen_input, ConformanceConfig())
     assert _status(checks, "template.duration_match") == "pass"
     assert _status(checks, "template.aspect_match") == "pass"

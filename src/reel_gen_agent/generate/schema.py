@@ -41,7 +41,7 @@ class InputMeta(BaseModel):
     포맷 계약을 따른다.
     """
 
-    duration_sec: float = 18.0  # 통상 15~22초. 1~60초 범위, 60초 초과 거부
+    duration_sec: float = 14.0  # 기본 제작 포맷 14초(7초 멀티샷 2개). 1~60초 범위, 60초 초과 거부
     aspect_ratio: str = REQUIRED_ASPECT_RATIO  # 9:16 고정
     width: int = 1080  # 1080x1920(1080p) 기본·상한
     height: int = 1920
