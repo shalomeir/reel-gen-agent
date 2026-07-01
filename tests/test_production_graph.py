@@ -41,8 +41,8 @@ def _write_profile(tmp_path):
 def test_skeleton_runs_end_to_end(tmp_path):
     profile_path, d = _write_profile(tmp_path)
     with (
-        patch("reel_gen_agent.generate.production_graph.evaluate_video") as mock_eval,
-        patch("reel_gen_agent.generate.production_graph.verify_conformance") as mock_verify,
+        patch("reel_gen_agent.generate.execute_graph.evaluate_video") as mock_eval,
+        patch("reel_gen_agent.generate.execute_graph.verify_conformance") as mock_verify,
     ):
         mock_verify.return_value = type(
             "R", (), {"passed": True, "model_dump": lambda self: {"passed": True}}
