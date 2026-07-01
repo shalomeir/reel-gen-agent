@@ -270,7 +270,7 @@ reel-gen plan "..."                    # 입력 -> ReelProfile
 reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> 영상
 
 # 같은 목적으로 새 훅/서사/음악을 다시 굴려 새 폴더에 재전개
-reel-gen execute outputs/<run_id>/plan/ReelProfile-....json --replan
+reel-gen rerun outputs/<run_id>/plan/ReelProfile-....json
 
 # 대화형 챗 모드: 물어보며 채우고, 요약+대표이미지 확인 후 생성
 reel-gen chat                          # 빈 상태에서 대화로 시작
@@ -314,7 +314,7 @@ reel-gen execute storyboard.json
 | `reel-gen chat` | 대화형 챗 모드. 필요한 걸 물어 채우고 ReelProfile+대표이미지 생성, 확인받고 production. |
 | `reel-gen plan <입력>` | 입력 -> `ReelProfile`(profile.json). |
 | `reel-gen execute <ReelProfile.json>` | ReelProfile을 곧장 영상으로. 카탈로그 이미지 로컬 경로가 없으면 멈춤. |
-| `reel-gen execute <ReelProfile.json> --replan` | 같은 목적·제품·모델을 유지한 채 새 훅으로 서사·음악을 다시 굴려 새 run 폴더에 재전개. |
+| `reel-gen rerun <ReelProfile.json>` | 같은 목적·제품·모델을 유지한 채 레퍼런스를 무시하고 style부터 새로 뽑아 서사·음악을 다시 굴려 새 run 폴더에 재전개. |
 | `<입력>` (`run`/`plan`) | 텍스트 브리프, JSON 경로(generation_input 또는 ReelProfile), 또는 단일 에셋(이미지·영상·URL). |
 
 ## 동작 방식
@@ -614,7 +614,7 @@ reel-gen plan "..."                    # input -> ReelProfile
 reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> video
 
 # same goal, new hook/story/music -> new folder
-reel-gen execute outputs/<run_id>/plan/ReelProfile-....json --replan
+reel-gen rerun outputs/<run_id>/plan/ReelProfile-....json
 
 # interactive chat: it asks what it needs, shows a summary + key visual, then confirms
 reel-gen chat                          # start from an empty conversation
@@ -659,7 +659,7 @@ missing, since the video cannot be built without them.
 | `reel-gen chat` | Interactive chat mode: asks what it needs, builds ReelProfile + key visual, confirms once, then produces. |
 | `reel-gen plan <input>` | input -> `ReelProfile` (profile.json). |
 | `reel-gen execute <ReelProfile.json>` | Render a ReelProfile straight to video. Stops if catalog image local paths are missing. |
-| `reel-gen execute <ReelProfile.json> --replan` | Keeps the same objective, product, and model, re-rolls the narrative and music from a new hook, and renders into a new run folder. |
+| `reel-gen rerun <ReelProfile.json>` | Keeps the same objective, product, and model, ignores the reference and regenerates style first, then re-rolls the narrative and music from a new hook into a new run folder. |
 | `<input>` (`run`/`plan`) | A text brief, a JSON path (generation_input or ReelProfile), or a single asset (image, video, URL). |
 
 ## How it works

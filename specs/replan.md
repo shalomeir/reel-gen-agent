@@ -20,11 +20,13 @@ replan.
 
 ## What (this spec)
 
-Add `execute --replan`. It reads an existing `ReelProfile`, regenerates only the
-narrative (hook <-> storyboard ping-pong, narration, music) from a fresh hook,
-reuses the frozen identity assets, writes a new `ReelProfile-<new-keyword>.json`
-into a new run folder, and then runs production on it. The result is a second
-video for the same goal, coexisting with the original.
+Add a first-level `rerun` command. It reads an existing `ReelProfile`, regenerates
+only the narrative (style, hook <-> storyboard ping-pong, narration, music) from a
+fresh hook, reuses the frozen identity assets, writes a new
+`ReelProfile-<new-keyword>.json` into a new run folder, and then runs production on
+it. The result is a second video for the same goal, coexisting with the original.
+(This replaces the earlier `execute --replan` flag: re-rolling a narrative is a
+distinct operation from rendering a profile as-is, so it gets its own verb.)
 
 Scope decisions (confirmed):
 
@@ -32,10 +34,14 @@ Scope decisions (confirmed):
   `meta` are carried over verbatim. The character/product/environment image assets
   are reused (copied), not regenerated. This keeps the model's face and the product
   consistent across takes and keeps replan cheap.
-- **Narrative is re-rolled.** hook, storyboard, narration, music, and the derived
-  `narrative_arc` / `style.hook` are produced anew. The hook is a genuinely new
-  idea: the reference-hook overlay is disabled on replan (`ref_hook=None`) so the
-  LLM is not re-pinned to the reference's headline.
+- **Narrative is re-rolled, style first.** style, hook, storyboard, narration,
+  music, and the derived `narrative_arc` / `style.hook` are produced anew. rerun
+  ignores the reference and regenerates style from scratch (state carries no
+  `provenance`, so the style node takes the no-reference LLM path), then style leads
+  the hook/story and is refined again after the ping-pong. The hook is a genuinely
+  new idea: the reference-hook overlay is disabled (`ref_hook=None`) so the LLM is
+  not re-pinned to the reference's headline. Regenerating style is what makes rerun
+  actually diverge instead of reproducing the previous take.
 - **key_visual is regenerated.** The representative cover is rebuilt from the
   reused character/product refs to match the new hook. If no image client is
   available, replan falls back to reusing the original key_visual instead of hard
@@ -111,21 +117,22 @@ Steps:
 8. `assemble_profile(...)` with the reused identity parts + new narrative, then
    `write_profile(...)` into the new plan dir. Return the new profile path.
 
-### CLI: `execute --replan`
+### CLI: `rerun`
 
 ```
-reel-gen execute <profile> --replan
+reel-gen rerun <profile>
 ```
 
-- `--replan` off: unchanged behavior (produce directly from `<profile>`).
-- `--replan` on: build `text_client` (required; refuse with a clear message if no
-  text LLM key) and `image_client` (optional, for key_visual). Call `run_replan`,
-  print `재기획: 새 훅 -> 새 폴더 <path>`, then `_produce(new_profile, ...)` on the
-  new profile. `--no-vlm` still applies to the production step.
+- `rerun` is a first-level command (not a flag on `execute`). It builds
+  `text_client` (required; refuse with a clear message if no text LLM key) and
+  `image_client` (optional, for key_visual), calls `run_replan`, prints
+  `재기획: 새 폴더 <path>`, then `_produce(new_profile, ...)` on the new profile.
+  `--no-vlm` still applies to the production step.
+- `execute <profile>` stays as-is: render the given profile directly, no re-roll.
 
 ## Done criteria
 
-- `reel-gen execute <profile> --replan` produces a new `outputs/<run>/final.mp4`
+- `reel-gen rerun <profile>` produces a new `outputs/<run>/final.mp4`
   in a new folder, leaving the original run untouched.
 - The new `ReelProfile` shares `objective`, `product`, and `character` with the
   original but has a different `storyboard`, `narration`, `music`, and

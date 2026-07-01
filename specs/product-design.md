@@ -39,6 +39,9 @@
   ProductionPlan 해소, 재료 병렬 생성, 조립, verify 루프, describe, evaluate, report까지
   돌려 `outputs/<run_id>/`에 영상과 산출물을 남긴다. 이미 생성된 에셋·클립이 있으면
   재생성을 건너뛴다(조립만). 기존 "storyboard 직행" execute를 이 명령이 흡수한다.
+- **`reel-gen rerun <ReelProfile.json>`**: 정체성은 고정하고 Planning의 narrative만 다시
+  전개(style부터 재생성)한 새 ReelProfile을 만든 뒤 Production까지 돌린다. "같은 정체성,
+  다른 어프로치"용이다. 자세한 계약은 아래 "rerun 명령" 절과 [replan.md](replan.md).
 
 ## 한 번에: run과 chat
 
@@ -243,6 +246,24 @@ reel-gen execute ReelProfile-glow-serum-20260630-204512.json
 - 이미 생성된 에셋·클립이 있으면 재생성을 건너뛰고 조립만 한다(기존 "storyboard 직행"
   execute의 조립-전용 동작을 흡수). 필요한 재료가 없으면 ProductionPlan에 따라 생성한다.
 - 영상 생성을 아예 못 하는 누락(필수 에셋 경로 부재)은 누락을 알려 주고 멈춘다(에러 종료).
+
+## rerun 명령 (같은 정체성, 다른 어프로치)
+
+`rerun`은 기존 `ReelProfile`로 다른 어프로치 1편을 다시 뽑는 1-level 명령이다. 정체성
+(제품·모델·에셋)은 그대로 두고, 레퍼런스를 무시하고 style부터 새로 뽑아 서사(훅·스토리·
+나레이션·음악)를 다시 전개한 새 `ReelProfile`(새 폴더)을 만든 뒤 그걸로 Production을 돌린다.
+
+```bash
+reel-gen rerun ReelProfile-glow-serum-20260630-204512.json
+```
+
+- **`execute`와 나눈 이유**: `execute`는 프로필을 있는 그대로 렌더한다. 서사를 다시 뽑는 것은
+  별개 작업이라 자체 동사로 둔다(예전 `execute --replan` 플래그를 대체). 프로필을 그대로
+  다시 렌더할 때는 `execute`, 다른 결과를 원할 때는 `rerun`.
+- **매번 다른 결과**: replan은 이전 style을 복사하지 않고 style부터 재생성하므로("같은 시스템,
+  다른 결과"), 같은 제품·모델이라도 다른 훅·스토리로 갈린다. 텍스트 LLM 키가 필요하다(없으면
+  거절). key_visual은 재생성하고, 이미지 클라이언트가 없으면 원본 커버를 복사해 폴백한다.
+- 재전개 그래프와 계약의 정본은 [replan.md](replan.md), 노드 흐름은 [workflows.md](workflows.md).
 
 ## 설치와 실행(요약)
 
