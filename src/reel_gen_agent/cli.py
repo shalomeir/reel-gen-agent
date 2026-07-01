@@ -598,8 +598,12 @@ def chat(
 
     console = Console()
     # 실행 시 기본 모델을 최상단에 보여준다(대화 모델 / 영상 생성 모델).
+    # 영상 모델은 resolve_plan과 같은 로직(_select_video_model)으로 실제 선택될 모델을 보여준다.
+    # 예전엔 VEO_MODEL만 봐서 VIDEO_MODEL_PRIORITY로 Kling을 골라도 헤더엔 Veo로 나왔다.
+    from .generate.production_plan import _select_video_model
+
     text_model = getattr(text, "model", "?")
-    video_model = os.environ.get("VEO_MODEL") or "veo-3.1-fast-generate-001"
+    video_model = _select_video_model(dict(os.environ)) or "ken_burns (영상 키 없음, 폴백)"
     console.print("릴젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
     console.print(f"[dim]대화 모델:[/] {text_model}")
     console.print(f"[dim]영상 생성 모델:[/] {video_model}")

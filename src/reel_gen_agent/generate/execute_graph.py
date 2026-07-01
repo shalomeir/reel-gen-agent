@@ -97,30 +97,10 @@ def _plan_node(state: ExecState) -> dict:
         return {"plan": plan}
 
 
-def _reuse_key_visual_as_anchor(profile, plan, base_dir: Path) -> None:
-    """대표 key_visual을 중간 세그먼트 앵커 스틸로 재활용한다(그 세그먼트 시작 프레임).
-
-    key_visual은 중간 패널의 대표 순간으로 그려졌으므로, 그 세그먼트의 앵커 스틸로 그대로 쓰면
-    자연스럽다(Veo 시작 프레임/ken_burns 폴백이 이걸 쓴다). 이미 스틸이 있으면 건드리지 않는다.
-    """
-    kv = _resolve_asset(profile.asset_bible.key_visual, base_dir)
-    segments = plan.segments or []
-    if not kv or not segments:
-        return
-    mid_seg = segments[len(segments) // 2]
-    if not mid_seg:
-        return
-    panel = profile.storyboard.panels[mid_seg[0]]
-    if not panel.still_image:
-        panel.still_image = kv
-
-
 def _stills_node(state: ExecState) -> dict:
     profile, plan = state["profile"], state["plan"]
     anchor_indices = {seg[0] for seg in plan.segments if seg}
     base_dir = state["plan_dir"].resolve()  # 캐릭터·제품·키비주얼 에셋은 plan/ 안에 있다
-    # 대표 key_visual을 중간 세그먼트 앵커로 먼저 재활용(그만큼 새로 생성할 스틸이 준다).
-    _reuse_key_visual_as_anchor(profile, plan, base_dir)
     if not any(not p.still_image for p in profile.storyboard.panels if p.index in anchor_indices):
         return {}
     with state["tracer"].node("stills"):

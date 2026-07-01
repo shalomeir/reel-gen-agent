@@ -93,6 +93,25 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     assert mats.subtitle_spans[-1] == [5.0, 6.0]
 
 
+def test_video_segments_start_from_their_own_anchor_stills(tmp_path, monkeypatch):
+    # 세그먼트 2는 세그먼트 1의 마지막 프레임이 아니라 자기 첫 패널의 앵커 스틸로 시작해야
+    # 한다. 그래야 두 번째 세그먼트 첫 컷 설정과 캐릭터 reference가 함께 반영된다.
+    profile = _profile(tmp_path, n=4)
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(
+        video_model="veo-3.1-fast-generate-001",
+        segments=[[0, 1], [2, 3]],
+    )
+
+    build_materials(profile, plan, str(tmp_path / "run"))
+
+    assert len(fake.calls) == 2
+    assert fake.calls[0][0] == profile.storyboard.panels[0].still_image
+    assert fake.calls[1][0] == profile.storyboard.panels[2].still_image
+    assert not (tmp_path / "run" / "panels" / "lastframe_0.png").exists()
+
+
 def test_integrated_speech_directive_allows_lipsync(tmp_path, monkeypatch):
     # 온카메라 발화(integrated)면 오디오도 켜고, 발화 금지 문구 대신 립싱크로 말하게 한다.
     profile = _profile(tmp_path, n=2)

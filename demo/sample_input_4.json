@@ -1,0 +1,30 @@
+{
+  "objective": "Nike Air Max Isla 여성 샌들을 LA에 사는 20대 스포츠 뷰티 크리에이터가 다양한 일상과 여행 상황에서 추천하는 15초 세로 숏폼 광고. 휴가 산책, 유럽 여행, 쇼핑처럼 오래 걷는 장면을 컷마다 바꿔 보여주며 스타일과 편안함을 함께 전달한다.",
+  "meta": {
+    "duration_sec": 15,
+    "aspect_ratio": "9:16",
+    "language": "en"
+  },
+  "product": {
+    "name": "Nike Air Max Isla Women's Sandals",
+    "url": "https://www.nike.com/kr/t/%EC%97%90%EC%96%B4%EB%A7%A5%EC%8A%A4-%EC%95%84%EC%9D%BC%EB%9D%BC-%EC%97%AC%EC%84%B1-%EC%83%8C%EB%93%A4-D6nmd03i/FJ5929-602",
+    "usp": "휴가 산책부터 유럽 여행, 쇼핑 데이까지 오래 걷는 날에도 스타일링하기 좋은 여성 샌들",
+    "spec": "women's lifestyle sandal for travel, walking, vacation, and city shopping outfits",
+    "packaging_desc": "sporty Nike women's sandal with a clean vacation-ready lifestyle look",
+    "category": "women's lifestyle sport sandal",
+    "key_features": ["travel friendly sandal", "sporty feminine styling", "walking day comfort", "vacation outfit ready"],
+    "affordances": ["walk along a sunny vacation street", "show sandals in a close-up step shot", "style with travel outfits", "carry shopping bags while walking", "switch between city and resort scenes"]
+  },
+  "model": {
+    "age": "mid-20s",
+    "gender": "female",
+    "look": "healthy athletic Black woman with African heritage, confident LA-based sports beauty creator, glowing skin and polished casual style",
+    "body": "fit athletic build",
+    "wardrobe": "vacation-ready sporty feminine outfits, summer dress and athleisure separates styled around the sandals"
+  },
+  "prompt": "LA에 사는 건강하고 세련된 스포츠 뷰티 인플루언서가 실제 여행 브이로그처럼 제품을 보여준다. 컷은 휴가지 산책, 유럽 골목 여행, 카페 앞 워킹, 쇼핑 거리, 캐리어를 끌고 이동하는 장면으로 빠르게 전환한다. 과한 광고보다 '이거 신고 여행 다녔는데 계속 편했다'는 자연스러운 추천 톤으로 연출한다.",
+  "voice": {
+    "enabled": true,
+    "type": "confident warm female LA lifestyle creator voice"
+  }
+}

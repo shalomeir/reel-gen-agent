@@ -23,6 +23,25 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 _DEFAULT_MODEL = "fal-ai/kling-video/o3/standard/image-to-video"
 _MIN_SEC = 3
 _MAX_SEC = 15
+# Kling은 prompt를 최대 2500자로 제한한다(초과하면 fal이 422로 거절 -> 켄번 폴백). Veo엔 이
+# 제한이 없어 프롬프트가 길어졌는데, 그게 Kling에서만 실패의 원인이었다. 여기서 안전하게 맞춘다.
+_MAX_PROMPT = 2500
+
+
+def _fit_prompt(prompt: str) -> str:
+    """프롬프트를 Kling 한도(2500자)에 맞춘다. 샷 리스트(끝)는 보존하고 앞의 장문 스타일 서술을
+    줄인다 — 멀티샷의 핵심은 'Shot N:' 목록이라 그건 자르지 않는다."""
+    if len(prompt) <= _MAX_PROMPT:
+        return prompt
+    marker = "\nShot 1:"
+    i = prompt.find(marker)
+    if i == -1:
+        return prompt[:_MAX_PROMPT]
+    head, shots = prompt[:i], prompt[i:]
+    if len(shots) >= _MAX_PROMPT:
+        return shots[:_MAX_PROMPT]
+    keep = _MAX_PROMPT - len(shots)
+    return head[:keep].rstrip() + shots
 
 
 class _FalTransientError(RuntimeError):
@@ -43,7 +62,7 @@ def _build_arguments(
     """
     dur = str(max(_MIN_SEC, min(_MAX_SEC, int(round(duration_sec)))))
     args: dict = {
-        "prompt": prompt or "cinematic vertical short, the product in focus",
+        "prompt": _fit_prompt(prompt or "cinematic vertical short, the product in focus"),
         "duration": dur,
     }
     if generate_audio:

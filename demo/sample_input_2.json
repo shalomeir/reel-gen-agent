@@ -1,31 +1,22 @@
 {
-  "objective": "자기 전에 항상 바르는 BIODANCE 포어 퍼펙팅 콜라겐 펩타이드 크림을 뷰티 인플루언서가 자연스럽게 추천하는 15초 세로 숏폼 광고. 밤 스킨케어 루틴의 마지막 단계에서 모공과 탄력 케어를 챙기는 데일리 크림이라는 메시지를 전달한다.",
-  "meta": {
-    "duration_sec": 15,
-    "aspect_ratio": "9:16",
-    "language": "ko"
-  },
+  "objective": "BIODANCE 콜라겐 미스트에 감탄하는 빠른 템포 세로 숏폼 영상",
   "product": {
-    "name": "BIODANCE Pore Perfecting Collagen Peptide Cream",
-    "url": "https://biodance.com/products/pore-perfecting-collagen-peptide-cream",
-    "usp": "자기 전 스킨케어 루틴에서 모공과 탄력 고민을 함께 케어하는 콜라겐 펩타이드 크림",
-    "spec": "facial cream for nighttime pore and elasticity skincare routines",
-    "packaging_desc": "clean premium skincare cream packaging with a soft clinical beauty look",
-    "category": "skincare collagen peptide cream",
-    "key_features": ["night routine friendly", "collagen peptide care", "pore perfecting cream"],
-    "affordances": ["apply cream before sleep", "show texture on fingertips", "massage onto cheeks and jawline", "hold jar close to camera"]
+    "name": "BIODANCE Hydrating Collagen Water Full Essence Mist",
+    "url": "https://www.amazon.com/BIODANCE-Hydrating-Anti-Aging-Sprayable-Essentials/dp/B0GF86QJK7",
+    "path": "./sample_imgs/biodance-essence-mist-pink.png",
+    "usp": "세안 후나 메이크업 전후에 뿌려 피부가 건조해 보이는 순간을 빠르게 정돈하는 수분 콜라겐 미스트",
+    "spec": "sprayable facial essence mist for hydrating, anti-aging skincare routines",
+    "packaging_desc": "clean beauty-style facial mist bottle with a soft, fresh skincare look",
+    "category": "skincare facial mist",
+    "key_features": ["hydrating collagen care", "sprayable essence", "morning routine friendly"],
+    "affordances": ["spray onto face", "hold bottle close to camera", "show dewy skin finish"]
   },
   "model": {
-    "path": "/Users/shalomeir/DevSpaces/PersonalPlayground/beutyselection-ai-assignment/reel-gen-agent/demo/sample_imgs/character_s1.png",
     "age": "mid-20s",
     "gender": "female",
-    "look": "calm, trustworthy korean beauty influencer with polished natural skin",
-    "body": "average build",
-    "wardrobe": "soft pajama-style lounge top, minimal jewelry, cozy nighttime skincare mood"
+    "look": "strikingly beautiful young woman with a warm deep brown skin tone and radiant glass-skin glow, elegant oval face, smooth luminous cheeks, softly defined high cheekbones, almond-shaped dark brown eyes with a calm confident gaze, neat softly arched brows, full naturally pink-brown lips with a gentle glossy smile, balanced delicate nose, clean jawline, long graceful neck, dark tight curly natural hair gathered into a high puff bun with soft curls framing the hairline, fresh approachable beauty-influencer presence, graceful and photogenic from close-up angles",
+    "body": "slim fit build with elegant shoulders, graceful posture, long neck, and a healthy polished beauty-model silhouette",
+    "wardrobe": "soft pastel pink sleeveless ribbed top, small silver hoop earrings, minimal natural makeup, glossy hydrated skin finish, feminine fresh skincare routine styling"
   },
-  "prompt": "은은한 침실 조명과 화장대 앞에서 시작하는 자기 전 루틴 톤. 광고처럼 밀어붙이기보다 매일 실제로 챙겨 바르는 제품을 친구에게 추천하듯 차분하고 신뢰감 있게 소개한다.",
-  "voice": {
-    "enabled": true,
-    "type": "soft warm female beauty creator voice"
-  }
+  "prompt": "reference https://www.tiktok.com/@biodance_global/video/7629597166104890654"
 }

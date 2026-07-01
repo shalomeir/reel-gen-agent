@@ -363,7 +363,8 @@ class AssetBible(BaseModel):
     product: ProductProfile = Field(default_factory=ProductProfile)
     environment: EnvironmentSpec = Field(default_factory=EnvironmentSpec)
     # 대표 키 비주얼(상대 파일명). plan 확정 시 캐릭터·제품·환경 에셋 + 프로필을 합쳐 만든
-    # "이 영상이 어떤 느낌인지" 한 장. 커버로도, 중간 세그먼트 앵커 스틸로도 재활용 가능.
+    # "이 영상이 어떤 느낌인지" 한 장. 커버와 분위기 참조로 쓰되, 세그먼트 앵커 스틸은 각
+    # 세그먼트 첫 패널 설정으로 따로 만든다(인물·첫 컷 일관성 보존).
     key_visual: str | None = None
 
 

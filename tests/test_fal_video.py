@@ -5,7 +5,12 @@ fal API는 호출하지 않는다(스키마 매핑·선택 로직만 단위 검�
 
 from __future__ import annotations
 
-from reel_gen_agent.generate.backends.kling import FalVideoBackend, _build_arguments
+from reel_gen_agent.generate.backends.kling import (
+    _MAX_PROMPT,
+    FalVideoBackend,
+    _build_arguments,
+    _fit_prompt,
+)
 from reel_gen_agent.generate.capability import capability_for
 from reel_gen_agent.generate.materials import _video_backend
 from reel_gen_agent.generate.production_plan import _select_video_model
@@ -40,6 +45,22 @@ def test_r2v_arguments_use_start_and_reference_images():
 def test_duration_clamped_to_kling_range():
     assert _build_arguments(_I2V, "u", [], 1.0, "", False)["duration"] == "3"  # 하한 3
     assert _build_arguments(_I2V, "u", [], 40.0, "", False)["duration"] == "15"  # 상한 15
+
+
+def test_prompt_capped_to_kling_limit_keeping_shots():
+    # Kling은 prompt 2500자 초과를 422로 거절한다 -> 한도 안으로 줄이되 샷 리스트는 보존해야 한다.
+    head = "STYLE " + "x" * 3000  # 아주 긴 스타일 서술(앞부분)
+    prompt = head + "\nShot 1: macro CU of the product.\nShot 2: medium, the creator."
+    fit = _fit_prompt(prompt)
+    assert len(fit) <= _MAX_PROMPT
+    assert "Shot 1:" in fit and "Shot 2:" in fit  # 샷 리스트(끝)는 안 잘린다
+    # 실제 인자에도 반영된다.
+    args = _build_arguments(_I2V, "u", [], 6.0, prompt, False)
+    assert len(args["prompt"]) <= _MAX_PROMPT
+
+
+def test_short_prompt_unchanged():
+    assert _fit_prompt("short prompt") == "short prompt"
 
 
 # --- 우선순위 lane 선택 ----------------------------------------------------------

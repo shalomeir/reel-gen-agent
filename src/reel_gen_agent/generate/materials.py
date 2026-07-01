@@ -277,19 +277,6 @@ def _multishot_prompt(
     return "\n".join(lines)
 
 
-def _last_frame(clip: str, out_png: str) -> str | None:
-    """클립의 마지막 프레임을 PNG로 뽑는다(다음 세그먼트 start image 연결용)."""
-    cmd = [
-        "ffmpeg", "-y", "-sseof", "-0.3", "-i", clip,
-        "-update", "1", "-frames:v", "1", out_png,
-    ]
-    try:
-        subprocess.run(cmd, check=True, capture_output=True)
-    except subprocess.CalledProcessError:
-        return None
-    return out_png if Path(out_png).exists() else None
-
-
 def _music_bpm(tempo: str | None) -> int | None:
     """MusicSpec.tempo 문자열("136 bpm")에서 bpm 정수를 뽑는다. 없으면 None."""
     if not tempo:
@@ -371,8 +358,10 @@ def build_visuals(
 ) -> VisualMaterials:
     """세그먼트 단위로 영상 클립+자막을 만든다([multishot-segments.md]). 오디오는 만들지 않는다.
 
-    영상 백엔드가 있으면 세그먼트당 1회 호출(앵커 이미지 1장 + 멀티샷 프롬프트, 2번째부터는
-    직전 세그먼트 마지막 프레임으로 연결)로 만든다. 영상 모델이 실패하면(예: Veo RAI/장애)
+    영상 백엔드가 있으면 세그먼트당 1회 호출(앵커 이미지 1장 + 멀티샷 프롬프트)로 만든다.
+    모든 세그먼트는 자기 첫 패널의 앵커 스틸로 시작한다. 직전 세그먼트 마지막 프레임을
+    재사용하면 다음 세그먼트의 캐릭터·구도·첫 컷 설정을 반영한 스틸을 우회해 인물 드리프트가
+    커질 수 있기 때문이다. 영상 모델이 실패하면(예: Veo RAI/장애)
     그 세그먼트는 켄 번스 폴백으로 내려가는데, image_client가 있으면 컷마다 개별 스틸을
     생성해(없는 것만) 서로 다른 이미지로 진짜 몽타주를 유지한다 -> 영상 모델이 죽어도 컷
     리듬(rhythm)이 무너지지 않는다. Veo가 성공한 세그먼트엔 개별 스틸을 만들지 않는다(비용 0).
@@ -416,7 +405,6 @@ def build_visuals(
     subs: list[str] = []
     spans: list[list[float]] = []
     total_dur = 0.0
-    prev_last_frame: str | None = None
     cut_index = 0  # 전체 서브컷 순번(줌 홀짝 번갈기용)
     made_any = False  # Veo가 오디오 있는 클립을 하나라도 만들었나(씬 오디오 보존 판단)
     prompts: list[str] = []  # 세그먼트별 영상 모델 프롬프트(리포트 "노드별 프롬프트"용)
@@ -435,7 +423,7 @@ def build_visuals(
         made = False
         if veo is not None:
             try:
-                start_image = prev_last_frame or anchor.still_image
+                start_image = anchor.still_image
                 prompt = _multishot_prompt(
                     [panels[i] for i in indices], motions, product_name, style, speaking,
                     hook_visual, pacing=profile.style.pacing,
@@ -517,9 +505,6 @@ def build_visuals(
             local += d
 
         total_dur += seg_dur
-        if veo is not None and made and seg_pos + 1 < len(segments):
-            prev_last_frame = _last_frame(seg_clip, str(panels_dir / f"lastframe_{seg_pos}.png"))
-
     return VisualMaterials(
         shot_clips=clips,
         subtitle_pngs=subs,
