@@ -26,6 +26,12 @@ logs/
 # 레퍼런스 프레임 캡처(루트 앵커: src/reel_gen_agent/analysis 코드 모듈과 무관)
 /analysis/
 
+# demo 결과물: 최종 영상(final.mp4)과 리포트는 커밋, 중간 산출물은 제외.
+# 위 *.mp4 규칙을 demo/results 안에서만 되돌린 뒤, plan/execute 폴더는 다시 제외한다.
+!demo/results/**/*.mp4
+demo/results/**/plan/
+demo/results/**/execute/
+
 # OS/IDE
 .DS_Store
 .idea/
