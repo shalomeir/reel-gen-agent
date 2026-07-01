@@ -171,10 +171,16 @@ def _multishot_prompt(
     for k, panel in enumerate(seg_panels):
         shot = (panel.shot_type or "medium shot").strip()
         beat = (panel.beat or "").strip()
-        # 훅 컷은 생성된 훅의 시각 컨셉을 그대로 실현한다(첫 3초가 훅을 반영하도록).
-        action = hook_visual if (beat == "hook" and hook_visual) else _beat_action(beat)
+        # 컷의 의미 있는 행동은 스토리보드 노드가 정한 panel.action을 우선한다(멀뚱한 포즈 방지).
+        # 훅 컷은 훅 시각 컨셉을, 둘 다 없으면 beat 기본 동작으로 폴백한다.
+        action = (panel.action or "").strip()
+        if beat == "hook" and hook_visual:
+            action = hook_visual
+        if not action:
+            action = _beat_action(beat)
         directive = _MOTION_DIRECTIVE.get(motions[k], "")
-        cam_bit = f". Camera: {directive}" if directive else ""
+        cam = (panel.camera or "").strip()
+        cam_bit = f". Camera: {cam or directive}" if (cam or directive) else ""
         subject = _shot_subject(panel, product_name)
         lines.append(f"Shot {k + 1}: {shot} — {subject}, {action}{cam_bit}.")
     return "\n".join(lines)

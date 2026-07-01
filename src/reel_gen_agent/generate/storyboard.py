@@ -190,6 +190,46 @@ def build_storyboard(
     return Storyboard(global_prompt=global_prompt, panels=panels)
 
 
+def storyboard_from_panels(
+    panels,
+    *,
+    meta: InputMeta,
+    style: StyleDimensions,
+    product: ProductSpec,
+    character: ModelSpec,
+    environment: EnvironmentSpec,
+) -> Storyboard:
+    """LLM 스토리보드 플래너(storyboard_planner.PanelPlan 리스트)를 Storyboard로 조립한다.
+
+    타이밍은 duration/n으로 균등 배분한다. 각 컷의 의미 있는 action을 패널에 싣고, 스틸 생성
+    프롬프트도 그 action으로 만든다(멀뚱한 포즈가 아니라 서사 동작). 단일 순간 강제는 stills가 한다.
+    """
+    n = max(1, len(panels))
+    seg = meta.duration_sec / n
+    global_prompt = _global_prompt(style, product, character, environment)
+    out: list[StoryboardPanel] = []
+    for i, pp in enumerate(panels):
+        action = (pp.action or "").strip()
+        local = f"{pp.shot_type}, {action}" if action else f"{pp.shot_type} of {product.name}"
+        out.append(
+            StoryboardPanel(
+                index=i,
+                beat=pp.beat,
+                t_start=round(i * seg, 2),
+                t_end=round((i + 1) * seg, 2),
+                shot_type=pp.shot_type,
+                camera=pp.camera or None,
+                action=action or None,
+                subject_lock=True,
+                product_lock=pp.product_focus,
+                environment_lock=True,
+                prompt=f"{global_prompt}. {local}",
+                subtitle_text=(pp.subtitle or None),
+            )
+        )
+    return Storyboard(global_prompt=global_prompt, panels=out)
+
+
 def needs_panel_images(storyboard: Storyboard) -> bool:
     """컷별 이미지 생성이 필요한가. 보통은 False.
 

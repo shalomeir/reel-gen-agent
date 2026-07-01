@@ -332,6 +332,9 @@ class StoryboardPanel(BaseModel):
     t_end: float = 0.0
     shot_type: str | None = None  # wide / medium / macro CU ...
     camera: str | None = None  # handheld / locked-off / push-in ...
+    # 이 컷의 의미 있는 행동/사건(스토리 전개). "카메라 보고 포즈"가 아니라 서사를 진전시키는
+    # 동작·상호작용·효과. 스토리보드 노드(LLM)가 채우고, execute의 영상 프롬프트가 그대로 쓴다.
+    action: str | None = None
     subject_lock: bool = True  # 캐릭터 에셋 참조 여부
     product_lock: bool = False  # 제품 에셋 참조 여부
     environment_lock: bool = True  # 환경 에셋 참조 여부

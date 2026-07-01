@@ -71,7 +71,7 @@ def _window(duration_sec: float) -> tuple[float, float]:
     return (0.0, min(2.0, duration_sec * 0.2))
 
 
-def generate_hooks(request: HookRequest, client: TextClient) -> HookSet:
+def generate_hooks(request: HookRequest, client: TextClient, brief: str = "") -> HookSet:
     prompt = _PROMPT.format(
         count=request.count,
         product=request.product.name,
@@ -80,6 +80,9 @@ def generate_hooks(request: HookRequest, client: TextClient) -> HookSet:
         character=request.character or "an attractive early-20s American beauty creator",
         language=request.language or "en",
     )
+    # 스토리보드 핑퐁 피드백 등 추가 문맥이 있으면 프롬프트에 얹는다(하드코딩 아님, 문맥 주입).
+    if brief:
+        prompt += f"\nContext / goal and feedback to satisfy: {brief}"
     raw = client.complete(prompt, temperature=0.9)
     data = json.loads(_extract_json(raw))
     window = _window(request.duration_sec)
