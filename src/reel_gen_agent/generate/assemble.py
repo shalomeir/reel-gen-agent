@@ -120,8 +120,10 @@ def _mux_audio(
 ) -> str:
     """영상에 나레이션 voice·BGM·효과음(SFX)을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
 
-    최종 길이는 max(영상, voice)라 나레이션이 중간에 잘리지 않는다. 영상이 짧으면 마지막
-    프레임을 이어(tpad) 채우고, 끝에 0.5초 페이드아웃을 걸어 툭 끊기지 않게 한다.
+    나레이션(voice)은 상류에서 영상 길이에 맞춰 예산화·캡되므로 대개 영상보다 짧거나 같다.
+    최종 길이는 max(영상, voice)로 잡되, 혹시 voice가 프레임 반올림 등으로 미세하게 길면 그만큼만
+    마지막 프레임을 이어(tpad) 메운다(옛날처럼 긴 프리즈가 생기지 않는다). 끝에 0.5초
+    페이드아웃을 걸어 툭 끊기지 않게 한다.
 
     발화 판정은 '실제 나레이션(voice)'만으로 한다. 영상 네이티브 오디오(keep_video_audio)는
     대개 씬 앰비언스일 뿐(Veo는 거의 무음을 낸다)이라, 이를 발화로 보면 나레이션이 없는
@@ -147,9 +149,7 @@ def _mux_audio(
     # 영상 네이티브 오디오([0:a], Veo가 낸 씬 사운드)는 낮은 앰비언스로만 깐다(주인공이 아니며
     # BGM 덕킹도 트리거하지 않는다). Veo 네이티브가 사실상 무음이면 여기서도 조용히 묻힌다.
     if keep_video_audio:
-        chains.append(
-            f"[0:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume=0.30[a0]"
-        )
+        chains.append(f"[0:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume=0.30[a0]")
         labels.append("[a0]")
     idx = 1
     if voice:
@@ -183,9 +183,11 @@ def _mux_audio(
         idx += 1
 
     mix = f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0[amx]"
-    # 합친 뒤 loudnorm으로 전체 레벨을 목표(-16 LUFS, TP -1.5dB)에 맞춘다. BGM/voice 상대 밸런스는
-    # 유지하면서 클리핑을 막고 회차마다 체감 볼륨을 일정하게 한다(BGM을 키워도 안전).
-    norm = "[amx]loudnorm=I=-16:TP=-1.5:LRA=11[nrm]"
+    # 합친 뒤 loudnorm으로 전체 레벨을 목표에 맞춘다(회차마다 체감 볼륨 일정, 클리핑 방지).
+    # 나레이션이 있으면 발화가 또렷하도록 -16 LUFS, 순수 음악 베드는 더 조용하게 -20 LUFS로
+    # 둔다(음악만 크게 깔리면 시끄럽게 들린다는 피드백). TP -2dB로 인터샘플 클리핑 여유도 준다.
+    target_i = -16 if has_voiceover else -20
+    norm = f"[amx]loudnorm=I={target_i}:TP=-2:LRA=11[nrm]"
     fade_f = f"[nrm]afade=t=out:st={fade_start:.3f}:d={fade}[aout]"
     filter_complex = ";".join([*chains, mix, norm, fade_f])
     cmd += [
@@ -235,6 +237,11 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
             return _mux_audio(video_only, None, None, out_path, keep_video_audio=True)
         return _concat([video_only], meta.fps, out_path)
     return _mux_audio(
-        video_only, materials.voice_audio, materials.bgm_audio, out_path,
-        keep_video_audio=materials.native_audio, bgm_gain=materials.bgm_gain, sfx=sfx,
+        video_only,
+        materials.voice_audio,
+        materials.bgm_audio,
+        out_path,
+        keep_video_audio=materials.native_audio,
+        bgm_gain=materials.bgm_gain,
+        sfx=sfx,
     )

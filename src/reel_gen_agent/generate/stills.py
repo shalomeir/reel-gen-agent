@@ -97,7 +97,9 @@ def ensure_panel_stills(
         # image-to-video 시작 프레임이므로 반드시 단일 순간이어야 한다. 콘티/훅이 여러 동작을
         # 묘사해도 스틸은 그 첫 순간 하나만 그린다(콜라주·스토리보드·그리드·분할·연속 패널 금지).
         # reference-to-video가 아닌 한 콜라주 스틸을 그대로 넣으면 영상이 콜라주로 시작한다.
-        prompt = f"{base}. {_SINGLE_MOMENT_RULE}{vibe}"
+        from .product import FACE_MASK_CLARITY, SOLO_PERSON
+
+        prompt = f"{base}. {_SINGLE_MOMENT_RULE} {SOLO_PERSON} {FACE_MASK_CLARITY}{vibe}"
         out = str(panels_dir / f"still_{panel.index}.png")
         generated = False
         if image_client is not None:

@@ -151,9 +151,15 @@ class VoiceSpec(BaseModel):
 
 class MusicSpec(BaseModel):
     mood: str | None = None
-    dynamics: str | None = None  # flat / build
+    dynamics: str | None = None  # flat / build (강약의 개략 플래그)
+    # 에너지 컨투어(강약) 세부 서술. 예: "soft intro, subtle lift toward the end, no big drop".
+    # Lyria 프롬프트에 그대로 실어 강약을 세밀히 전달한다(coarse dynamics 플래그를 보완).
+    dynamics_detail: str | None = None
     style: str | None = None  # 장르/스타일
     type: str | None = None  # 유형(예: lo-fi, upbeat pop)
+    # 핵심 악기·사운드 팔레트(예: "punchy 808s, glossy synth plucks, side-chained pads").
+    # Lyria 프롬프트 프레임워크가 악기 명시를 요구한다(없으면 장르 기본값으로 밋밋해짐).
+    instrumentation: str | None = None
     tempo: str | None = None  # 컷 리듬 정렬 템포
     # BGM 존재감(믹스 의도). 나레이션이 정보 전달이면 "background", 바이브 중심이고 나레이션이
     # 감탄사·최소면 "prominent"(발화 아래에서도 더 크게). 음악 노드(LLM)가 정하고 execute가 따른다.

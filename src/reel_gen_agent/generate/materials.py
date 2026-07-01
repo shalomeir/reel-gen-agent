@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .audio import bpm_for_cuts, compose_aligned_narration, synth_music_bed
 from .backends.ken_burns import DEFAULT_MOTION, KenBurnsBackend
+from .backends.veo import VeoImageRAIError
 from .schema import Materials, ProductionPlan, ReelProfile, StoryboardPanel
 from .subtitles import render_subtitle_png
 
@@ -38,10 +39,31 @@ def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> st
 
     빠른 반복이 필요하면 `REEL_BGM=synth`로 Lyria를 끄고 합성 베드만 쓴다.
     """
-    # BGM 프롬프트는 음악 노드가 정한 MusicSpec에서만 만든다(스타일 하드코딩 금지). 비면
-    # 장르 없는 중립 지시만 둔다(장르 선택은 코드가 아니라 LLM 음악 노드의 몫이다).
-    style_bits = [profile.music.style, profile.music.mood, profile.music.type]
-    prompt = ", ".join(b for b in style_bits if b) or "instrumental background music"
+    # BGM 프롬프트는 음악 노드가 정한 MusicSpec에서만 만든다(스타일 하드코딩 금지). Lyria 3
+    # 프롬프트 프레임워크(장르/스타일 + 무드 + 악기구성 + 템포/리듬 + instrumental)에 맞춰
+    # 서술적으로 조립해 밋밋한 기본 베드를 피한다(악기·무드 미명시 시 장르 디폴트로 흐릿해진다).
+    # cloud.google.com/blog "Ultimate prompting guide for Lyria 3". bpm/instrumental은 클라이언트가 덧붙인다.
+    m = profile.music
+    parts: list[str] = []
+    if m.style:
+        parts.append(m.style)
+    if m.mood:
+        parts.append(f"{m.mood} mood")
+    if m.type:
+        parts.append(m.type)
+    if m.instrumentation:
+        parts.append(f"featuring {m.instrumentation}")
+    # 강약(에너지 컨투어)을 세밀히 싣는다. LLM이 준 dynamics_detail이 있으면 그대로, 없으면
+    # coarse 플래그로 최소 서술. 장르·템포·강약을 구체적으로 명시할수록 Lyria 결과가 좋다.
+    if m.dynamics_detail:
+        parts.append(m.dynamics_detail)
+    elif (m.dynamics or "").lower() == "build":
+        parts.append("energy builds gently to a satisfying payoff")
+    else:
+        parts.append("steady, even energy throughout")
+    # 보컬은 시도하지 않는다(사용자 지시 + Lyria 3 한계): 항상 인스트루멘털 배경 베드.
+    parts.append("instrumental background bed, no vocals")
+    prompt = ", ".join(parts) or "modern, tasteful, professional instrumental background bed, no vocals"
     use_lyria = (
         plan.bgm == "gen"
         and os.environ.get("REEL_BGM", "").lower() != "synth"
@@ -54,8 +76,10 @@ def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> st
             return LyriaMusicClient().generate(
                 prompt, bpm, total_dur, str(Path(panels_dir) / "bgm.wav")
             )
-        except Exception:
-            pass  # Lyria 실패 -> 합성 베드 폴백
+        except Exception as exc:
+            # Lyria 실패 -> 합성 베드 폴백. 폴백은 사인 드론이라 실제 음악이 아니므로, 원인을
+            # 조용히 삼키지 않고 노출한다(재사용 시스템에서 "음악이 노이즈로 나오는" 회귀 감지용).
+            print(f"[materials] Lyria BGM 실패 -> 합성 베드 폴백: {exc}", file=sys.stderr)
     return synth_music_bed(total_dur, bpm, str(Path(panels_dir) / "bgm.wav"))
 
 
@@ -196,9 +220,13 @@ def _multishot_prompt(
         if product_identity
         else "Keep the same person and the same product consistent across every shot."
     )
+    from .product import FACE_MASK_CLARITY
+
     lines += [
         product_line,
-        "Keep the same person consistent across every shot.",
+        "Keep the same person consistent across every shot; exactly one person, no duplicate people.",
+        # 투명 하이드로겔 마스크가 얼굴에 씌워질 때 Veo가 주황 끈적임으로 뭉개는 것을 막는다.
+        FACE_MASK_CLARITY,
         # Veo가 인물을 지나치게 사실적으로 바꾸며 매력도를 떨어뜨릴 때가 있어, 시작 이미지의
         # 미모·매력을 그대로 유지하라고 명시한다(단, 플라스틱 아닌 자연스러움은 유지).
         "Keep the person exactly as attractive and beautiful as the start image — flattering, "
@@ -276,11 +304,17 @@ def _beat_cut_frame(panel: StoryboardPanel, cut_index: int) -> tuple[float, floa
     st = (panel.shot_type or "").lower()
     zoom = next((z for keys, z in _SHOT_ZOOM if any(k in st for k in keys)), None)
     if zoom is None:
-        zoom = 1.0 if cut_index % 2 == 0 else 1.22
+        zoom = 1.1
     if panel.product_lock:
         zoom = max(zoom, 1.2)  # 제품 강조는 최소한 밀어 넣는다
     y_frac = 0.62 if panel.product_lock else 0.42  # 제품=아래(손/제품), 인물=위(얼굴)
-    return round(zoom, 3), y_frac
+    # 인접 컷이 같은 shot_type/제품이어도 화면이 확 달라야 컷 감지기가 경계를 잡는다(안 그러면
+    # 매끄러운 Veo 푸티지에서 서브컷이 합쳐져 컷 수가 줄고 리듬이 slow로 오인된다). 홀수 컷을 더
+    # 밀어넣고 세로 앵커를 내려, 인접 두 컷의 크롭 영역을 항상 크게 벌린다.
+    if cut_index % 2 == 1:
+        zoom = min(1.6, zoom + 0.18)
+        y_frac = min(0.85, y_frac + 0.16)
+    return round(zoom, 3), round(y_frac, 3)
 
 
 def _extract_subcut(
@@ -383,8 +417,19 @@ def build_visuals(
                 )
                 made = True
                 made_any = True
+            except VeoImageRAIError as exc:
+                # 인물 이미지-RAI(대개 실존 인물과 유사)는 이 세그먼트만 스틸(켄 번스)로 폴백한다.
+                # 인물 레퍼런스를 가깝게 따르면 Veo가 가끔 얼굴을 정책 차단하는데(스틸/나노바나나는
+                # 통과), 런 전체를 거절하는 대신 그 세그먼트를 스틸로 채워 영상은 완성한다(사용자
+                # 지시: 살짝만 바꿔 가깝게 가고, 통과 안 되면 스틸로). RAI 사실은 경고로 크게 남긴다.
+                made = False
+                print(
+                    f"[materials] Veo 세그먼트{seg_pos}(패널 {indices}) 인물 RAI 차단 -> 스틸 폴백"
+                    f"(이 컷은 영상화 생략): {exc}",
+                    file=sys.stderr,
+                )
             except Exception as exc:
-                # 영상 모델 실패 -> 앵커 스틸 폴백. 조용히 삼키지 않고 원인을 노출한다.
+                # 그 밖의 영상 모델 실패 -> 앵커 스틸 폴백. 조용히 삼키지 않고 원인을 노출한다.
                 made = False
                 print(
                     f"[materials] Veo 세그먼트{seg_pos}(패널 {indices}) 실패 -> 스틸 폴백: {exc}",

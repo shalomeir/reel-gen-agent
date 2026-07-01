@@ -5,6 +5,7 @@ from PIL import Image
 from reel_gen_agent.analysis.media_probe import has_audio_stream
 from reel_gen_agent.generate.assemble import assemble
 from reel_gen_agent.generate.audio import (
+    _NARRATION_TAIL_SEC,
     NARRATION_GAP_SEC,
     NARRATION_MAX_TEMPO,
     _narration_timeline,
@@ -81,6 +82,26 @@ def test_narration_timeline_compresses_to_fit_without_cutoff():
     ends = _ends(durs, tempo, starts)
     for i in range(1, len(starts)):
         assert starts[i] >= ends[i - 1] - 1e-9  # 여전히 겹치지 않는다
+
+
+def test_narration_track_len_never_exceeds_video():
+    # 대사가 넘쳐도(8*2.2s를 10.7s 영상에) voice 트랙 길이는 영상 길이를 넘지 않아야 한다.
+    # 넘으면 mux에서 마지막 프레임이 얼어붙고 소리만 이어진다(리포트된 버그).
+    durs = [2.2] * 8
+    total = 10.7
+    tempo, starts = _narration_timeline(durs, first_start=0.0, total_dur=total)
+    last_end = max(s + d / tempo for s, d in zip(starts, durs, strict=True))
+    track_len = min(total, last_end + _NARRATION_TAIL_SEC)
+    assert track_len <= total + 1e-9
+
+
+def test_narration_timeline_reserves_tail_within_video():
+    # 예산 안에 드는 대사는 마지막 여운(tail)까지 영상 길이 안에 들어가 프리즈가 생기지 않는다.
+    durs = [1.5, 1.5, 1.5]
+    total = 10.0
+    tempo, starts = _narration_timeline(durs, first_start=0.0, total_dur=total)
+    last_end = max(s + d / tempo for s, d in zip(starts, durs, strict=True))
+    assert last_end + _NARRATION_TAIL_SEC <= total + 1e-9
 
 
 def test_synth_bed_makes_non_silent_audio(tmp_path):

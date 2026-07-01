@@ -17,12 +17,24 @@ from ..analysis.profile import Product
 from .schema import ProductSpec
 from .text_client import TextClient
 
+# 얼굴에 착용하는 시트/하이드로겔 마스크는 반드시 투명·반투명으로 렌더한다. 영상 모델(특히 Veo)이
+# 따뜻한 조명 아래 투명 젤을 주황·갈색 끈적임으로 뭉개는 회귀를 막는다. 마스크가 아닌 제품엔 무해한
+# 조건부 지시라 항상 붙여도 된다.
+FACE_MASK_CLARITY = (
+    "If a sheet mask or hydrogel mask is worn on the face, render it as a clean, clear, translucent, "
+    "slightly milky-white gel sheet that conforms smoothly to the skin with neat eye, nose and mouth "
+    "openings; it must NOT look orange, amber, yellow, brown, sticky, melting, slimy or goopy, even "
+    "under warm lighting."
+)
+# 인물 중복(얼굴 2개) 버그 방지. 셀피/포트레이트 스틸과 영상 시작 프레임에 붙인다.
+SOLO_PERSON = "Exactly ONE person in the frame, solo — no second person and no duplicate faces."
+
 _PROMPT = (
     "Analyze the advertised product for a short-form beauty ad and fill its spec so the SAME "
     "product can be rendered consistently across many cuts. Infer sensible, realistic details from "
     "the name/brief. Use the user's product name. Do NOT invent or copy a brand name or on-package "
     "text.\n"
-    "Product name/brief: {name}\nExtra brief: {brief}\n{ref}\n"
+    "Product name/brief: {name}\nExtra brief: {brief}\n{web}{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"name": str, "category": str, "form": str, "packaging_desc": str, '
     '"colors": [str, ...], "key_features": [str, ...], "usp": str, "affordances": [str, ...]}}. '
@@ -103,13 +115,21 @@ def derive_product(
     brief: str,
     reference_product: Product | None,
     text_client: TextClient | None,
+    web_context: str = "",
 ) -> ProductSpec:
-    """브리프·레퍼런스로 ProductSpec을 채운다. LLM 우선, 실패/부재 시 레퍼런스 시각 특성 폴백."""
+    """브리프·레퍼런스로 ProductSpec을 채운다. LLM 우선, 실패/부재 시 레퍼런스 시각 특성 폴백.
+
+    web_context가 있으면(제품 URL을 스크래핑한 판매 페이지 근거) 이름/브리프보다 우선해 실제
+    제품의 카테고리·제형·용기·색·특징을 그 텍스트에서 뽑도록 프롬프트에 함께 댄다.
+    """
     if text_client is None:
         return _from_reference(name, reference_product)
+    web = f"{web_context.strip()}\n" if web_context.strip() else ""
     try:
         raw = text_client.complete(
-            _PROMPT.format(name=name, brief=brief, ref=_ref_hint(reference_product)),
+            _PROMPT.format(
+                name=name, brief=brief, web=web, ref=_ref_hint(reference_product)
+            ),
             temperature=0.6,
         )
         data = json.loads(_extract_json(raw))

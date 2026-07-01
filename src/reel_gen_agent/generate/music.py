@@ -9,32 +9,54 @@ from __future__ import annotations
 
 import json
 
-from .schema import ModelSpec, MusicSpec, ProductSpec
+from .schema import HookCandidate, ModelSpec, MusicSpec, ProductSpec
 from .text_client import TextClient
 
 _PROMPT = (
-    "You are a short-form music supervisor. Pick the MUSIC that makes this specific vertical beauty "
-    "reel feel great, then the audio-effect flags. Short-form lives or dies on music you can FEEL — "
-    "choose a characterful, engaging genre/mood with real energy; never a bland, generic, forgettable "
-    "bed. Match the video's editing energy and tone: a fast/montage or transformation edit wants "
-    "upbeat, driving, catchy music (it can be prominent and build to the payoff); a slow, sensorial "
-    "edit wants a calmer but still tasteful, textured track. Do not default to any fixed genre — fit "
-    "THIS video's flow.\n"
+    "You are a short-form music supervisor for beauty reels. You define an INSTRUMENTAL BACKGROUND "
+    "MUSIC BED that sits UNDER the visuals — not a foreground song.\n"
+    "Model reality (important, set expectations accordingly): the music generator (Lyria 3) is "
+    "reliable at INSTRUMENTAL beds with a clearly specified genre, tempo, and energy contour, but it "
+    "is NOT reliable at foreground vocal songs, lyrics, or hooks — AI vocals come out cheesy and "
+    "amateur. So never aim for a vocal/topline-driven track. Aim for a tasteful, professional "
+    "instrumental bed whose job is to carry TEMPO and VIBE quietly behind the video.\n"
+    "Taste still matters: pick a polished, current, professional genre that fits the audience (young, "
+    "social-first, predominantly female / Gen-Z, early-20s) — clean and modern, never elevator "
+    "music, generic acoustic/whistle stock pop, or a tired corporate 'happy' loop. Deep/organic "
+    "house, French touch / filtered disco-house, downtempo/chillwave, and lo-fi/jazzy beats are good "
+    "professional-bed reference points (not a fixed menu). Fit THIS video's flow, not a default.\n"
+    "MOST IMPORTANT — specify these three in FINE DETAIL, this is what makes the bed good:\n"
+    "1) GENRE/style: concrete and specific (e.g. 'clean modern deep house, organic house'), not just "
+    "'pop' or 'electronic'.\n"
+    "2) TEMPO/rhythm: the groove and feel (e.g. 'steady four-on-the-floor, relaxed but driving') — "
+    "the exact bpm is set separately to match the cut rhythm, so describe the RHYTHMIC FEEL here.\n"
+    "3) DYNAMICS (energy contour / 강약): how energy moves across the clip — either an even, steady "
+    "bed ('flat') or a gentle rise into the payoff ('build') — and describe it (e.g. 'soft intro, "
+    "subtle lift toward the end, no big drop').\n"
+    "Also name the key INSTRUMENTATION driving the track in detail (e.g. 'warm rolling sub bass, soft "
+    "filtered chord stabs, crisp minimal hi-hats, gentle atmospheric pads') — without this the bed "
+    "comes out thin and generic.\n"
     "Brief: {brief}\nProduct: {product}\nTone: {tone}\nCreator: {character}\n"
-    "Editing energy (cut pacing): {pacing}\n{ref}\n"
+    "Editing energy (cut pacing): {pacing}\n{hook}\n{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
-    '{{"style": str, "mood": str, "type": str, "dynamics": "flat"|"build", '
-    '"prominence": "background"|"prominent", "vocal": bool, "bgm": "bed"|"none", "sfx": bool}}. '
-    "style is the genre/production style; type is a short descriptor; dynamics is whether energy "
-    "rises to a payoff (build) or stays even (flat). prominence: 'prominent' when the video is "
-    "vibe/aesthetic-driven and narration is minimal/interjections (music should be felt loudly), "
-    "else 'background' when narration carries the information. vocal: true if the track has "
-    "singing/lyrics (e.g. a pop song) rather than a purely instrumental bed. bgm: 'none' only when "
-    "the concept works better with NO music bed (e.g. crisp ASMR/texture-forward), otherwise 'bed'. "
+    '{{"style": str, "mood": str, "type": str, "instrumentation": str, "dynamics_detail": str, '
+    '"dynamics": "flat"|"build", "prominence": "background"|"prominent", "bgm": "bed"|"none", '
+    '"sfx": bool}}. '
+    "style is the concrete genre/production style; type is a short descriptor; instrumentation is the "
+    "detailed instrument/sound palette; dynamics_detail is a short phrase describing the energy "
+    "contour; dynamics is the coarse flag (build if energy rises to a payoff, else flat). prominence: "
+    "'prominent' when the video is vibe/aesthetic-driven and narration is minimal/interjections, else "
+    "'background' when narration carries the information (the bed stays instrumental either way). "
+    "bgm: 'none' only when the concept works better with NO music bed (e.g. crisp ASMR/texture-"
+    "forward), otherwise 'bed'. "
     "sfx: true ONLY when the edit calls for produced, non-diegetic effect sounds — transition "
     "whooshes on cuts, graphic/sparkle accents, a hook riser, or an ending jingle/ding (a punchy, "
-    "'variety-show' edited feel). Do NOT set sfx for natural in-scene sounds (spray, tap, pour) — "
-    "the video model renders those. Default false unless the concept clearly wants that produced edit."
+    "'variety-show' edited feel). Weigh the HOOK design specifically: if the hook is built for a "
+    "punchy impact moment (a bold reveal, a stop-scrolling beat, a snappy variety-show open), a "
+    "produced accent like a hook riser or whoosh can earn its place; if the hook is calm, clean, or "
+    "sensorial (texture/ASMR-forward), keep sfx false. Let the hook's need for impact drive the "
+    "call, not habit. Do NOT set sfx for natural in-scene sounds (spray, tap, pour) — the video "
+    "model renders those. Default false unless the concept clearly wants that produced edit."
 )
 
 
@@ -48,6 +70,28 @@ def _extract_json(raw: str) -> str:
     return s[start : end + 1] if start != -1 and end > start else s
 
 
+def _hook_hint(hook: HookCandidate | None) -> str:
+    """후크 설계를 music 노드가 SFX(임팩트 액센트) 판단에 참고할 한 줄 힌트로 만든다.
+
+    후크가 텍스트 없이 비주얼/사운드로만 치고 나가거나(no_text_visual) command형이면 임팩트
+    액센트가 어울릴 수 있고, 차분/센서리 후크면 무음이 낫다. 결정은 LLM이 한다(여기선 힌트만).
+    """
+    if hook is None:
+        return "Hook design: unspecified."
+    bits = []
+    if hook.headline:
+        bits.append(f"headline='{hook.headline}'")
+    if hook.visual_direction:
+        bits.append(f"visual='{hook.visual_direction}'")
+    if hook.no_text_visual:
+        bits.append("text-free visual/sound-led open")
+    if hook.variant:
+        bits.append(f"variant={hook.variant}")
+    if hook.rationale:
+        bits.append(f"why='{hook.rationale}'")
+    return "Hook design (decide if it needs a produced impact accent): " + ("; ".join(bits) or "minimal")
+
+
 def derive_music(
     brief: str,
     product: ProductSpec,
@@ -56,6 +100,7 @@ def derive_music(
     text_client: TextClient | None,
     character: ModelSpec | None = None,
     pacing: str | None = None,
+    hook: HookCandidate | None = None,
 ) -> MusicSpec:
     """브리프·톤·페이싱·레퍼런스로 MusicSpec을 도출한다. LLM 우선, 실패/부재 시 레퍼런스/중립 폴백.
 
@@ -82,6 +127,7 @@ def derive_music(
                     brief=brief, product=product.name, tone=", ".join(tone) or "unspecified",
                     character=(character_brief(character) if character else "unspecified"),
                     pacing=pacing or "unspecified",
+                    hook=_hook_hint(hook),
                     ref=ref_hint,
                 ),
                 temperature=0.7,
@@ -90,18 +136,19 @@ def derive_music(
             style = str(data.get("style") or "").strip() or ref.style
             mood = str(data.get("mood") or "").strip() or ref.mood
             type_ = str(data.get("type") or "").strip() or ref.type
+            instrumentation = str(data.get("instrumentation") or "").strip() or ref.instrumentation
             dynamics = str(data.get("dynamics") or "").strip() or ref.dynamics
+            dynamics_detail = str(data.get("dynamics_detail") or "").strip() or ref.dynamics_detail
             prominence = "prominent" if str(data.get("prominence", "")).strip().lower() == "prominent" else "background"
-            vocal = bool(data.get("vocal", False))
             bgm = "none" if str(data.get("bgm", "")).strip().lower() == "none" else "bed"
             sfx = bool(data.get("sfx", False))
-            # 보컬/가사가 있으면 배경으로 너무 묻지 않게 존재감을 올린다(사용자 지시).
-            if vocal and prominence != "prominent":
-                prominence = "prominent"
+            # 보컬은 아예 시도하지 않는다(사용자 지시): AI 보컬은 촌스럽고 Lyria 3가 신뢰도 낮다.
+            # BGM은 항상 인스트루멘털 배경 베드다(vocal=False 고정).
             if style or mood or type_:
                 return MusicSpec(
-                    mood=mood, style=style, type=type_, dynamics=dynamics, tempo=ref.tempo,
-                    prominence=prominence, vocal=vocal, bgm=bgm, sfx=sfx,
+                    mood=mood, style=style, type=type_, instrumentation=instrumentation,
+                    dynamics=dynamics, dynamics_detail=dynamics_detail, tempo=ref.tempo,
+                    prominence=prominence, vocal=False, bgm=bgm, sfx=sfx,
                 )
         except Exception:
             pass

@@ -42,12 +42,23 @@ def test_llm_decides_sfx_and_bgm_none():
     assert m.bgm == "none"
 
 
-def test_llm_vocal_track_becomes_prominent():
-    # 보컬/가사가 있으면 배경으로 묻지 않게 prominence를 올린다.
+def test_music_is_always_instrumental_bed():
+    # 보컬은 시도하지 않는다(Lyria 3 한계 + 사용자 지시): LLM이 보컬을 원해도 항상 인스트루멘털.
     fake = _FakeText(
         '{"style":"indie pop","mood":"upbeat","type":"song","dynamics":"build",'
-        '"prominence":"background","vocal":true,"bgm":"bed","sfx":false}'
+        '"prominence":"prominent","vocal":true,"bgm":"bed","sfx":false}'
     )
     m = derive_music("vibey grwm", _PRODUCT, ["fun"], None, text_client=fake)
-    assert m.vocal is True
-    assert m.prominence == "prominent"
+    assert m.vocal is False
+
+
+def test_llm_dynamics_detail_carried_through():
+    # 강약(에너지 컨투어) 세부 서술을 MusicSpec에 실어 Lyria 프롬프트로 전달한다.
+    fake = _FakeText(
+        '{"style":"deep house","mood":"premium","type":"bed","instrumentation":"sub bass, pads",'
+        '"dynamics_detail":"soft intro, subtle lift toward the end","dynamics":"build",'
+        '"prominence":"background","bgm":"bed","sfx":false}'
+    )
+    m = derive_music("clean beauty", _PRODUCT, ["premium"], None, text_client=fake)
+    assert m.dynamics_detail == "soft intro, subtle lift toward the end"
+    assert m.instrumentation == "sub bass, pads"

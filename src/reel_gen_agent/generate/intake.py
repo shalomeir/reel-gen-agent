@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from .schema import AssetInput, Objective
 
 _URL = re.compile(r"https?://\S+")
 _PATH = re.compile(r"\.?/?\S+\.(?:mp4|mov|jpg|jpeg|png|webp)", re.IGNORECASE)
 _VIDEO_EXT = (".mp4", ".mov")
+_IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
 
 
 @dataclass
@@ -23,6 +25,24 @@ class IntakeResult:
     product: AssetInput
     reference_ref: str | None
     raw_brief: str | None
+    # 캐릭터·제품 소스가 존재하는 로컬 이미지 파일이면 그 절대경로(에셋 생성의 참조 이미지로 쓴다).
+    character_image: str | None = None
+    product_image: str | None = None
+
+
+def _local_image(src: str | None) -> str | None:
+    """소스가 존재하는 로컬 이미지 파일이면 절대경로를, 아니면 None을 돌려준다.
+
+    입력으로 받은 인물/제품 이미지를 에셋 생성 단계의 참조(image-to-image)로 주입하기 위한
+    해소기다(specs/product-design.md '판별 규칙': 인물 이미지→캐릭터, 제품 이미지→제품). URL은
+    여기서 다루지 않는다(로컬 파일만).
+    """
+    if not src:
+        return None
+    path = Path(src).expanduser()
+    if path.suffix.lower() in _IMAGE_EXT and path.exists():
+        return str(path.resolve())
+    return None
 
 
 def _labeled(raw: str, labels: list[str]) -> str | None:
@@ -97,4 +117,6 @@ def intake(raw: str) -> IntakeResult:
         product=product,
         reference_ref=ref_src,
         raw_brief=raw.strip() or None,
+        character_image=_local_image(character_src),
+        product_image=_local_image(product_src),
     )

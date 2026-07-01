@@ -49,6 +49,15 @@ class _VeoTransientError(RuntimeError):
     """일시적 Veo 오류(네트워크/타임아웃/미완료). tenacity가 이 예외만 재시도한다."""
 
 
+class VeoImageRAIError(RuntimeError):
+    """입력 스틸이 RAI 정책에 차단됨(프롬프트 무관, 최소 중립 프롬프트로도 실패).
+
+    대개 생성 인물이 실존·식별 가능한 인물과 유사하거나 기타 콘텐츠 정책 사유다. 이 경우는
+    프롬프트 완화로 못 뚫고 스틸 폴백으로 덮는 것도 부적절하므로(가짜 초상 광고 방지), 위로
+    올려 production을 명시적으로 거절시킨다(사용자 지시). reason에 사유를 담아 CLI가 노출한다.
+    """
+
+
 def _veo_seconds(duration_sec: float) -> int:
     """패널 길이를 Veo가 만들 수 있는 최소 허용 길이로 올림한다(4/6/8)."""
     for s in _ALLOWED_VEO_SEC:
@@ -217,8 +226,11 @@ class VeoBackend:
             probe_uri = self._generate_video_uri(client, _MINIMAL_PROMPT, image, config)
             if not probe_uri:
                 # 무해한 프롬프트로도 막힘 = 입력 이미지가 트리거. 프롬프트로는 못 뚫는다.
-                raise RuntimeError(
-                    "Veo 이미지-RAI: 입력 스틸이 RAI에 차단됨(최소 프롬프트도 실패, 프롬프트 무관)"
+                # 대개 생성 인물이 실존 인물과 유사한 경우다. 스틸 폴백으로 덮지 않고 거절시킨다.
+                raise VeoImageRAIError(
+                    "입력 스틸이 콘텐츠 안전(RAI) 필터에 차단되었습니다(최소 중립 프롬프트로도 "
+                    "실패, 프롬프트 무관). 생성된 인물이 실존·식별 가능한 인물과 너무 유사하거나 "
+                    "기타 정책 사유일 수 있습니다."
                 )
             print(
                 "[veo] 원인=프롬프트(최소 프롬프트는 통과) -> LLM 재작성으로 방향 복원 시도",

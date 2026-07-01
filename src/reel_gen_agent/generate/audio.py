@@ -46,6 +46,8 @@ def _audio_duration(path: str) -> float:
 NARRATION_GAP_SEC = 0.15
 # 전체 길이에 맞추려 올릴 수 있는 최대 템포. 넘으면 목소리가 부자연스러워 여기서 캡한다.
 NARRATION_MAX_TEMPO = 1.6
+# 마지막 대사 뒤 짧은 여운(툭 끊김 방지). 이 여운까지 영상 길이 안에 들어가야 프리즈가 없다.
+_NARRATION_TAIL_SEC = 0.35
 
 
 def _narration_timeline(
@@ -54,14 +56,17 @@ def _narration_timeline(
     """대사 길이 목록을 순차 배치 타임라인으로 바꾼다(겹침 없음).
 
     첫 대사는 first_start에서 시작하고, 각 다음 대사는 직전 대사(압축 후 길이)가 끝나고
-    NARRATION_GAP_SEC만큼 쉰 뒤 시작한다. 전체 대사+쉼이 남은 길이를 넘으면 모든 대사에
-    같은 템포(최대 NARRATION_MAX_TEMPO)를 걸어 잘리지 않게 압축한다.
+    NARRATION_GAP_SEC만큼 쉰 뒤 시작한다. 전체 대사+쉼+마지막 여운이 영상 길이를 넘으면
+    모든 대사에 같은 템포(최대 NARRATION_MAX_TEMPO)를 걸어 압축한다.
+
+    가용 구간에서 마지막 여운(_NARRATION_TAIL_SEC)을 미리 뺀다. 그래야 배치가 끝난 voice
+    트랙이 여운까지 합쳐도 영상 길이를 넘지 않아, mux에서 마지막 프레임이 얼어붙지 않는다.
 
     반환: (적용 템포, 각 대사 시작 시각 목록). 시작 시각은 항상 비감소이며 겹치지 않는다.
     """
     anchor = min(total_dur, max(0.0, first_start))
     content = sum(durs) + NARRATION_GAP_SEC * (len(durs) - 1)
-    available = max(0.1, total_dur - anchor)
+    available = max(0.1, total_dur - anchor - _NARRATION_TAIL_SEC)
     tempo = min(NARRATION_MAX_TEMPO, content / available) if content > available else 1.0
 
     starts: list[float] = []
@@ -86,7 +91,8 @@ def compose_aligned_narration(
     각 대사를 TTS한 뒤 스토리보드 순서대로 이어 깐다. 대사는 절대 겹치지 않는다: 다음
     대사는 직전 대사가 끝나고 NARRATION_GAP_SEC만큼 쉰 뒤 시작한다. 첫 대사는 해당 패널
     t_start에서 시작해 영상 도입과 맞춘다. 전체 대사가 total_dur를 넘으면 전 대사에 같은
-    템포(최대 NARRATION_MAX_TEMPO)를 걸어 잘리지 않게 맞춘다(넘침 대신 균일 압축).
+    템포(최대 NARRATION_MAX_TEMPO)를 걸어 압축한다. voice 트랙은 total_dur(영상 길이)를
+    절대 넘지 않도록 캡한다 -> mux에서 마지막 프레임이 얼어붙고 소리만 이어지는 일이 없다.
     """
     work = Path(work_dir)
     work.mkdir(parents=True, exist_ok=True)
@@ -111,17 +117,15 @@ def compose_aligned_narration(
         return None
 
     # 첫 대사는 그 패널 t_start에서 시작. 순차 배치 타임라인을 계산한다(겹침 없음).
-    tempo, line_starts = _narration_timeline(
-        [dur for _, dur, _ in made], made[0][2], total_dur
-    )
+    tempo, line_starts = _narration_timeline([dur for _, dur, _ in made], made[0][2], total_dur)
 
-    # 마지막 대사가 실제로 끝나는 지점. 최대 압축(1.6배)으로도 total_dur를 넘으면, 트랙을 그만큼
-    # 늘려 대사를 자르지 않는다(mux에서 영상이 마지막 프레임을 유지하며 그만큼 늘어난다).
-    _NARRATION_TAIL_SEC = 0.35  # 마지막 대사 뒤 짧은 여운(툭 끊김 방지)
+    # 마지막 대사가 실제로 끝나는 지점. voice 트랙은 영상 길이(total_dur)를 절대 넘지 않도록
+    # 캡한다. 넘치면 mux에서 마지막 프레임이 얼어붙고 소리만 이어져(리포트된 버그) 어색하다.
+    # 대사량은 애초에 영상 길이에 맞춰 예산화하므로(narration_lines) 여기서 잘릴 일은 거의 없다.
     last_end = max(
         start + dur / tempo for (_, dur, _), start in zip(made, line_starts, strict=True)
     )
-    track_len = max(total_dur, last_end + _NARRATION_TAIL_SEC)
+    track_len = min(total_dur, last_end + _NARRATION_TAIL_SEC)
 
     inputs: list[str] = []
     filters: list[str] = []

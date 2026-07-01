@@ -49,6 +49,11 @@ class PlanState(TypedDict, total=False):
     text_client: Any
     image_client: Any
     tracer: Any
+    # 입력으로 받은 인물·제품 이미지의 로컬 경로(있으면 에셋 생성의 참조로 쓴다).
+    character_image: str
+    product_image: str
+    # 입력으로 받은 제품 URL(있으면 판매 페이지를 스크래핑해 카탈로그 근거로 쓴다).
+    product_url: str
     # 파생 컨텍스트(노드가 채운다)
     objective: Any
     product: Any
@@ -83,9 +88,21 @@ def _intake_node(state: PlanState) -> dict:
         result = intake(state["raw"])
         if result.objective is None:
             raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
+        # 제품 소스가 로컬 이미지/URL이면 그건 참조일 뿐 이름이 아니다. 그 경우 이름은 비워
+        # 두고(=product), 제품 노드의 LLM이 브리프에서 실제 제품명을 추론하게 한다.
+        product_name = result.product.source or "product"
+        product_url = ""
+        if (result.product.source or "").startswith(("http://", "https://")):
+            product_url = result.product.source or ""
+            product_name = "product"
+        elif result.product_image:
+            product_name = "product"
         return {
             "objective": result.objective,
-            "product": ProductSpec(name=(result.product.source or "product")),
+            "product": ProductSpec(name=product_name),
+            "character_image": result.character_image or "",
+            "product_image": result.product_image or "",
+            "product_url": product_url,
             "meta": InputMeta(),
             "style": StyleDimensions(),
             "music": MusicSpec(),
@@ -133,15 +150,40 @@ def _plan_asset_dir(state: PlanState) -> str:
 
 
 def _product_node(state: PlanState) -> dict:
-    """제품 분석 + 제품 에셋 생성. 이 단계에서 제품 히어로·패키지 이미지까지 만든다(노드에서 처리)."""
+    """제품 분석 + 제품 에셋 생성. 이 단계에서 제품 히어로·패키지 이미지까지 만든다(노드에서 처리).
+
+    제품 URL이 있으면 판매 페이지를 스크래핑해 본문·제품 사진 다수를 근거로 모으고(백업 자료),
+    그 사진들을 VLM으로 함께 분석해 실제 제품의 특징을 반영한 ProductSpec을 뽑는다(product_source).
+    스크래핑/분석이 안 되면 텍스트 브리프 기반 derive_product로 폴백한다. 실제 제품 사진은 히어로/
+    패키지 렌더의 참조로도 쓴다. 이 노드 산출물(스펙+사진)이 훅·스토리보드로도 흘러 앵커가 된다.
+    """
+    from .product_source import collect_materials, extract_product
+
     with state["tracer"].node("product"):
-        product = derive_product(
-            state["product"].name, state["objective"].goal, state.get("ref_product"),
-            state.get("text_client"),
-        )
+        goal = state["objective"].goal
+        plan_dir = _plan_asset_dir(state)
+        url = (state.get("product_url") or "").strip()
+
+        materials = collect_materials(url, plan_dir) if url else None
+        # 참조 이미지: 스크래핑한 실제 제품 사진(상위 2장) + 사용자가 직접 준 로컬 제품 이미지.
+        refs = list(materials.image_paths[:2]) if materials else []
+        local_img = state.get("product_image")
+        if local_img:
+            refs.append(local_img)
+
+        product = None
+        if materials is not None:
+            product = extract_product(materials, fallback_name=state["product"].name)
+        if product is None:  # 스크래핑/분석 실패 -> 텍스트 경로(근거 있으면 web_context로 전달)
+            product = derive_product(
+                state["product"].name, goal, state.get("ref_product"),
+                state.get("text_client"),
+                web_context=(materials.web_context if materials else ""),
+            )
+
         profile = build_product_asset(
-            product, state.get("image_client"), _plan_asset_dir(state),
-            palette=state["style"].palette,
+            product, state.get("image_client"), plan_dir,
+            palette=state["style"].palette, refs=refs,
         )
         return {"product": product, "product_profile": profile}
 
@@ -156,6 +198,7 @@ def _character_node(state: PlanState) -> dict:
         profile = build_character_asset(
             character, state.get("image_client"), _plan_asset_dir(state),
             palette=state["style"].palette,
+            refs=[r for r in [state.get("character_image")] if r],
         )
         return {"character": character, "character_profile": profile}
 
@@ -177,6 +220,9 @@ def _music_node(state: PlanState) -> dict:
                 state["objective"].goal, state["product"], state["style"].tone,
                 state["music"], state.get("text_client"), character=state["character"],
                 pacing=state["style"].pacing,
+                # 후크 설계(레퍼런스 시드가 채운 style.hook)를 넘겨 SFX(임팩트 액센트) 여부를
+                # 후크가 임팩트를 필요로 하는지에 근거해 판단하게 한다(하드코딩 아닌 LLM 판단).
+                hook=state["style"].hook,
             )
         }
 

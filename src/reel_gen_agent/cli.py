@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 
 import typer
@@ -25,12 +27,44 @@ from .analysis.reference import _find_project_root, download_via_script
 from .analysis.reference import add_reference as add_reference_flow
 from .analysis.rubric import evaluate_video
 from .analysis.similarity import SimilarityReport, compare_profiles
+from .generate.backends.veo import VeoImageRAIError
 from .generate.conformance import verify_conformance
 from .generate.intake import intake, validate_purpose
 from .generate.planning_graph import run_planning
 from .generate.production_graph import run_production
 from .generate.schema import GenerationInput, ReelProfile, RunManifest, Storyboard
 from .generate.text_client import make_text_client
+
+
+def _quiet_genai_logs() -> None:
+    """google-genai가 매 호출마다 찍는 정보/경고 로그를 억제한다(예: 'Both GOOGLE_API_KEY...').
+
+    두 키를 다 설정해도 동작에는 문제가 없어(GOOGLE_API_KEY 우선) 반복 경고만 시끄럽다. CLI
+    출력(대화·스피너)을 깨끗하게 유지하려고 이 로거만 ERROR로 올린다.
+    """
+    logging.getLogger("google_genai").setLevel(logging.ERROR)
+
+
+_STATUS_CONSOLE = None
+
+
+def _working(msg: str, fn):
+    """비대화 명령의 대기 표시. stderr에 로딩 스피너(...)를 띄우고 fn을 돌려 결과를 반환한다.
+
+    stdout(analyze/evaluate/verify가 찍는 JSON payload)은 건드리지 않는다. TTY가 아니면(파이프/CI)
+    스피너 제어문자 대신 한 줄만 찍고 조용히 실행한다.
+    """
+    global _STATUS_CONSOLE
+    from rich.console import Console
+
+    if _STATUS_CONSOLE is None:
+        _STATUS_CONSOLE = Console(stderr=True)
+    if not _STATUS_CONSOLE.is_terminal:
+        _STATUS_CONSOLE.print(f"… {msg}")
+        return fn()
+    with _STATUS_CONSOLE.status(f"[cyan]{msg}[/]", spinner="simpleDots"):
+        return fn()
+
 
 app = typer.Typer(
     add_completion=False,
@@ -41,6 +75,23 @@ app = typer.Typer(
 def _read(path: str) -> str:
     """JSON 파일을 UTF-8 텍스트로 읽는다(verify의 입력 로딩용)."""
     return Path(path).read_text(encoding="utf-8")
+
+
+def _produce(profile_path: str, *, use_vlm: bool):
+    """Production을 돌리되 인물 이미지-RAI 차단은 트레이스백 대신 거절로 끝낸다.
+
+    생성 인물이 실존·식별 가능한 인물과 유사해 영상 모델(Veo) 안전 필터에 막히면, 스틸로
+    덮어 가짜 초상 광고를 만들지 않고 사유를 리턴하며 종료한다(exit code 2).
+    """
+    try:
+        return run_production(profile_path, use_vlm=use_vlm)
+    except VeoImageRAIError as exc:
+        typer.echo(f"거절(RAI): {exc}", err=True)
+        typer.echo(
+            "→ 실존 인물을 특정하지 않는 인물로 바꾸거나, 캐릭터 참조 이미지 없이 다시 시도하세요.",
+            err=True,
+        )
+        raise typer.Exit(code=2) from exc
 
 
 def _is_url(value: str) -> bool:
@@ -86,7 +137,7 @@ def analyze(
             raise typer.Exit(code=1)
         video, source_url = source, url
 
-    profile = analyze_video(video, url=source_url, use_gemini=not no_gemini)
+    profile = _working("레퍼런스 분석 중", lambda: analyze_video(video, url=source_url, use_gemini=not no_gemini))
     payload = json.dumps(profile.model_dump(), ensure_ascii=False, indent=2)
 
     if out:
@@ -162,7 +213,7 @@ def evaluate(
         typer.echo(f"파일 없음: {video}", err=True)
         raise typer.Exit(code=1)
 
-    result = evaluate_video(video, use_gemini=not no_gemini)
+    result = _working("Rubric 채점 중", lambda: evaluate_video(video, use_gemini=not no_gemini))
     payload = json.dumps(result.model_dump(), ensure_ascii=False, indent=2)
 
     if out:
@@ -202,12 +253,11 @@ def verify(
     board = Storyboard.model_validate_json(_read(storyboard)) if storyboard else None
     run = RunManifest.model_validate_json(_read(manifest)) if manifest else None
 
-    report = verify_conformance(
-        video,
-        gen_input=gen_input,
-        storyboard=board,
-        manifest=run,
-        use_vlm=not no_vlm,
+    report = _working(
+        "Conformance 검증 중",
+        lambda: verify_conformance(
+            video, gen_input=gen_input, storyboard=board, manifest=run, use_vlm=not no_vlm
+        ),
     )
     payload = json.dumps(report.model_dump(), ensure_ascii=False, indent=2)
 
@@ -263,8 +313,8 @@ def compare(
     두 입력은 각각 VideoProfile JSON이거나 영상 파일이다. 영상이면 analyze로 프로필을 만든다.
     계약은 specs/similarity-loop.md.
     """
-    ref = _load_profile(reference, use_gemini=not no_gemini)
-    gen = _load_profile(output, use_gemini=not no_gemini)
+    ref = _working("레퍼런스 분석 중", lambda: _load_profile(reference, use_gemini=not no_gemini))
+    gen = _working("생성물 분석 중", lambda: _load_profile(output, use_gemini=not no_gemini))
     report = compare_profiles(ref, gen)
     payload = json.dumps(report.model_dump(), ensure_ascii=False, indent=2)
     if out:
@@ -295,7 +345,10 @@ def plan(
         typer.echo(f"거절: {reason}", err=True)
         raise typer.Exit(code=2)
     img = None if no_images else _make_image_client()
-    path = run_planning(brief, outputs, text_client=client, image_client=img)
+    path = _working(
+        "기획 중 (ReelProfile·에셋 생성)",
+        lambda: run_planning(brief, outputs, text_client=client, image_client=img),
+    )
     typer.echo(f"ReelProfile: {path}", err=True)
 
 
@@ -308,7 +361,7 @@ def execute(
     if not Path(profile).exists():
         typer.echo(f"파일 없음: {profile}", err=True)
         raise typer.Exit(code=1)
-    manifest = run_production(profile, use_vlm=not no_vlm)
+    manifest = _working("영상 생성 중 (production)", lambda: _produce(profile, use_vlm=not no_vlm))
     typer.echo(f"영상: {manifest.final_video}", err=True)
 
 
@@ -350,7 +403,7 @@ def run(
             pass  # ReelProfile이 아니면 일반 브리프로 진행
         else:
             typer.echo("ReelProfile 감지 -> 바로 production 실행", err=True)
-            manifest = run_production(brief, use_vlm=not no_vlm)
+            manifest = _working("영상 생성 중 (production)", lambda: _produce(brief, use_vlm=not no_vlm))
             typer.echo(f"영상: {manifest.final_video}", err=True)
             return
 
@@ -367,7 +420,7 @@ def run(
     ref_profile: VideoProfile | None = None
     if ref_path and not no_similarity and Path(ref_path).exists():
         typer.echo(f"레퍼런스 분석: {ref_path}", err=True)
-        ref_profile = analyze_video(ref_path, use_gemini=text is not None)
+        ref_profile = _working("레퍼런스 분석 중", lambda: analyze_video(ref_path, use_gemini=text is not None))
 
     feedback = ""
     best: tuple[float, str] | None = None  # (overall, final_video)
@@ -375,17 +428,20 @@ def run(
     for i in range(iters):
         if i > 0:
             typer.echo(f"[반복 {i + 1}/{iters}] 유사도 미달 -> 피드백 재계획", err=True)
-        path = run_planning(
-            brief, outputs, text_client=text, image_client=img, style_feedback=feedback,
+        path = _working(
+            "기획 중 (ReelProfile·에셋 생성)",
+            lambda f=feedback: run_planning(
+                brief, outputs, text_client=text, image_client=img, style_feedback=f
+            ),
         )
         typer.echo(f"ReelProfile: {path}", err=True)
-        manifest = run_production(str(path), use_vlm=not no_vlm)
+        manifest = _working("영상 생성 중 (production)", lambda p=path: _produce(str(p), use_vlm=not no_vlm))
         typer.echo(f"영상: {manifest.final_video}", err=True)
 
         if ref_profile is None or not manifest.final_video:
             return
         final_video = manifest.final_video
-        gen_profile = analyze_video(final_video, use_gemini=text is not None)
+        gen_profile = _working("생성물 분석 중", lambda fv=final_video: analyze_video(fv, use_gemini=text is not None))
         report = compare_profiles(ref_profile, gen_profile)
         # 유사도 리포트를 생성물 폴더에 남겨 증거로 보존한다(레퍼런스 대비 결 일치도).
         sim_path = Path(final_video).parent / "similarity.json"
@@ -419,14 +475,23 @@ def _open_file(path: str) -> None:
         pass
 
 
-def _print_plan_summary(profile_path: str) -> str | None:
-    """확정 전 ReelProfile 요약을 보여준다. key_visual 절대경로를 돌려준다(있으면)."""
+def _print_plan_summary(profile_path: str) -> tuple[str | None, Path]:
+    """확정 전 ReelProfile 요약 + 생성물 폴더·에셋 경로를 보여준다.
+
+    사용자가 폴더를 직접 열어 캐릭터·제품·대표이미지·ReelProfile을 보고 의견을 낼 수 있게
+    각 파일의 정확한 경로를 표기한다. (key_visual 절대경로, plan 폴더)를 돌려준다.
+    """
     from .generate.product import product_identity
 
     profile = ReelProfile.model_validate_json(Path(profile_path).read_text(encoding="utf-8"))
-    plan_dir = Path(profile_path).parent
+    plan_dir = Path(profile_path).parent.resolve()
+
+    def _asset(rel: str | None) -> str:
+        return str(plan_dir / rel) if rel else "없음"
+
     kv = profile.asset_bible.key_visual
     kv_abs = str(plan_dir / kv) if kv else None
+    pkg = next((v.image for v in profile.asset_bible.product.views if v.image), None)
     lines = [
         "",
         "──────── 생성할 영상 요약 ────────",
@@ -436,11 +501,18 @@ def _print_plan_summary(profile_path: str) -> str | None:
         f"음악:   {profile.music.style or '-'} / {profile.music.mood or '-'} / {profile.music.tempo or '-'}",
         f"컷수:   {len(profile.storyboard.panels)}컷, pacing={profile.style.pacing or '-'}",
         f"자막:   {[p.subtitle_text for p in profile.storyboard.panels if p.subtitle_text][:6]}",
+        "",
+        "── 생성물 폴더(직접 열어 확인) ──",
+        f"기획 폴더:      {plan_dir}",
+        f"ReelProfile:   {Path(profile_path).resolve()}",
+        f"캐릭터 비주얼:  {_asset(profile.asset_bible.character.key_shot_image)}",
+        f"제품 히어로:    {_asset(profile.asset_bible.product.hero_image)}",
+        f"제품 패키지:    {_asset(pkg)}",
         f"대표이미지(key_visual): {kv_abs or '없음'}",
         "─────────────────────────────────",
     ]
     typer.echo("\n".join(lines), err=True)
-    return kv_abs
+    return kv_abs, plan_dir
 
 
 @app.command()
@@ -457,67 +529,96 @@ def chat(
     돌려 결과 폴더를 안내한다. 텍스트 LLM 키가 필요하다.
     """
     from prompt_toolkit import PromptSession
+    from rich.console import Console
 
     from .generate.chat_intake import OPENING, ChatState, next_turn
 
+    _quiet_genai_logs()
     text = make_text_client()
     if text is None:
         typer.echo("chat 모드는 텍스트 LLM 키가 필요합니다(GEMINI_API_KEY 등).", err=True)
         raise typer.Exit(code=2)
 
+    console = Console()
+    # 실행 시 기본 모델을 최상단에 보여준다(대화 모델 / 영상 생성 모델).
+    text_model = getattr(text, "model", "?")
+    video_model = os.environ.get("VEO_MODEL") or "veo-3.1-fast-generate-001"
+    console.print("리엘젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
+    console.print(f"[dim]대화 모델:[/] {text_model}")
+    console.print(f"[dim]영상 생성 모델:[/] {video_model}")
+
     session: PromptSession = PromptSession()
     state = ChatState()
-    typer.echo("리엘젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
 
     def _ask(prompt_text: str) -> str:
         try:
             return session.prompt(prompt_text).strip()
         except (EOFError, KeyboardInterrupt):
-            typer.echo("\n종료합니다.", err=True)
+            console.print("\n종료합니다.")
             raise typer.Exit(code=0) from None
+
+    def _spin(msg: str, fn):
+        """처리 중 상태(뭐 하는지) + 로딩(...) 스피너를 띄우고 fn을 돌린다."""
+        with console.status(f"[cyan]{msg}[/]", spinner="simpleDots"):
+            return fn()
 
     if seed.strip():
         state.add_user(seed.strip())
     else:
-        typer.echo(f"\n🤖 {OPENING}")
+        console.print(f"\n🤖 {OPENING}")
         state.add_user(_ask("나 > "))
 
-    # 대화 루프: 충분해질 때까지 한 번에 하나씩 물어 브리프를 모은다(상한 가드).
+    # 대화 루프: 목적·제품·(원하면)캐릭터가 충분히 정의될 때까지 한 번에 하나씩 물어 채운다.
+    # 덜 정의되면 next_turn이 계속 질문을 돌려주고, 충분해지면 ready=True로 브리프를 종합한다.
     brief = ""
-    for _ in range(8):
-        decision = next_turn(state, text)
+    for _ in range(14):
+        decision = _spin("생각하는 중", lambda: next_turn(state, text))
         if decision.ready and decision.brief:
             brief = decision.brief
             break
         question = decision.question or "조금 더 자세히 말씀해 주시겠어요?"
         state.add_assistant(question)
-        typer.echo(f"\n🤖 {question}")
+        console.print(f"\n🤖 {question}")
         state.add_user(_ask("나 > "))
     if not brief:
         brief = state.transcript()  # 상한 도달 시 대화 전체를 브리프로
 
     ok, reason = validate_purpose(brief, text_client=text)
     if not ok:
-        typer.echo(f"\n거절: {reason}", err=True)
+        console.print(f"\n거절: {reason}")
         raise typer.Exit(code=2)
 
-    typer.echo("\n🤖 좋아요, 기획을 정리하고 대표 이미지를 만드는 중입니다...", err=True)
     img = None if no_images else _make_image_client()
-    path = run_planning(brief, outputs, text_client=text, image_client=img)
-    kv_abs = _print_plan_summary(str(path))
-    if kv_abs and Path(kv_abs).exists():
-        _open_file(kv_abs)  # 대표 이미지를 열어 미리 보여준다(맥)
+    # 수정 루프: 계획(ReelProfile+스토리보드+대표이미지)을 보여주고, 마음에 안 들면 피드백을
+    # 받아 반영해 다시 만든다. y(확인)여야 생성으로 넘어간다(chat의 핵심: 계속 다듬기).
+    feedback = ""
+    path: Path | None = None
+    while True:
+        path = _spin(
+            "기획을 정리하고 대표 이미지를 만드는 중",
+            lambda b=brief, f=feedback: run_planning(
+                b, outputs, text_client=text, image_client=img, style_feedback=f
+            ),
+        )
+        kv_abs, plan_dir = _print_plan_summary(str(path))
+        _open_file(str(plan_dir))  # 기획 폴더를 열어 캐릭터·제품·대표이미지를 직접 보게 한다(맥)
+        if kv_abs and Path(kv_abs).exists():
+            _open_file(kv_abs)  # 대표 이미지도 바로 미리 보여준다
+        resp = _ask("\n이대로 생성할까요? (y=생성 / 수정할 점을 말하면 반영해 다시 보여드립니다) > ")
+        if resp.lower() in ("y", "yes", "네", "응", "ㅇ", "예"):
+            break
+        if not resp:
+            continue
+        # 수정 요청을 브리프·피드백에 반영해 재계획한다(목적·제품·캐릭터·음악·스토리보드 등 폭넓게).
+        brief = f"{brief}\n[수정 요청] {resp}"
+        feedback = resp
+        console.print("\n🤖 반영해 다시 정리할게요.")
 
-    confirm = _ask("\n이대로 영상을 생성할까요? (y/n) > ").lower()
-    if confirm not in ("y", "yes", "네", "응", "ㅇ", "예"):
-        typer.echo(f"취소했습니다. ReelProfile은 저장돼 있습니다: {path}", err=True)
-        raise typer.Exit(code=0)
-
-    typer.echo("\n🤖 영상 생성 중입니다(수 분 소요)...", err=True)
-    manifest = run_production(str(path), use_vlm=not no_vlm)
+    console.print("\n🤖 영상 생성 중입니다(수 분 소요)...")
+    manifest = _spin("영상을 생성하는 중", lambda: _produce(str(path), use_vlm=not no_vlm))
     out_dir = Path(manifest.final_video).parent if manifest.final_video else path.parent
-    typer.echo(f"\n✅ 완료! 결과 폴더: {out_dir}", err=True)
-    typer.echo(f"영상: {manifest.final_video}", err=True)
+    console.print(f"\n✅ 완료! 결과 폴더: {out_dir}")
+    console.print(f"영상: {manifest.final_video}")
 
 
 @app.command()
@@ -534,6 +635,7 @@ def generate(
 
 
 def main() -> None:
+    _quiet_genai_logs()
     app()
 
 
