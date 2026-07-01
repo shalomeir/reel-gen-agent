@@ -137,11 +137,16 @@ def run_planning(
 
     run_id = make_run_id(result.objective.goal)
     out_dir = create_run_dir(outputs_root, run_id)
+    # plan 산출물은 run 루트의 plan/ 하위에 모은다(ReelProfile + 캐릭터·제품·환경·스틸 콘티).
+    # 결과물 3종(final/report/upload)은 execute가 run 루트에 떨어뜨려, 무엇이 plan이고 무엇이
+    # 결과물인지 한눈에 보이게 한다([output 폴더 구조] 사용자 지시).
+    plan_dir = out_dir / "plan"
+    plan_dir.mkdir(parents=True, exist_ok=True)
 
     # asset_bible: 캐릭터 정면샷 + 제품 이미지를 생성한다(image_client 있을 때). 이 에셋이
     # execute의 컷별 스틸 생성에서 reference·폴백으로 쓰인다. 없으면 빈 에셋으로 둔다.
     asset_bible = build_asset_bible(
-        character, product, environment, image_client, str(out_dir), palette=style.palette
+        character, product, environment, image_client, str(plan_dir), palette=style.palette
     )
 
     profile = assemble_profile(
@@ -159,7 +164,7 @@ def run_planning(
         }
     )
 
-    return write_profile(profile, out_dir, run_id)
+    return write_profile(profile, plan_dir, run_id)
 
 
 def _narration_lines(
