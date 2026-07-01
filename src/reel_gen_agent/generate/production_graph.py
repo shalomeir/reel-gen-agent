@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from ..analysis.rubric import evaluate_video
@@ -17,12 +18,42 @@ from .production_plan import resolve_plan
 from .report import build_final_report, render_report_md
 from .run_context import new_manifest, output_dir_for
 from .schema import NodeRun, ReelProfile, RunManifest
+from .stills import ensure_panel_stills
+
+
+def _resolve_asset(image: str | None, base_dir: Path) -> str | None:
+    """ReelProfile에 상대 파일명으로 적힌 에셋 이미지를 절대 경로로 푼다."""
+    if not image:
+        return None
+    p = Path(image)
+    if not p.is_absolute():
+        p = base_dir / p
+    return str(p) if p.exists() else None
 
 
 def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
     profile = ReelProfile.model_validate_json(Path(profile_path).read_text(encoding="utf-8"))
     out_dir = output_dir_for(profile_path)
     manifest = new_manifest(profile_path, profile)
+
+    # 스틸 보장: 패널에 still_image가 없으면 에셋을 reference로 생성(없으면 에셋 재사용).
+    # 키가 필요한 생성 클라이언트는 채울 게 있을 때만 만든다(스틸이 다 있으면 건드리지 않음).
+    if any(not p.still_image for p in profile.storyboard.panels):
+        base_dir = Path(profile_path).resolve().parent
+        char_img = _resolve_asset(profile.asset_bible.character.key_shot_image, base_dir)
+        prod_img = _resolve_asset(profile.asset_bible.product.hero_image, base_dir)
+        client = None
+        if os.environ.get("REEL_STILLS", "gen").lower() != "off":
+            try:
+                from .image_client import NanoBananaImageClient
+
+                client = NanoBananaImageClient()
+            except Exception:
+                client = None
+        filled = ensure_panel_stills(profile, str(out_dir), client, char_img, prod_img)
+        manifest.nodes.append(NodeRun(name="stills", artifacts=[]))
+        if filled == 0:
+            raise ValueError("stills: 채울 수 있는 패널 스틸이 없다(에셋 이미지 확인).")
 
     plan = resolve_plan(profile, env={})
     manifest.production_plan = plan
