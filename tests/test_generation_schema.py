@@ -152,7 +152,7 @@ def test_run_manifest_carries_production_plan():
         run_id="glow-serum-20260630-204512",
         nodes=[NodeRun(name="video", prompt="a serum on a table")],
         production_plan=ProductionPlan(
-            video_model="veo-3.1-lite-generate-001",
+            video_model="veo-3.1-fast-generate-001",
             voice_strategy="integrated",
             fallbacks_applied=["no_fal_key->veo_only"],
         ),

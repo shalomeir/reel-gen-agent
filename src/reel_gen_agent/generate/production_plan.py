@@ -93,7 +93,7 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
     n = max(1, len(panels))
 
     if _has_video_backend(env):
-        video_model = env.get("VEO_MODEL", "veo-3.1-lite-generate-001")
+        video_model = env.get("VEO_MODEL", "veo-3.1-fast-generate-001")
     else:
         video_model = "ken_burns"
         fallbacks.append("no_video_key->ken_burns")

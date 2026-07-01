@@ -30,7 +30,9 @@ class LyriaMusicClient:
         creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
         session = AuthorizedSession(creds)
         body = {
-            "instances": [{"prompt": f"{prompt}, around {bpm} bpm, upbeat, instrumental"}],
+            # 스타일 어구는 붙이지 않는다(장르는 음악 노드가 prompt로 이미 정함). bpm만 컷
+            # 리듬 정렬용으로 덧붙인다. "instrumental"은 나레이션 아래 베드라는 형식 제약.
+            "instances": [{"prompt": f"{prompt}, around {bpm} bpm, instrumental"}],
             "parameters": {"sample_count": 1},
         }
         # 설정 모델을 먼저, 실패하면 predict GA 모델(lyria-002)로 재시도한다(모델명·리전 흔들림 방어).

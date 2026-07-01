@@ -23,8 +23,10 @@ def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> st
 
     빠른 반복이 필요하면 `REEL_BGM=synth`로 Lyria를 끄고 합성 베드만 쓴다.
     """
+    # BGM 프롬프트는 음악 노드가 정한 MusicSpec에서만 만든다(스타일 하드코딩 금지). 비면
+    # 장르 없는 중립 지시만 둔다(장르 선택은 코드가 아니라 LLM 음악 노드의 몫이다).
     style_bits = [profile.music.style, profile.music.mood, profile.music.type]
-    prompt = ", ".join(b for b in style_bits if b) or "bright upbeat pop for a beauty short"
+    prompt = ", ".join(b for b in style_bits if b) or "instrumental background music"
     use_lyria = (
         plan.bgm == "gen"
         and os.environ.get("REEL_BGM", "").lower() != "synth"
@@ -154,7 +156,12 @@ def _multishot_prompt(
     담아 컷 변화를 유도한다. 인물·제품 일관, 피부 질감, 발화 여부(립싱크)를 명시적으로 요구한다.
     """
     lines = [
-        f"Multishot sequence of {len(seg_panels)} quick vertical 9:16 shots for a beauty short.",
+        f"A single vertical 9:16 clip that cuts through {len(seg_panels)} shots played one after "
+        "another over time (a fast-edited sequence with hard cuts on a timeline).",
+        # 시간축 순차 컷임을 못박아 split-screen/그리드 오해를 막는다(사용자 지시).
+        "IMPORTANT: these are sequential shots shown one at a time, NOT a split-screen, NOT a "
+        "grid, NOT a collage, NOT multiple frames or panels visible at once. One full-frame shot, "
+        "then a hard cut to the next full-frame shot.",
         "Keep the same person and the same product consistent across every shot.",
         skin_directive,
         _speech_directive(speaking),

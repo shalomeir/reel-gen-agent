@@ -15,6 +15,7 @@ from .character import derive_character
 from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
+from .music import derive_music
 from .profile_assembly import assemble_profile, write_profile
 from .reference_seed import seed_from_reference
 from .run_paths import create_run_dir, make_run_id
@@ -79,6 +80,10 @@ def run_planning(
     # 캐릭터 노드: 레퍼런스 인물이 있으면 최대한 반영하고, 없으면 LLM이 브리프에서 도출한다.
     # 아무 단서 없으면 기본값(매력적인 20대 초반 미국 여성). 하드코딩하지 않는다(사용자 지시).
     character = derive_character(result.objective.goal, product, ref_subject, text_client)
+
+    # 음악 노드: 장르·무드·다이내믹을 LLM이 문맥으로 정한다(코드/프롬프트에 스타일 하드코딩
+    # 금지). 레퍼런스 음악은 힌트로만. bpm은 execute가 컷 리듬으로 맞춘다.
+    music = derive_music(result.objective.goal, product, style.tone, music, text_client)
 
     # 후크: 유형·문구는 LLM이 제품·목적·톤에 맞춰 유연하게 고른다(하드코딩 X, temperature로
     # 다양성). 레퍼런스가 있으면 그 첫 3초 시각 컨셉(visual_direction)·문구·윈도를 LLM이 고른
@@ -184,7 +189,7 @@ def _narration_lines(
 
     from .hook import _extract_json
 
-    tone_hint = ", ".join(style.tone) if style.tone else "authentic, upbeat"
+    tone_hint = ", ".join(style.tone) if style.tone else "natural, authentic"
     prompt = (
         f"You are writing a first-person voiceover for a {meta.duration_sec:.0f}-second "
         f"vertical beauty short about {product.name}. Tone: {tone_hint}, natural UGC, English.\n"
