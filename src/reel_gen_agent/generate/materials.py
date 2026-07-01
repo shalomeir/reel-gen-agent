@@ -215,31 +215,48 @@ def _panel_dur(panel: StoryboardPanel) -> float:
     return max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
 
 
-# 컷 인덱스 홀짝으로 줌 배율을 크게 번갈아, 연속 영상에서 잘라낸 인접 서브컷의 프레이밍이
-# 확 달라져 컷 감지기가 경계를 잡게 한다(편집단계 beat-cut 몽타주, [multishot-segments.md]).
-# 제품 강조 컷은 더 세게 밀어 제품으로 줌인한다.
-_CUT_BASE_ZOOM = (1.0, 1.22)
+# 서브컷 프레이밍은 스토리보드가 정한 shot_type(macro/CU/medium/wide)에서 나온다. 줌 배율만
+# 아니라 세로 크롭 앵커(제품 컷은 아래=손/제품, 인물 컷은 위=얼굴)까지 달리해, 연속 Veo
+# 푸티지에서 잘라낸 인접 서브컷의 프레임이 확 달라지도록 한다(컷 감지기가 경계를 안정적으로
+# 잡음 = fast_montage 컷 리듬 복원). 하드코딩 매직넘버가 아니라 계획된 샷 다양성의 렌더링이다.
+_SHOT_ZOOM = [
+    (("macro", "extreme", "ecu"), 1.4),
+    (("close", "cu"), 1.22),
+    (("medium",), 1.08),
+    (("wide", "full", "establish", "over"), 1.0),
+]
 
 
-def _beat_cut_zoom(cut_index: int, product_lock: bool) -> float:
-    """서브컷의 줌 배율. 홀짝으로 크게 번갈고, 제품 컷은 추가로 밀어 넣는다."""
-    z = _CUT_BASE_ZOOM[cut_index % 2]
-    if product_lock:
-        z += 0.10  # 제품 강조: 제품으로 더 크게 줌인
-    return round(z, 3)
+def _beat_cut_frame(panel: StoryboardPanel, cut_index: int) -> tuple[float, float]:
+    """(줌, 세로 크롭 중심 0~1)을 shot_type + 제품 여부로 정한다.
+
+    shot_type이 큰 줌을 요구하면(macro/CU) 크게, wide면 원본에 가깝게. 세로 앵커는 제품 컷이면
+    아래쪽(손·제품), 인물 컷이면 위쪽(얼굴)을 잡아 인접 컷의 화면 영역이 크게 달라지게 한다.
+    shot_type 단서가 없으면 컷 순번 홀짝으로 줌을 번갈아 폴백한다.
+    """
+    st = (panel.shot_type or "").lower()
+    zoom = next((z for keys, z in _SHOT_ZOOM if any(k in st for k in keys)), None)
+    if zoom is None:
+        zoom = 1.0 if cut_index % 2 == 0 else 1.22
+    if panel.product_lock:
+        zoom = max(zoom, 1.2)  # 제품 강조는 최소한 밀어 넣는다
+    y_frac = 0.62 if panel.product_lock else 0.42  # 제품=아래(손/제품), 인물=위(얼굴)
+    return round(zoom, 3), y_frac
 
 
 def _extract_subcut(
     seg_clip: str, start: float, dur: float, zoom: float, w: int, h: int, fps: int, out: str,
-    keep_audio: bool = False,
+    keep_audio: bool = False, y_frac: float = 0.5,
 ) -> str:
-    """세그먼트 클립의 [start, start+dur] 구간을 줌 프레이밍으로 잘라 서브컷을 만든다.
+    """세그먼트 클립의 [start, start+dur] 구간을 줌·세로앵커 프레이밍으로 잘라 서브컷을 만든다.
 
-    입력 영상(Veo)은 이미 움직이므로 정지 위험이 없다. 컷마다 zoom을 달리해 중앙 punch-in을
-    주면, 인접 서브컷의 경계 프레임이 확 달라져 fast_montage 컷 리듬이 살아난다. 온카메라
-    발화(integrated)면 연속 시간 슬라이스라 네이티브 음성을 보존한다(concat하면 원음 그대로).
+    입력 영상(Veo)은 이미 움직이므로 정지 위험이 없다. 컷마다 zoom과 세로 크롭 위치를 달리해
+    인접 서브컷의 경계 프레임이 확 달라지면 컷 감지기가 경계를 잡아 fast_montage 리듬이 산다.
+    온카메라 발화(integrated)면 연속 시간 슬라이스라 네이티브 음성을 보존한다.
     """
-    vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h},setsar=1"
+    # 중앙 x, 세로는 y_frac 위치. zoom=1.0이면 오프셋 0(원본 프레임).
+    y_expr = f"(ih*{zoom}-{h})*{y_frac:.3f}"
+    vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h}:(iw*{zoom}-{w})/2:{y_expr},setsar=1"
     cmd = [
         "ffmpeg", "-y", "-i", seg_clip, "-ss", f"{start:.3f}", "-t", f"{dur:.3f}",
         "-vf", vf, "-r", str(fps),
@@ -326,11 +343,11 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
             p = panels[i]
             d = _panel_dur(p)
             if made:
-                zoom = _beat_cut_zoom(cut_index, p.product_lock)
+                zoom, y_frac = _beat_cut_frame(p, cut_index)
                 sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
                 _extract_subcut(
                     seg_clip, local, d, zoom, m.width, m.height, m.fps, sub_clip,
-                    keep_audio=speaking,
+                    keep_audio=speaking, y_frac=y_frac,
                 )
                 clips.append(sub_clip)
                 cut_index += 1
