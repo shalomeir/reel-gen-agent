@@ -243,8 +243,9 @@ flowchart TD
     concat. 개발 기본은 Veo 3.1 Fast(Vertex), 전환 시 Kling O3. **Kling O3 reference-to-video는
     캐릭터·제품 카탈로그 이미지(asset_bible)를 reference로 직접 주입할 수 있어 일관성에
     유리**하다. 영상 모델이 꺼지면 켄 번스 모션 폴백, canvas 샷이면 HTML+캔버스 렌더.
-  - **voice**: 되도록 켠다. 기본 `voiceover`면 여기서 **ElevenLabs(선호) 또는 Google TTS
-    Chirp 3**로 캐릭터 음색의 나레이션을 길게 생성한다(컷이 나뉘어도 톤 일관). `on_camera`면
+  - **voice**: 되도록 켠다. 기본 `voiceover`면 여기서 **ElevenLabs `eleven_v3`(한국어/영어
+    공통 기본, 없을 때만 Google TTS 3.1 preview 폴백)**로 캐릭터 음색의 나레이션을 길게
+    생성한다(컷이 나뉘어도 톤 일관). `on_camera`면
     video_shots가 캐릭터 발화를 함께 낸다(별도 voice 파일 주입 없음). **어느 쪽이든 voice는
     캐릭터 설정(`ModelSpec`)에서 유도한 `VoiceSpec`으로 만든다(매우 중요).**
   - **bgm**: Lyria 생성 또는 제공 파일. 컷 리듬과 템포를 맞춘다.

@@ -28,6 +28,16 @@ def _palette_phrase(palette: list[str] | None) -> str:
     return f" Color grading and overall tones in this palette: {tones}. Match this mood and warmth."
 
 
+# 인물은 평범한 일반인이 아니라 매력적인 뷰티 인플루언서/틱톡커여야 한다(사용자 지시).
+# 일반인처럼 밋밋하게 나오는 걸 막는 매력·인플루언서 디스크립터를 프롬프트에 항상 얹는다.
+_INFLUENCER_DESC = (
+    "She is a highly attractive, camera-ready beauty influencer and TikTok/YouTube creator "
+    "(not a plain everyday person): striking, magnetic good looks, flawless glowing skin, "
+    "polished on-trend hair and subtle glam, expressive charismatic eyes, confident aspirational "
+    "creator vibe, photogenic and scroll-stopping"
+)
+
+
 def _character_prompt(
     character: ModelSpec, environment: EnvironmentSpec, palette: list[str] | None
 ) -> str:
@@ -37,9 +47,9 @@ def _character_prompt(
     loc = environment.location or "the creator's own bedroom, indoor"
     return (
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
-        f"{age} {gender}, looking straight at the camera, natural soft indoor lighting, "
-        f"{loc} in the background, authentic UGC selfie aesthetic, high skin detail, "
-        "clean and bright. A fictional person, not a real or identifiable individual."
+        f"{age} {gender}. {_INFLUENCER_DESC}. Looking straight at the camera, natural soft "
+        f"indoor lighting, {loc} in the background, authentic UGC selfie aesthetic, high skin "
+        "detail, clean and bright. A fictional person, not a real or identifiable individual."
         + _palette_phrase(palette)
     )
 

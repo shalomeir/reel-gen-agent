@@ -63,16 +63,31 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
 
 
 def _build_voice(profile: ReelProfile, panels_dir: str) -> str | None:
-    """voiceover 나레이션 오디오를 만든다. delivery가 voiceover이고 대사·키가 있을 때만."""
+    """voiceover 나레이션 오디오를 만든다. 1차 ElevenLabs, 폴백 Google TTS(ai-model-records §6).
+
+    delivery가 voiceover이고 대사 스크립트가 있을 때만. ElevenLabs 키가 없거나 실패하면
+    Gemini TTS로 내려간다. 둘 다 안 되면 None(voice 없이 BGM만).
+    """
     if profile.narration.delivery != "voiceover":
         return None
     text = " ".join(line.text for line in profile.narration.lines if line.text).strip()
-    if not text or not os.environ.get("ELEVENLABS_API_KEY"):
+    if not text:
         return None
-    try:
-        from .backends.voice_tts import ElevenLabsVoiceClient
+    desc = profile.narration.voice.type or ""
 
-        desc = profile.narration.voice.type or ""
-        return ElevenLabsVoiceClient().synthesize(text, desc, str(Path(panels_dir) / "voice.mp3"))
+    if os.environ.get("ELEVENLABS_API_KEY"):
+        try:
+            from .backends.voice_tts import ElevenLabsVoiceClient
+
+            return ElevenLabsVoiceClient().synthesize(
+                text, desc, str(Path(panels_dir) / "voice.mp3")
+            )
+        except Exception:
+            pass  # ElevenLabs 실패 -> Google TTS 폴백으로
+
+    try:
+        from .backends.gemini_tts import GeminiTTSVoiceClient
+
+        return GeminiTTSVoiceClient().synthesize(text, desc, str(Path(panels_dir) / "voice.wav"))
     except Exception:
         return None

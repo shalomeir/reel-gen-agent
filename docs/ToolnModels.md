@@ -29,7 +29,7 @@
 | 이미지 생성(에셋 시트, 패널 스틸) | Google Nano Banana 계열(Gemini 네이티브 이미지) | 없음(단일 경로) | 단일 키 안에서 돌고, 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞음. 스틸 품질이 영상으로 전파되므로 품질 우선. 이미지는 Nano Banana 단일 경로로 좁힘 |
 | image-to-video(패널 클립) | Veo 3.1 Fast(Vertex 전용 개발 기본) | Kling O3 Pro reference-to-video(성능 최선), Kling O3 image-to-video(Veo 치환 후보), Veo 3.1 Standard/Pro(고품질 승격), 스틸 켄 번스 폴백 | 개발 검증 기본은 Veo Fast지만, 현시점 이 프로젝트에서 품질 최선은 Kling O3. 특히 O3 Pro reference-to-video가 캐릭터·제품·스토리보드 reference 일관성에서 가장 강함 |
 | 배경 음악(BGM) | Lyria 3(Clip, 30초 이하 기본) | 30초 초과 시 Lyria 3 Pro, 사용자 제공 음악 또는 무음 | 컷 리듬에 BGM 템포를 맞춤. 대부분 숏폼은 30초 이하라 Clip으로 충분, 30초 넘으면 Pro로 승격 |
-| voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs(선호) 또는 Google TTS Chirp 3 | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 캐릭터 음색을 길게 연속으로 뽑아 컷이 나뉘어도 톤 일관. voice를 먼저 만들어 영상 모델에 주입하는 립싱크는 쓰지 않는다 |
+| voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs `eleven_v3`(한국어/영어 공통 기본, Google TTS보다 한 수 위. 없을 때만 Google TTS 3.1 preview 폴백) | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 한국어 지원 voice를 골라 캐릭터 음색을 길게 연속으로 뽑아 컷이 나뉘어도 톤 일관. voice를 먼저 만들어 영상 모델에 주입하는 립싱크는 쓰지 않는다 |
 
 비전 분석, Rubric 채점, Conformance 검사 같은 Gemini 멀티모달 호출은 `GENAI_BACKEND`가 백엔드를
 고른다. 기본 `auto`는 GCP 자격이 있으면 Vertex AI(크레딧), 없으면 `GEMINI_API_KEY` lane이다.

@@ -275,9 +275,23 @@ ADR-0012). 실측 결과 나레이션 구조가 구현상 가장 자연스럽고
 전달은 셋이다. `voiceover`(화면과 분리된 TTS 나레이션), `on_camera`(영상 모델이 네이티브로
 등장인물을 말하게 함), `none`(음악 베드만).
 
-- **1차(voiceover, 나레이션)**: **ElevenLabs(`ELEVENLABS_API_KEY`)를 선호**, 또는 Google
-  TTS **Chirp 3**. 캐릭터 개성을 살린 목소리를 길게 연속으로 뽑을 수 있어 컷이 나뉘어도
-  목소리 톤이 일관된다. 음색은 캐릭터 설정(`ModelSpec`)에서 유도한다.
+- **1차(voiceover, 나레이션) = ElevenLabs로 못박는다.** 한국어든 영어든 기본은 ElevenLabs
+  (`ELEVENLABS_API_KEY`)다. 실측상 ElevenLabs가 Google TTS보다 한 수 위라, 언어와 무관하게
+  ElevenLabs를 먼저 호출한다. 캐릭터 개성을 살린 목소리를 길게 연속으로 뽑을 수 있어 컷이
+  나뉘어도 목소리 톤이 일관된다. 음색은 캐릭터 설정(`ModelSpec`)에서 유도한다.
+  - **ElevenLabs 모델은 `eleven_v3`를 기본으로 한다**(`ELEVENLABS_TTS_MODEL=eleven_v3`).
+    다국어 표현력이 가장 좋아 한국어·영어 나레이션 기본값으로 둔다.
+  - **한국어는 voice 선택이 품질을 좌우한다.** `eleven_v3`가 다국어라도 프리메이드 voice마다
+    한국어 발음·억양 품질이 다르다. 한국어에 적당한 여성 프리메이드 voice **Bella**를 기본으로
+    쓴다(코드가 계정에서 이름으로 조회. Bella의 ID는 계정·라이브러리 버전마다 달라 하드코딩
+    하지 않는다). 다른 voice를 원하면 `ELEVENLABS_VOICE_ID`로 고정하고, 캐릭터 설정에 맞게
+    안정성·스타일 파라미터로 변형한다. 무료 플랜에서 라이브러리 voice가 막히면 계정 접근
+    가능한 여성 voice로 자동 폴백한다.
+  - **Voice Design v3는 홀딩.** 캐릭터 전용 커스텀 voice 설계는 매력적이지만 지금은 검토만
+    하고 안 쓴다. 프리메이드 voice + 파라미터 변형으로 충분하다.
+- **폴백(voiceover) = Google TTS.** ElevenLabs 키가 없거나 막힐 때만 쓴다. Google TTS를
+  쓴다면 **최신 Gemini 3.1 TTS preview**(`gemini-3.1-flash-tts-preview`)가 가장 낫다. 예전
+  Chirp 3 계열이 아니라 이 3.1 preview를 기준으로 한다.
 - **2차(on_camera, 네이티브 발화)**: 역동적으로 화면 인물이 직접 말해야 할 때만. 별도 voice를
   만들지 않고 프롬프트에 캐릭터 설정과 대사 스크립트를 넣어 영상·음성·입 움직임을 한 번에
   생성한다. **원컷이면 Veo/Kling 둘 다 가능**하지만, **여러 컷에서 목소리 톤을 일관되게
@@ -287,9 +301,9 @@ ADR-0012). 실측 결과 나레이션 구조가 구현상 가장 자연스럽고
   무리였다. 시도하지 않는다.
 - **제외**: 전용 토킹헤드/립싱크 아바타 파이프라인(HeyGen 등).
 
-요지: 사람 목소리가 필요하면 **나레이션(ElevenLabs/Google TTS Chirp 3)을 기본으로** 가고,
-화면 인물이 직접 말하는 연출이 꼭 필요할 때만 영상 모델 네이티브 발화로, 그것도 멀티컷
-일관성이 필요하면 Kling O3 Pro로 간다.
+요지: 사람 목소리가 필요하면 **나레이션(ElevenLabs `eleven_v3`가 기본, 없을 때만 Google
+TTS 3.1 preview)을** 기본으로 가고, 화면 인물이 직접 말하는 연출이 꼭 필요할 때만 영상 모델
+네이티브 발화로, 그것도 멀티컷 일관성이 필요하면 Kling O3 Pro로 간다.
 
 ### 7. 자막 타이밍 (비모델)
 
@@ -317,6 +331,9 @@ ADR-0012). 실측 결과 나레이션 구조가 구현상 가장 자연스럽고
 | 상위 이미지 모델 일반 | 이미지 | 홀딩 | 1차로 충분, 품질 여력 필요 시 승격 |
 | Replicate i2v | i2v | 홀딩 | 키 미보유, 단가 fal과 동일 수준 |
 | 구버전 영상 모델 | i2v | 제외 | 셧다운, 최신 세대로 대체 |
+| ElevenLabs `eleven_v3` | voice(나레이션) | 1차 고정 | 한국어·영어 공통 기본. Google TTS보다 한 수 위라 언어 무관 먼저 호출. 한국어 기본 voice는 Bella(계정에서 이름 조회), `ELEVENLABS_VOICE_ID`로 교체 |
+| Google TTS 3.1 preview (`gemini-3.1-flash-tts-preview`) | voice(나레이션) | 폴백 | ElevenLabs 키가 없거나 막힐 때만. Chirp 3가 아니라 최신 3.1 preview 기준 |
+| ElevenLabs Voice Design v3 | voice(나레이션) | 홀딩 | 캐릭터 전용 커스텀 voice 설계. 프리메이드 voice + 파라미터 변형으로 충분해 지금은 검토만 |
 | HeyGen 전용 아바타 | 음성/영상 | 제외 | 전용 립싱크 파이프라인 미구현. 영상 모델 네이티브 발화(on_camera)로 대체 |
 | whisperX | 자막 정렬 | 홀딩 | 자막은 스토리보드에서 옴, 보이스오버 폴백만 |
 

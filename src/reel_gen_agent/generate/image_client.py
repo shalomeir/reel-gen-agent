@@ -96,10 +96,18 @@ class NanoBananaImageClient:
         if hero:
             img_cfg = types.ImageConfig(aspect_ratio="9:16", image_size=HERO_IMAGE_SIZE)
             return [
-                (self.hero_model, types.GenerateContentConfig(
-                    response_modalities=["IMAGE"], image_config=img_cfg)),
-                (self.hero_model, types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"], image_config=img_cfg)),
+                (
+                    self.hero_model,
+                    types.GenerateContentConfig(
+                        response_modalities=["IMAGE"], image_config=img_cfg
+                    ),
+                ),
+                (
+                    self.hero_model,
+                    types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"], image_config=img_cfg
+                    ),
+                ),
                 # Pro/4K를 못 받는 키·백엔드를 위한 폴백(기본 모델, 컨트롤 없이).
                 (self.model, types.GenerateContentConfig(response_modalities=["IMAGE"])),
                 (self.model, None),
