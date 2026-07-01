@@ -72,6 +72,14 @@ def test_duration_clamped_to_kling_range():
     assert _build_arguments(_I2V, "u", 40.0, "", False)["duration"] == "15"  # 상한 15
 
 
+def test_duration_rounds_up_never_short():
+    # 계획 seg_dur이 분수면 올림해서 요청한다. 내림(round)이면 반환 클립이 계획보다 짧아져
+    # 마지막 서브컷이 프리즈되고 세그먼트 경계 xfade가 깨져 다음 세그먼트가 통째 누락된다.
+    assert _build_arguments(_I2V, "u", 9.494, "", False)["duration"] == "10"
+    assert _build_arguments(_I2V, "u", 4.1, "", False)["duration"] == "5"
+    assert _build_arguments(_I2V, "u", 6.0, "", False)["duration"] == "6"  # 정수는 그대로
+
+
 def test_prompt_capped_to_kling_limit_keeping_shots():
     # Kling은 prompt 2500자 초과를 422로 거절한다 -> 한도 안으로 줄이되 샷 리스트는 보존해야 한다.
     head = "STYLE " + "x" * 3000  # 아주 긴 스타일 서술(앞부분)

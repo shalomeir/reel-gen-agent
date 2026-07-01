@@ -16,6 +16,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .assemble import _duration
 from .audio import bpm_for_cuts, compose_aligned_narration, synth_music_bed
 from .backends.ken_burns import DEFAULT_MOTION, KenBurnsBackend
 from .backends.veo import VeoImageRAIError
@@ -386,6 +387,31 @@ def _extract_subcut(
     return out
 
 
+_CLIP_DUR_TOL = 0.2  # 실제 클립 길이 판정 허용 오차(초). xfade transition(0.3초)보다 작게 둔다.
+
+
+def _fit_panel_durs(planned: list[float], avail: float | None) -> list[float]:
+    """세그먼트 패널 길이들을 실제 렌더된 클립 길이(avail) 안으로 맞춘다(순수 함수).
+
+    영상 모델이 계획 seg_dur보다 짧은 클립을 주면(정수 duration 캡, _MAX_SEC 초과, 모델 미달) 뒤쪽
+    서브컷이 실제 영상 끝을 넘어 잘려 비디오만 프리즈되고, 그 프리즈가 세그먼트 경계 xfade offset을
+    실제 영상 끝 뒤로 밀어 다음 세그먼트가 통째 누락된다. 각 패널을 남은 실제 영상 안으로만 자르고
+    (마지막은 클립 끝에 딱 맞춘다), 남은 영상이 없으면 이후 패널은 0으로 둔다(서브컷을 안 만든다).
+    avail이 None(폴백 ken_burns는 정확히 d로 렌더)이거나 계획 합 이내면 원본을 그대로 돌려준다.
+    프레임 반올림 수준(<0.2초)의 미세 부족은 무시한다: 세그먼트 경계 xfade transition(0.3초)보다
+    작아 이음매가 깨지지 않기 때문이다(진짜 부족분만 자른다).
+    """
+    if avail is None or avail >= sum(planned) - _CLIP_DUR_TOL:
+        return list(planned)
+    out: list[float] = []
+    remaining = avail
+    for d in planned:
+        take = max(0.0, min(d, remaining))
+        out.append(take if take > 0.05 else 0.0)
+        remaining = max(0.0, remaining - take)
+    return out
+
+
 def build_visuals(
     profile: ReelProfile,
     plan: ProductionPlan,
@@ -547,22 +573,32 @@ def build_visuals(
             except Exception as exc:
                 print(f"[materials] 폴백 패널 스틸 생성 실패(앵커로 진행): {exc}", file=sys.stderr)
 
+        # 실제 렌더된 세그먼트 클립이 계획 seg_dur보다 짧을 수 있다(Kling 정수 duration, _MAX_SEC
+        # 캡, 모델 미달). 그 클립을 넘겨 서브컷을 자르면 비디오가 프리즈되고 무음 오디오만 남아,
+        # 세그먼트 경계 xfade offset이 실제 영상 끝 뒤로 밀려 다음 세그먼트가 통째 누락된다(프리즈+
+        # 음악·나레이션만 이어지는 증상). 실제 클립 길이 안으로만 자른다. 폴백(ken_burns)은 정확히
+        # d로 렌더하므로 캡이 필요 없다(avail=None).
+        avail = _duration(seg_clip) if made else None
+        eff = _fit_panel_durs([_panel_dur(panels[i]) for i in indices], avail)
+        seg_eff: list[tuple[int, float]] = []  # 실제로 낸 (패널 index, 유효 길이)
+
         # 컷 단위 재분할. 세 경로가 있다:
         # - ref2v 성공: 한 번에 뽑은 매끄러운 모션이라 훅 컷만 별도로 살리고 나머지는 원본 모션
         #   통짜로 둔다(줌 컷으로 쪼개지 않음).
         # - i2v 성공: 실 영상 세그먼트를 패널 경계로 잘라 컷마다 줌을 달리해 beat-cut 몽타주.
         # - 폴백: 패널별 개별 스틸을 각자 ken_burns 서브컷으로(컷마다 다른 이미지 -> 컷 감지).
         if made and is_ref2v:
-            hook_dur = _panel_dur(panels[indices[0]])
-            hook_clip = str(panels_dir / f"clip_{seg_pos}_hook.mp4")
-            zoom, y_frac = _beat_cut_frame(panels[indices[0]], cut_index)
-            _extract_subcut(
-                seg_clip, 0.0, hook_dur, zoom, m.width, m.height, m.fps,
-                hook_clip, keep_audio=gen_audio, y_frac=y_frac,
-            )
-            clips.append(hook_clip)
-            cut_index += 1
-            rest_dur = seg_dur - hook_dur
+            hook_dur = eff[0]
+            if hook_dur > 0.05:
+                hook_clip = str(panels_dir / f"clip_{seg_pos}_hook.mp4")
+                zoom, y_frac = _beat_cut_frame(panels[indices[0]], cut_index)
+                _extract_subcut(
+                    seg_clip, 0.0, hook_dur, zoom, m.width, m.height, m.fps,
+                    hook_clip, keep_audio=gen_audio, y_frac=y_frac,
+                )
+                clips.append(hook_clip)
+                cut_index += 1
+            rest_dur = sum(eff) - hook_dur
             if rest_dur > 0.05:  # 훅 이후를 원본 모션 그대로(zoom=1.0) 통짜로 이어붙인다.
                 rest_clip = str(panels_dir / f"clip_{seg_pos}_rest.mp4")
                 _extract_subcut(
@@ -571,11 +607,14 @@ def build_visuals(
                 )
                 clips.append(rest_clip)
                 cut_index += 1
+            seg_eff = [(indices[k], eff[k]) for k in range(len(indices)) if eff[k] > 0.0]
         else:
             local = 0.0
-            for i in indices:
+            for k, i in enumerate(indices):
+                d = eff[k]
+                if d <= 0.0:
+                    continue  # 남은 실제 영상이 없다 -> 이 패널은 서브컷을 만들지 않는다.
                 p = panels[i]
-                d = _panel_dur(p)
                 sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
                 if made:
                     zoom, y_frac = _beat_cut_frame(p, cut_index)
@@ -592,15 +631,16 @@ def build_visuals(
                         still_i, d, m.width, m.height, m.fps, sub_clip, motion=motion_i,
                     )
                 clips.append(sub_clip)
+                seg_eff.append((i, d))
                 cut_index += 1
                 local += d  # 다음 컷은 세그먼트의 다음 시간 구간을 자른다(안 올리면 전부 첫 구간 반복).
 
-        # 자막: 계획된 패널 구간에 시간 기반으로 건다(모델 내부 컷·클립 분할과 무관). ref2v로
-        # 컷을 줄여도 자막은 패널 타이밍 그대로 최종 타임라인에 얹힌다.
+        # 자막: 실제로 낸 패널 구간(유효 길이)에 시간 기반으로 건다(모델 내부 컷·클립 분할과 무관).
+        # ref2v로 컷을 줄여도 자막은 패널 타이밍 그대로 얹힌다. 클립이 짧아 생략된 패널(seg_eff에
+        # 없음)은 자막도 걸지 않아 영상·자막·오디오가 한 눈금(실제 영상 길이)을 공유한다.
         local = 0.0
-        for i in indices:
+        for i, d in seg_eff:
             p = panels[i]
-            d = _panel_dur(p)
             if (p.subtitle_text or "").strip():
                 sub = str(panels_dir / f"sub_{p.index}.png")
                 render_subtitle_png(p.subtitle_text or "", m.width, m.height, sub)
@@ -609,7 +649,7 @@ def build_visuals(
             local += d
 
         segment_sizes.append(len(clips) - seg_clip_start)  # 이 세그먼트가 낸 clips 개수
-        total_dur += seg_dur
+        total_dur += sum(d for _, d in seg_eff)  # 실제 낸 영상 길이만 누적(계획이 아닌 실제 눈금)
     return VisualMaterials(
         shot_clips=clips,
         subtitle_pngs=subs,

@@ -13,6 +13,7 @@ duration은 3~15초 자유라 Veo(4/6/8)보다 낭비가 적다. FAL_KEY는 fal_
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import urllib.request
@@ -70,7 +71,11 @@ def _build_arguments(
     캐릭터를 image_urls에 넣어 컷마다 인물이 딴 사람으로 드리프트했다. IO와 분리해 스키마 매핑만
     단위 테스트할 수 있게 뺐다.
     """
-    dur = str(max(_MIN_SEC, min(_MAX_SEC, int(round(duration_sec)))))
+    # 올림(ceil)해서 요청한다. Kling은 정수초 클립을 주므로, 내림하면 분수 seg_dur(예: 9.494초)에
+    # 대해 9초 클립이 와 계획보다 짧아진다. 그러면 마지막 서브컷이 실제 영상 끝을 넘겨 프리즈되고,
+    # 그 프리즈가 세그먼트 경계 xfade offset을 밀어 다음 세그먼트가 통째 누락된다. 올림하면 클립이
+    # 계획 이상이라 정확히 seg_dur로 trim되어 서브컷이 딱 맞는다(초과분 최대 1초는 trim으로 버린다).
+    dur = str(max(_MIN_SEC, min(_MAX_SEC, math.ceil(duration_sec))))
     base_prompt = prompt or "cinematic vertical short, the product in focus"
     args: dict = {
         "duration": dur,

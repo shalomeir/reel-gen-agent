@@ -1,7 +1,7 @@
 from PIL import Image
 
 from reel_gen_agent.generate import materials as materials_mod
-from reel_gen_agent.generate.materials import build_materials
+from reel_gen_agent.generate.materials import _fit_panel_durs, build_materials
 from reel_gen_agent.generate.production_plan import resolve_plan
 from reel_gen_agent.generate.schema import (
     InputMeta,
@@ -283,3 +283,33 @@ def test_reference_to_video_omits_product_element_without_product_cut(tmp_path, 
     )
     assert fake.calls[0][5] == "char.png"  # 캐릭터는 항상
     assert fake.calls[0][6] is None  # 제품 컷이 없으면 제품 element는 뺀다
+
+
+# --- 서브컷 길이를 실제 클립 안으로 맞추기(프리즈+세그먼트 누락 방지) --------------------
+
+
+def test_fit_panel_durs_no_change_when_clip_long_enough():
+    # 실제 클립(avail)이 계획 합 이상이면 원본 그대로. avail=None(폴백 ken_burns)도 그대로.
+    planned = [1.2, 1.167, 1.2]
+    assert _fit_panel_durs(planned, None) == planned
+    assert _fit_panel_durs(planned, 5.0) == planned
+    assert _fit_panel_durs(planned, sum(planned)) == planned
+
+
+def test_fit_panel_durs_clamps_last_to_real_clip_end():
+    # avail이 계획 합보다 짧으면 마지막 패널을 실제 클립 끝에 딱 맞춘다(비디오/오디오 함께 종료).
+    planned = [3.0, 3.0, 3.0]  # 합 9.0
+    out = _fit_panel_durs(planned, 7.0)
+    assert out[0] == 3.0
+    assert out[1] == 3.0
+    assert abs(out[2] - 1.0) < 1e-9  # 7 - 6 = 1
+    assert abs(sum(out) - 7.0) < 1e-9  # 실제 클립을 넘지 않는다
+
+
+def test_fit_panel_durs_drops_panels_past_clip_end():
+    # 남은 실제 영상이 없으면 이후 패널은 0으로(서브컷을 만들지 않아 프리즈 꼬리가 없다).
+    planned = [3.0, 3.0, 3.0]
+    out = _fit_panel_durs(planned, 3.02)  # 첫 패널만 실려야
+    assert abs(out[0] - 3.0) < 1e-9
+    assert out[1] == 0.0 and out[2] == 0.0
+    assert sum(out) <= 3.02 + 1e-9
