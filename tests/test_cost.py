@@ -95,9 +95,7 @@ def test_reel_video_override_forces_ken_burns():
 
 def test_kling_reference_to_video_is_priced_by_partial_match():
     profile = _paid_profile()
-    plan = ProductionPlan(
-        video_model="fal-ai/kling-video/o3/pro/reference-to-video", bgm="none"
-    )
+    plan = ProductionPlan(video_model="fal-ai/kling-video/o3/pro/reference-to-video", bgm="none")
     manifest = RunManifest(panel_segments=["c0.mp4"])
 
     cost = estimate_cost(profile, plan, manifest, {}, {}, {})

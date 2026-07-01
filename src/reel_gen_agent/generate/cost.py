@@ -55,16 +55,27 @@ _UNIT_LABEL = {
 
 
 def _lookup(model: str) -> tuple[str, float] | None:
-    """모델 단가를 찾는다. 정확 매칭 우선, 없으면 kling 계열 부분 매칭 폴백."""
+    """모델 단가를 찾는다. 정확 매칭 우선, 없으면 계열(kling/veo/lyria/gemini) 부분 매칭.
+
+    버전 문자열이 바뀌어도(예: lyria-002 -> lyria-3-pro-preview) 계열 단가로 잡히게 한다.
+    """
     if model in PRICING:
         return PRICING[model]
     low = model.lower()
     if "kling" in low:
         tier = "pro" if "pro" in low else "standard"
         mode = "reference-to-video" if "reference" in low else "image-to-video"
-        key = f"fal-ai/kling-video/o3/{tier}/{mode}"
-        if key in PRICING:
-            return PRICING[key]
+        return PRICING.get(f"fal-ai/kling-video/o3/{tier}/{mode}")
+    if "veo" in low:
+        if "lite" in low:
+            return ("sec", 0.10)
+        return ("sec", 0.15) if "fast" in low else ("sec", 0.40)
+    if "lyria" in low:
+        return ("sec", 0.06)
+    if "tts" in low:
+        return ("1k_chars", 0.01)
+    if "image" in low and "gemini" in low:
+        return ("image", 0.12) if "pro" in low else ("image", 0.039)
     return None
 
 
