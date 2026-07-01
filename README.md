@@ -37,8 +37,9 @@
 
 ## 실행 방식: 한 번에 미는 run
 
-확인 게이트(HITL)나 챗 세션은 없다(향후 과제로 미룸). 입력 하나를 받아 `ReelProfile`을 만들고
-곧장 production까지 밀어붙이는 **`run` 일괄 실행**이 기본이다.
+단계별 확인 게이트(HITL)는 없다. 기본은 입력 하나를 받아 `ReelProfile`을 만들고 곧장
+production까지 밀어붙이는 **`run` 일괄 실행**이다. 필요하면 `chat`으로 입력을 대화형으로
+채우고 최종 확인 한 번을 거쳐 같은 production 경로로 간다.
 
 - **`reel-gen run <입력>`**: 입력 -> `ReelProfile` -> 영상까지 한 번에. 진행 상황을 출력하고
   mp4 경로를 돌려준다. 레퍼런스가 있으면 `--max-iters`로 생성물을 다시 분석해 레퍼런스와
@@ -145,8 +146,10 @@ cp .env.example .env
 바꿔 Claude Opus로 전환할 수 있다. 이미지 생성은 Nano Banana(Gemini 네이티브 이미지)
 단일 경로다. 별도 이미지 provider나 폴백을 두지 않는다. 영상 생성은
 `VIDEO_PROVIDER`로 Vertex/Gemini API/fal 중 우선 provider를 정하고, 비워 두면 Google Cloud
-크레딧을 쓸 수 있는 Vertex Veo lane을 기본으로 둔다. `GEMINI_API_KEY`를 쓰는 Gemini API Veo
-lane과 `FAL_KEY`를 쓰는 fal.ai Kling O3/Seedance lane은 폴백이나 실험 provider로 둔다.
+크레딧을 쓸 수 있는 Vertex Veo 3.1 Fast lane을 기본으로 둔다. `GEMINI_API_KEY`를 쓰는 Gemini API
+Veo Fast lane과 `FAL_KEY`를 쓰는 fal.ai Kling O3/Seedance lane은 폴백이나 실험 provider로 둔다.
+보이스오버 TTS는 ElevenLabs `eleven_v3`를 먼저 쓰고, 키가 없거나 실패할 때만 Gemini TTS로
+내려간다.
 효과음은 ElevenLabs 생성 SFX를 먼저 쓰고, 사용자가 넣은 로컬 효과음, 무음 폴백 순서로
 내려간다. 음악은 Lyria 3 생성 BGM, 로컬 음악, 무음 폴백 순서다. Lyria 3(Clip)은 한 번에
 30초까지 생성하고, 대부분 숏폼은 30초 이하라 Clip으로 충분하다. 30초를 넘는 트랙이 필요하면
@@ -162,14 +165,14 @@ Lyria 3 Pro로 승격한다.
 | `CLAUDE_MODEL` | 아니오 | Claude 텍스트 모델. 기본 `claude-opus-4-8`. |
 | `TEXT_MODEL_PRIORITY` | 아니오 | 컨셉/훅/스토리보드 텍스트 모델 우선순위. 기본은 Gemini 3.1 Pro 후 Claude Opus 옵션. |
 | `VIDEO_PROVIDER` | 아니오 | 영상 provider 우선순위. `vertex`, `gemini`, `fal`; 비워 두면 `vertex`. |
-| `VIDEO_MODEL_PRIORITY` | 아니오 | 영상 모델 우선순위. 기본은 Vertex Veo, Gemini Veo, fal.ai Kling O3 Standard/Seedance 2.0 Fast 후보. |
-| `TTS_MODEL_PRIORITY` | 아니오 | TTS 모델 우선순위. 기본은 Gemini TTS, 그다음 ElevenLabs 후보. |
+| `VIDEO_MODEL_PRIORITY` | 아니오 | 영상 모델 우선순위. 기본은 Vertex Veo 3.1 Fast, Gemini Veo 3.1 Fast, fal.ai Kling O3 Standard/Seedance 2.0 Fast 후보. |
+| `TTS_MODEL_PRIORITY` | 아니오 | TTS 모델 우선순위. 기본은 ElevenLabs `eleven_v3`, 그다음 Gemini TTS 폴백. |
 | `SFX_PROVIDER_PRIORITY` | 아니오 | 효과음 소스 우선순위. 기본은 ElevenLabs 생성 SFX, 로컬 파일, 무음 폴백. |
 | `MUSIC_MODEL_PRIORITY` | 아니오 | 음악 소스 우선순위. 기본은 Lyria 3, 로컬 파일, 무음 폴백. |
 | `GEMINI_IMAGE_MODEL` | 아니오 | 이미지 모델(Nano Banana). 기본 `gemini-3.1-flash-image-preview`. |
-| `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | 아니오 | Vertex AI image-to-video 모델과 단일 GCS 출력 prefix. 기본 `veo-3.1-lite-generate-001`. |
+| `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | 아니오 | Vertex AI image-to-video 모델과 단일 GCS 출력 prefix. 기본 `veo-3.1-fast-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | 아니오 | Vertex AI lane(영상 Veo + 분석 멀티모달)을 쓸 때 필요한 GCP 프로젝트와 서비스 계정 JSON 절대경로. |
-| `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 폴백 모델. 기본 `veo-3.1-lite-generate-preview`. |
+| `GEMINI_VEO_MODEL` | 아니오 | Gemini API image-to-video 폴백 모델. 기본 `veo-3.1-fast-generate-preview`. |
 | `FAL_KEY`, `FAL_VIDEO_MODEL` | 아니오 | fal.ai 영상 provider. Kling O3 Standard/Seedance 2.0 Fast image-to-video 후보를 쓸 때 설정. |
 | `LYRIA_MODEL` | 아니오 | 배경 음악 모델(생성 단계). 기본은 Lyria 3(Clip, 30초 이하), 30초 초과 트랙은 Lyria 3 Pro. |
 | `ELEVENLABS_API_KEY` | 아니오 | 선택 보이스오버와 생성 효과음. SFX는 짧은 duration/count guardrail을 둔다. |
@@ -256,7 +259,7 @@ fail이 하나라도 있으면 exit code가 0이 아니다(게이트). 계약과
 ```bash
 # run: 입력 -> ReelProfile -> 영상까지 한 번에 (mp4 경로 출력)
 reel-gen run "https://brand.example/serum 으로 15초 언박싱, 캐릭터 ./model.jpg"   # 텍스트 브리프
-reel-gen run generation_input.json                # 구조화된 JSON 입력
+reel-gen run ./demo/sample_input_1.json           # 구조화된 GenerationInput 샘플
 reel-gen run ./reference_video/fast-cut.mp4       # 단일 에셋(영상)을 바로
 
 # 레퍼런스가 있으면 생성물을 다시 분석해 유사도 비교, 미달이면 재계획·재생성(최대 2회)
@@ -281,22 +284,32 @@ reel-gen compare --reference ./ref.mp4 --output outputs/<run_id>/final.mp4
 reel-gen compare --reference profiles/ref.json --output profiles/gen.json --out sim.json
 ```
 
-### 템플릿 직행 실행 (`execute`)
+`GenerationInput` 파일은 유효한 JSON이면 스키마로 읽고, 깨진 JSON 조각·메모·자연어 파일이면
+텍스트 LLM이 목적/제품/제품 URL/캐릭터/스타일/언어를 한 번 정규화한 뒤 같은 planning 경로로
+보낸다. LLM이 없을 때는 파일 내용을 그대로 브리프로 사용한다.
+`prompt`가 있으면 `reel-gen run "자연어 브리프"`와 같은 자유 입력으로 먼저 보존해 URL,
+레퍼런스, 스타일 요청을 그대로 판별한다.
+`product.path`가 있으면 JSON 파일 위치 기준의 로컬 제품 이미지 경로로 해석해 Product asset
+생성의 참조 이미지로 반드시 사용한다. `model.path`도 같은 방식으로 해석해 Character asset
+생성의 참조 이미지로 사용한다. 자연어 브리프에 YouTube/TikTok/Instagram/Vimeo URL이 들어 있으면
+제품 URL이 아니라 레퍼런스 영상으로 분류하고, 먼저 내려받아 레퍼런스 시딩에 쓴다.
 
-중간 단계를 건너뛰고 완성된 템플릿 JSON을 그대로 영상으로 뽑는 별도 명령이다. `run`과 입력이
-헷갈리지 않게 명령을 분리했다.
+### ReelProfile 직행 실행 (`execute`)
+
+기획 단계를 건너뛰고 이미 만든 `ReelProfile` JSON을 그대로 영상으로 뽑는 Production 전용
+명령이다. `run`과 입력이 헷갈리지 않게 명령을 분리했다.
 
 ```bash
-reel-gen execute storyboard.json
+reel-gen execute outputs/<run_id>/plan/ReelProfile-....json
 ```
 
-`execute`가 받는 JSON은 에이전트가 스토리보드 단계에서 내놓는 것과 같은 정형 포맷이다(패널,
-타이밍, 자막, 음악·워터마크 설정). 그래서 같은 JSON을 그대로 다시 주입하면 동일한 조립이
-재현된다. 한 번 만든 결과를 손봐 가며 영상만 다시 뽑거나, 조립 단계를 디버그할 때 쓴다.
+`execute`가 받는 JSON은 `plan` 또는 `run`이 만든 `ReelProfile`이다. `storyboard.json`이나
+템플릿 JSON을 직접 받는 명령이 아니다. 스토리보드 JSON은 완성 영상 검증 때
+`reel-gen verify <video> --storyboard storyboard.json`으로 넘긴다.
 
-전제 조건: 템플릿 JSON 안의 캐릭터와 제품 카탈로그에는 영상 생성에 들어갈 **이미 생성된
-이미지의 로컬 경로**가 들어 있어야 한다. `execute`는 실행 전에 그 경로들이 실제로 있는지
-확인하고, 하나라도 없으면 영상을 만들 수 없으므로 그 자리에서 멈춘다(에러).
+전제 조건: `ReelProfile`의 `asset_bible`에는 영상 생성에 들어갈 **이미 생성된 이미지의 로컬
+경로**가 들어 있어야 한다. `execute`는 실행 전에 그 경로들이 실제로 있는지 확인하고, 하나라도
+없으면 영상을 만들 수 없으므로 그 자리에서 멈춘다(에러).
 
 ### 명령과 옵션 요약
 
@@ -412,8 +425,9 @@ one ruler.
 
 ## How it runs: one-shot run
 
-There are no human-confirm gates or chat sessions (deferred to future work). You give
-one input; it builds a `ReelProfile` and pushes straight to production.
+There are no per-stage human-confirm gates. The default path takes one input, builds
+a `ReelProfile`, and pushes straight to production. `chat` is available when you want
+conversational intake plus one final confirmation before the same production path.
 
 - **`reel-gen run <input>`**: input -> `ReelProfile` -> video, in one go. Prints
   progress and returns the mp4 path. With a reference, `--max-iters` re-analyzes the
@@ -515,12 +529,14 @@ cp .env.example .env
 | `TEXT_MODEL_PRIORITY` | no | Text model priority for concept, hook, and storyboard generation. Defaults to Gemini 3.1 Pro, with Claude Opus as an option. |
 | `GEMINI_IMAGE_MODEL` | no | Image model (Nano Banana). Default `gemini-3.1-flash-image-preview`. |
 | `VIDEO_PROVIDER` | no | Preferred video provider. `vertex`, `gemini`, or `fal`; blank defaults to `vertex`. |
-| `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | no | Vertex AI image-to-video model and GCS output path. Default `veo-3.1-lite-generate-001`. |
+| `VIDEO_MODEL_PRIORITY` | no | Video model priority. Defaults to Vertex Veo 3.1 Fast, Gemini Veo 3.1 Fast, then fal.ai Kling O3 Standard/Seedance 2.0 Fast candidates. |
+| `TTS_MODEL_PRIORITY` | no | TTS model priority. Defaults to ElevenLabs `eleven_v3`, then Gemini TTS fallback. |
+| `VEO_MODEL`, `VEO_OUTPUT_GCS_URI` | no | Vertex AI image-to-video model and GCS output path. Default `veo-3.1-fast-generate-001`. |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS` | no | GCP project and service-account JSON path for the Vertex AI lane (video Veo + analysis multimodal). |
-| `GEMINI_VEO_MODEL` | no | Gemini API image-to-video fallback model. Default `veo-3.1-lite-generate-preview`. |
+| `GEMINI_VEO_MODEL` | no | Gemini API image-to-video fallback model. Default `veo-3.1-fast-generate-preview`. |
 | `FAL_KEY`, `FAL_VIDEO_MODEL` | no | Optional fal.ai video provider for Kling O3 Standard/Seedance 2.0 Fast image-to-video. |
 | `LYRIA_MODEL` | no | Background music model (generation stage). Defaults to Lyria 3 (Clip, up to 30s); tracks over 30s use Lyria 3 Pro. |
-| `ELEVENLABS_API_KEY` | no | Optional voiceover demo. |
+| `ELEVENLABS_API_KEY` | no | Optional ElevenLabs voiceover and generated SFX. |
 
 The perceptual layer runs on whichever backend `GENAI_BACKEND` selects (Vertex or
 `GEMINI_API_KEY`). With neither set, the deterministic layer still produces a
@@ -600,7 +616,7 @@ One input, pushed end to end with no confirm gates. Rejected if no video purpose
 ```bash
 # run: input -> ReelProfile -> video, in one go (prints the mp4 path)
 reel-gen run "15s unboxing of https://brand.example/serum, character ./model.jpg"  # text brief
-reel-gen run generation_input.json               # structured JSON input
+reel-gen run ./demo/sample_input_1.json          # structured GenerationInput sample
 reel-gen run ./reference_video/fast-cut.mp4      # a single asset (video) directly
 
 # with a reference: compare similarity, re-plan/re-generate if short (up to 2 iters)
@@ -625,25 +641,37 @@ reel-gen compare --reference ./ref.mp4 --output outputs/<run_id>/final.mp4
 reel-gen compare --reference profiles/ref.json --output profiles/gen.json --out sim.json
 ```
 
-### Render a template directly (`execute`)
+`GenerationInput` files are parsed by schema when valid. Broken JSON fragments,
+notes, or natural-language files are first normalized by the text LLM into
+objective/product/product URL/character/style/language facts and then sent through
+the same planning path. Without an LLM, the file content is used as the brief.
+When `prompt` is present, it is preserved first as the same free-form input you
+would pass to `reel-gen run "..."`, so URLs, references, and style requests are
+classified by the normal intake parser.
+When `product.path` is present, it is resolved relative to the JSON file and used
+as the required reference image for Product asset generation. `model.path` is
+resolved the same way and used as the reference image for Character asset
+generation. YouTube/TikTok/Instagram/Vimeo URLs inside natural-language briefs are
+classified as reference videos, downloaded first, and then used for reference
+seeding.
 
-A separate command that skips the upstream stages and renders a fully resolved
-template JSON straight to video. It is split from `run` so the two inputs are not
-confused.
+### Render a ReelProfile directly (`execute`)
+
+A production-only command that skips planning and renders an existing `ReelProfile`
+JSON straight to video. It is split from `run` so the two inputs are not confused.
 
 ```bash
-reel-gen execute storyboard.json
+reel-gen execute outputs/<run_id>/plan/ReelProfile-....json
 ```
 
-The JSON `execute` takes is the same structured format the agent emits at the
-storyboard stage (panels, timing, subtitles, music and watermark settings).
-Feeding the same JSON back in reproduces the same assembly, so it is handy for
-re-rendering after edits and for debugging the assembly step.
+The JSON `execute` takes is the `ReelProfile` emitted by `plan` or `run`. It does
+not take `storyboard.json` or a template JSON directly. Storyboard JSON belongs to
+video validation via `reel-gen verify <video> --storyboard storyboard.json`.
 
-Precondition: the character and product catalogs inside the template JSON must
-carry **local paths to the already-generated images** that feed video generation.
-`execute` checks those paths exist before running and stops with an error if any is
-missing, since the video cannot be built without them.
+Precondition: the `asset_bible` inside the `ReelProfile` must carry **local paths to
+the already-generated images** that feed video generation. `execute` checks those
+paths exist before running and stops with an error if any is missing, since the
+video cannot be built without them.
 
 ### Command and flag reference
 

@@ -217,8 +217,12 @@ Kling O3 Pro reference-to-video로만 가능하다(ai-model-records.md 4·6번).
 | `provenance` | Provenance | 출처·시드 |
 | `watermark` | str \| None | 워터마크 |
 
-> 비고: 기존 `GenerationInput`은 ReelProfile의 *부분집합*(meta/product/character/style/
-> voice/music/subtitle/narrative_arc)에 해당한다. ReelProfile 도입 후 GenerationInput은
+> 비고: 기존 `GenerationInput`은 ReelProfile의 *부분집합*(prompt/objective/meta/product/character/style/
+> style_prompt/voice/music/subtitle/narrative_arc)에 해당한다. `prompt`는 `run "..."`과 같은
+> 자유 자연어 요청으로 먼저 보존한다. `product.url`은 수동 입력
+> 템플릿에서 제품 페이지 근거를 보존하기 위한 필드고, `product.path`는 Product asset 생성에
+> 반드시 넣을 로컬 제품 이미지 참조 경로다. `model.path`는 Character asset 생성에 반드시 넣을
+> 로컬 모델/캐릭터 이미지 참조 경로다. ReelProfile 도입 후 GenerationInput은
 > ReelProfile로 흡수하거나, 호환을 위해 ReelProfile에서 파생하는 얇은 뷰로 남긴다
 > (아래 3번에서 택1).
 

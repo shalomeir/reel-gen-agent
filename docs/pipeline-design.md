@@ -37,9 +37,11 @@ Gate: profile(output) vs style_profile (유사도 점수)
 
 `src/reel_gen_agent/generate/schema.py`에 정의한다. 단계 사이의 안정적인 인터페이스다.
 
-- `GenerationInput` — `meta`(duration, aspect_ratio, fps, platform, language),
-  `product`, `model`, `style`, `voice`, `music`, `subtitle`, `narrative_arc`,
-  `watermark`, `style_profile_ref`.
+- `GenerationInput` — `objective`, `meta`(duration, aspect_ratio, fps, platform,
+  language), `product`(name/url/description), `model`, `style`, `style_prompt`,
+  `voice`, `music`, `subtitle`, `narrative_arc`, `watermark`, `style_profile_ref`.
+  입력 파일은 이 스키마를 우선 검증하되, 깨진 JSON·메모·자연어 파일이면 텍스트 LLM이 목적,
+  제품, 제품 URL, 캐릭터, 스타일, 언어를 라벨 브리프로 정규화한 뒤 같은 plan 그래프로 보낸다.
 - `AssetBible` — `CharacterProfile`(시트 이미지 + 키 샷)과 `ProductProfile`(시트
   이미지 + 히어로 샷). 에셋당 멀티뷰 시트 이미지 하나면 충분하다. 이미지 모델이 한
   이미지 안에 여러 뷰를 렌더링하기 때문이다.

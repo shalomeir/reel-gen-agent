@@ -39,6 +39,123 @@ def test_run_planning_writes_valid_reel_profile(tmp_path):
     assert profile.objective.goal
 
 
+def test_run_planning_uses_generation_input_product_path_as_asset_ref(tmp_path):
+    from reel_gen_agent.generate.intake import generation_input_to_brief
+    from reel_gen_agent.generate.schema import GenerationInput, ProductSpec
+
+    class _ImageClient:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, prompt, refs, out, hero=False):
+            self.calls.append({"prompt": prompt, "refs": list(refs), "out": out, "hero": hero})
+            return out
+
+    product_image = tmp_path / "demo" / "sample_imgs" / "mist.png"
+    product_image.parent.mkdir(parents=True)
+    product_image.write_bytes(b"png")
+    gen_input = GenerationInput(
+        objective="BIODANCE 미스트를 아침 루틴 광고로 소개",
+        product=ProductSpec(
+            name="BIODANCE mist",
+            path="./sample_imgs/mist.png",
+            packaging_desc="soft pink facial mist bottle",
+        ),
+    )
+    brief = generation_input_to_brief(gen_input, base_dir=tmp_path / "demo")
+    image_client = _ImageClient()
+
+    run_planning(brief, str(tmp_path / "outputs"), image_client=image_client)
+
+    product_calls = [c for c in image_client.calls if c["out"].endswith("product.png")]
+    assert product_calls
+    assert product_calls[0]["refs"] == [str(product_image.resolve())]
+
+
+def test_run_planning_uses_generation_input_model_path_as_character_ref(tmp_path):
+    from reel_gen_agent.generate.intake import generation_input_to_brief
+    from reel_gen_agent.generate.schema import GenerationInput, ModelSpec, ProductSpec
+
+    class _ImageClient:
+        def __init__(self):
+            self.calls = []
+
+        def generate(self, prompt, refs, out, hero=False):
+            self.calls.append({"prompt": prompt, "refs": list(refs), "out": out, "hero": hero})
+            return out
+
+    model_image = tmp_path / "demo" / "sample_imgs" / "model.png"
+    model_image.parent.mkdir(parents=True)
+    model_image.write_bytes(b"png")
+    gen_input = GenerationInput(
+        objective="BIODANCE 미스트를 아침 루틴 광고로 소개",
+        product=ProductSpec(name="BIODANCE mist"),
+        model=ModelSpec(path="./sample_imgs/model.png", look="clean beauty creator"),
+    )
+    brief = generation_input_to_brief(gen_input, base_dir=tmp_path / "demo")
+    image_client = _ImageClient()
+
+    run_planning(brief, str(tmp_path / "outputs"), image_client=image_client)
+
+    character_calls = [c for c in image_client.calls if c["out"].endswith("character.png")]
+    assert character_calls
+    assert character_calls[0]["refs"] == [str(model_image.resolve())]
+
+
+def test_reference_node_downloads_youtube_url_before_seeding(tmp_path, monkeypatch):
+    import contextlib
+    from types import SimpleNamespace
+
+    from reel_gen_agent.analysis import reference as reference_mod
+    from reel_gen_agent.generate import plan_graph as pg
+    from reel_gen_agent.generate.schema import InputMeta, MusicSpec, Provenance, StyleDimensions
+
+    downloaded = tmp_path / "reference.mp4"
+    downloaded.write_bytes(b"mp4")
+    calls = {}
+
+    def fake_download(url, project_root, cookies_from_browser=None):
+        calls["url"] = url
+        calls["project_root"] = project_root
+        return downloaded
+
+    def fake_seed(path, use_gemini=True):
+        calls["seed_path"] = path
+        return SimpleNamespace(
+            meta=InputMeta(),
+            style=StyleDimensions(),
+            music=MusicSpec(),
+            cut_count=0,
+            delivery="voiceover",
+            subject=None,
+            product=None,
+            voice_tone=None,
+            voice_pace=None,
+            seeds={"reference": path},
+        )
+
+    class _T:
+        def node(self, *a, **k):
+            return contextlib.nullcontext()
+
+    monkeypatch.setattr(reference_mod, "_find_project_root", lambda: tmp_path)
+    monkeypatch.setattr(reference_mod, "download_via_script", fake_download)
+    monkeypatch.setattr(pg, "seed_from_reference", fake_seed)
+
+    url = "https://www.youtube.com/shorts/abc123"
+    out = pg._reference_node(
+        {
+            "provenance": Provenance(style_source="reference", reference_ref=url),
+            "tracer": _T(),
+            "text_client": None,
+        }
+    )
+
+    assert calls["url"] == url
+    assert calls["seed_path"] == str(downloaded)
+    assert out["provenance"].reference_ref == str(downloaded)
+
+
 def test_missing_objective_raises(tmp_path):
     with pytest.raises(ValueError):
         run_planning("", str(tmp_path / "outputs"))

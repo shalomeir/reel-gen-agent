@@ -107,6 +107,7 @@ def plan_story_panels(
     """
     from .character import character_brief
     from .pacing import storyboard_energy
+    from .product import product_brief
 
     n = max(1, cut_count)
     affor = ", ".join(product.affordances) if product.affordances else "n/a"
@@ -115,7 +116,7 @@ def plan_story_panels(
     prompt = (
         f"{_PRINCIPLES}\n{energy}\n{fb}\n"
         f"Video goal: {objective_goal}\n"
-        f"Product: {product.name} (usp: {product.usp or 'n/a'}; can show: {affor})\n"
+        f"Product: {product_brief(product)}; can show: {affor}\n"
         f"Creator (protagonist): {character_brief(character)}\n"
         f"Location: {environment.location or 'creator room'}; tone: {', '.join(style.tone) or 'natural'}\n"
         f"Duration: {meta.duration_sec:.0f}s, EXACTLY {n} cuts. Given hook: {_hook_text(hook)}\n\n"

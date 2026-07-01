@@ -1,0 +1,31 @@
+{
+  "objective": "자기 전에 항상 바르는 BIODANCE 포어 퍼펙팅 콜라겐 펩타이드 크림을 뷰티 인플루언서가 자연스럽게 추천하는 15초 세로 숏폼 광고. 밤 스킨케어 루틴의 마지막 단계에서 모공과 탄력 케어를 챙기는 데일리 크림이라는 메시지를 전달한다.",
+  "meta": {
+    "duration_sec": 15,
+    "aspect_ratio": "9:16",
+    "language": "ko"
+  },
+  "product": {
+    "name": "BIODANCE Pore Perfecting Collagen Peptide Cream",
+    "url": "https://biodance.com/products/pore-perfecting-collagen-peptide-cream",
+    "usp": "자기 전 스킨케어 루틴에서 모공과 탄력 고민을 함께 케어하는 콜라겐 펩타이드 크림",
+    "spec": "facial cream for nighttime pore and elasticity skincare routines",
+    "packaging_desc": "clean premium skincare cream packaging with a soft clinical beauty look",
+    "category": "skincare collagen peptide cream",
+    "key_features": ["night routine friendly", "collagen peptide care", "pore perfecting cream"],
+    "affordances": ["apply cream before sleep", "show texture on fingertips", "massage onto cheeks and jawline", "hold jar close to camera"]
+  },
+  "model": {
+    "path": "/Users/shalomeir/DevSpaces/PersonalPlayground/beutyselection-ai-assignment/reel-gen-agent/demo/sample_imgs/character_s1.png",
+    "age": "mid-20s",
+    "gender": "female",
+    "look": "calm, trustworthy korean beauty influencer with polished natural skin",
+    "body": "average build",
+    "wardrobe": "soft pajama-style lounge top, minimal jewelry, cozy nighttime skincare mood"
+  },
+  "prompt": "은은한 침실 조명과 화장대 앞에서 시작하는 자기 전 루틴 톤. 광고처럼 밀어붙이기보다 매일 실제로 챙겨 바르는 제품을 친구에게 추천하듯 차분하고 신뢰감 있게 소개한다.",
+  "voice": {
+    "enabled": true,
+    "type": "soft warm female beauty creator voice"
+  }
+}

@@ -63,6 +63,10 @@ class _ProductExtract(BaseModel):
     usp: str = ""
     spec: str = ""
     visual_summary: str = ""
+    benefits: list[str] = Field(default_factory=list)
+    key_ingredients: list[str] = Field(default_factory=list)
+    how_to_use: str = ""
+    description: str = ""
 
 
 def _image_code(url: str) -> str | None:
@@ -185,7 +189,14 @@ _EXTRACT_PROMPT = (
     "affordances (3-6 concrete on-camera actions it enables, fit them to THIS product - e.g. 'apply "
     "to skin', 'worn on the shoulder', 'laced up', 'texture close-up'), usp (single most compelling "
     "one-liner benefit), spec (size/count/format), visual_summary (one line on how it looks on "
-    "camera)."
+    "camera).\n"
+    "ALSO capture the product's SUBSTANCE from the page text so the ad copy is not thin (ground "
+    "each in the text, do not invent): benefits (2-5 concrete user benefits or claims the page "
+    "makes, e.g. '72-hour hydration', 'refines the look of pores'), key_ingredients (up to 5 hero "
+    "ingredients or, for non-cosmetics, key materials/components), how_to_use (one short line on "
+    "how it is used/applied/worn), description (1-2 factual sentences summarizing what the product "
+    "is and does, drawn from the page - factual, not marketing hype). Leave any field empty if the "
+    "page does not state it."
 )
 
 
@@ -201,6 +212,11 @@ def _to_spec(ex: _ProductExtract, fallback_name: str) -> ProductSpec:
         colors=[c.strip() for c in ex.colors if c.strip()],
         key_features=[k.strip() for k in ex.key_features if k.strip()],
         affordances=[a.strip() for a in ex.affordances if a.strip()],
+        benefits=[b.strip() for b in ex.benefits if b.strip()],
+        key_ingredients=[i.strip() for i in ex.key_ingredients if i.strip()],
+        how_to_use=ex.how_to_use.strip() or None,
+        # description이 비면 visual_summary라도 실어 제품 근거를 남긴다(예전엔 통째로 버려졌다).
+        description=(ex.description.strip() or ex.visual_summary.strip() or None),
     )
 
 

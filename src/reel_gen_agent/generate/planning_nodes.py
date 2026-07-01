@@ -85,11 +85,15 @@ def narration_lines(
             "'link in bio' as a command). If anything, end on a low-key personal note ('honestly "
             "obsessed', 'kind of a staple for me now') — only if it feels natural, not a sales close.\n"
         )
+    from .product import product_brief
+
     prompt = (
         f"You are {persona}, a real short-form creator (influencer / YouTuber / TikToker) speaking a "
         f"first-person voiceover for a {meta.duration_sec:.0f}-second vertical beauty short that "
         f"involves {product.name}. You are casually telling your followers what YOU genuinely felt "
         "and noticed using it — like talking to a friend, sharing a real experience.\n"
+        # 제품 알맹이(효능·성분·사용법)를 실어 구체적이고 사실적인 언급이 나오게 한다(빈약한 대사 방지).
+        f"About the product (draw on real, specific details; do not overclaim): {product_brief(product)}\n"
         f"Tone: {tone_hint}, authentic UGC, conversational.\n"
         f"{delivery_hint}"
         f"{tone_directive}"

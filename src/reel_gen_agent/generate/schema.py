@@ -99,6 +99,8 @@ class InputMeta(BaseModel):
 
 class ProductSpec(BaseModel):
     name: str
+    url: str | None = None  # 사용자가 제공한 실제 제품/판매 페이지 URL
+    path: str | None = None  # 사용자가 제공한 로컬 제품 이미지 경로(제품 에셋 ref로 사용)
     usp: str | None = None  # 가장 어필할 한 줄
     spec: str | None = None  # 크기/제형/구성 등
     packaging_desc: str | None = None  # 패키지 외형 묘사
@@ -111,12 +113,19 @@ class ProductSpec(BaseModel):
     key_features: list[str] = Field(default_factory=list)  # 식별 특징(펌프/드로퍼/프로스티드 등)
     # product_analysis 노드가 뽑은 가능 행동 목록. 스토리보드가 사용 장면에 끌어 쓴다.
     affordances: list[str] = Field(default_factory=list)
+    # 제품 '알맹이'. 시각 정체성(위)과 별개로, 판매 페이지에서 읽은 실질 내용을 담아 hook·
+    # 스토리보드·나레이션이 두툼한 카피를 쓰게 한다. 스크랩 근거에서만 채우고 지어내지 않는다.
+    benefits: list[str] = Field(default_factory=list)  # 효능/효과·클레임(사용자 이득)
+    key_ingredients: list[str] = Field(default_factory=list)  # 핵심 성분/소재
+    how_to_use: str | None = None  # 사용/착용/적용 방법
+    description: str | None = None  # 1~2문장 사실 요약(근거 기반, 카피 아님)
 
 
 class ModelSpec(BaseModel):
     """캐릭터 설정. voice도 이 설정에서 음색을 유도한다([ADR.md] ADR-0012)."""
 
     name: str | None = None
+    path: str | None = None  # 사용자가 제공한 로컬 모델/캐릭터 이미지 경로(캐릭터 에셋 ref로 사용)
     age: str | None = None  # 예: "mid-20s"
     gender: str | None = None
     look: str | None = None  # 외모/분위기
@@ -186,10 +195,13 @@ class GenerationInput(BaseModel):
     ReelProfile로 수렴한다(specs/information-schema.md 3번 9).
     """
 
+    objective: str | None = None  # 영상 목적을 자연어로 받는 수동 입력 경로
+    prompt: str | None = None  # 자유 자연어 요청. `reel-gen run "..."` 입력처럼 그대로 해석한다.
     meta: InputMeta = Field(default_factory=InputMeta)
     product: ProductSpec
     model: ModelSpec = Field(default_factory=ModelSpec)
     style: StyleSpec = Field(default_factory=StyleSpec)
+    style_prompt: str | None = None  # 기대 톤/무드/연출 방향을 자연어로 보강
     voice: VoiceSpec = Field(default_factory=VoiceSpec)
     music: MusicSpec = Field(default_factory=MusicSpec)
     subtitle: SubtitleSpec = Field(default_factory=SubtitleSpec)

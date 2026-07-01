@@ -97,11 +97,13 @@ def _intake_node(state: PlanState) -> dict:
         # 제품 소스가 로컬 이미지/URL이면 그건 참조일 뿐 이름이 아니다. 그 경우 이름은 비워
         # 두고(=product), 제품 노드의 LLM이 브리프에서 실제 제품명을 추론하게 한다.
         product_name = result.product.source or "product"
-        product_url = ""
+        product_url = result.product_url or ""
         if (result.product.source or "").startswith(("http://", "https://")):
-            product_url = result.product.source or ""
+            product_url = product_url or result.product.source or ""
             product_name = "product"
-        elif result.product_image:
+        elif result.product_image and (result.product.source or "").lower().endswith(
+            (".jpg", ".jpeg", ".png", ".webp")
+        ):
             product_name = "product"
         return {
             "objective": result.objective,
@@ -109,7 +111,7 @@ def _intake_node(state: PlanState) -> dict:
             "character_image": result.character_image or "",
             "product_image": result.product_image or "",
             "product_url": product_url,
-            "meta": InputMeta(),
+            "meta": InputMeta(language=result.language or "en"),
             "style": StyleDimensions(),
             "music": MusicSpec(),
             "delivery": "voiceover",
@@ -129,11 +131,21 @@ def _intake_node(state: PlanState) -> dict:
 
 def _reference_node(state: PlanState) -> dict:
     ref = state["provenance"].reference_ref
-    if not (ref and Path(ref).exists()):
+    if not ref:
         return {}
-    with state["tracer"].node("reference_seed", ref=ref):
+    local_ref = ref
+    if ref.startswith(("http://", "https://")):
         try:
-            seed = seed_from_reference(ref, use_gemini=state.get("text_client") is not None)
+            from ..analysis.reference import _find_project_root, download_via_script
+
+            local_ref = str(download_via_script(ref, _find_project_root()))
+        except Exception as exc:
+            raise RuntimeError(f"레퍼런스 영상 URL 다운로드 실패: {ref}") from exc
+    if not Path(local_ref).exists():
+        return {}
+    with state["tracer"].node("reference_seed", ref=local_ref):
+        try:
+            seed = seed_from_reference(local_ref, use_gemini=state.get("text_client") is not None)
         except Exception:
             return {}  # 시딩 실패해도 기본값으로 계속
         return {
@@ -147,6 +159,11 @@ def _reference_node(state: PlanState) -> dict:
             "ref_product": seed.product,
             "ref_voice_tone": seed.voice_tone or "",
             "ref_voice_pace": seed.voice_pace or "",
+            "provenance": Provenance(
+                style_source="reference",
+                reference_ref=local_ref,
+                seeds=seed.seeds,
+            ),
         }
 
 
@@ -184,20 +201,22 @@ def _product_node(state: PlanState) -> dict:
         materials = None
         if url:
             # 제품 URL이 주어졌으면 그 실제 판매 페이지에서 제품을 뽑는 게 최우선이다. 순간적
-            # 실패에도 브리프로 '가짜 제품'을 지어내면 안 된다. 재시도하고, 페이지 자체를 못 읽으면
-            # 조용한 폴백 대신 명확히 실패시킨다(chat은 다시 묻고 run은 실패).
+            # 실패에도 브리프로 '가짜 제품'을 지어내면 안 된다. 다만 GenerationInput처럼 사용자가
+            # 제품명/설명을 구조화해서 함께 준 경우는 그 명시 설명을 근거로 계속 진행할 수 있다.
             for _ in range(2):
                 materials = collect_materials(url, plan_dir)
                 if materials is not None:
                     break
             if materials is None:
-                raise ProductGroundingError(
-                    f"제품 URL을 읽지 못했습니다: {url}\n실제 제품 페이지를 스크래핑하지 못해 "
-                    "제품을 임의로 추정하지 않고 중단합니다. 잠시 후 다시 시도하거나 "
-                    "다른 제품 URL/이미지를 주세요."
-                )
-            refs = list(materials.image_paths[:2])
-            product = extract_product(materials, fallback_name=raw_name)
+                if not local_img and not has_name:
+                    raise ProductGroundingError(
+                        f"제품 URL을 읽지 못했습니다: {url}\n실제 제품 페이지를 스크래핑하지 못해 "
+                        "제품을 임의로 추정하지 않고 중단합니다. 잠시 후 다시 시도하거나 "
+                        "다른 제품 URL/이미지를 주세요."
+                    )
+            else:
+                refs = list(materials.image_paths[:2])
+                product = extract_product(materials, fallback_name=raw_name)
 
         if local_img:
             refs.append(local_img)

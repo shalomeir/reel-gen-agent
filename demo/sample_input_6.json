@@ -1,0 +1,14 @@
+{
+  "product": {
+    "name": "BIODANCE Hydrating Collagen Water Full Essence Mist",
+    "url": "https://www.amazon.com/BIODANCE-Hydrating-Anti-Aging-Sprayable-Essentials/dp/B0GF86QJK7",
+    "path": "./sample_imgs/biodance-essence-mist-pink.png",
+    "usp": "세안 후나 메이크업 전후에 뿌려 피부가 건조해 보이는 순간을 빠르게 정돈하는 수분 콜라겐 미스트",
+    "spec": "sprayable facial essence mist for hydrating, anti-aging skincare routines",
+    "packaging_desc": "clean beauty-style facial mist bottle with a soft, fresh skincare look",
+    "category": "skincare facial mist",
+    "key_features": ["hydrating collagen care", "sprayable essence", "morning routine friendly"],
+    "affordances": ["spray onto face", "hold bottle close to camera", "show dewy skin finish"]
+  },
+  "prompt": "reference https://www.tiktok.com/@biodance_global/video/7629597166104890654"
+}

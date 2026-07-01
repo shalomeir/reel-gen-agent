@@ -1,4 +1,11 @@
-from reel_gen_agent.generate.intake import intake
+from reel_gen_agent.generate.intake import generation_input_to_brief, intake
+from reel_gen_agent.generate.schema import (
+    GenerationInput,
+    InputMeta,
+    ModelSpec,
+    ProductSpec,
+    StyleSpec,
+)
 
 
 def test_text_brief_extracts_labeled_assets():
@@ -43,3 +50,114 @@ def test_bare_video_url_stays_reference_not_product():
     r = intake("이 스타일로 만들어줘 https://cdn.example/clip.mp4")
     assert r.reference_ref == "https://cdn.example/clip.mp4"
     assert r.product.source is None
+
+
+def test_bare_youtube_url_stays_reference_not_product():
+    url = "https://www.youtube.com/shorts/abc123"
+    r = intake(f"이런 느낌의 15초 미스트 광고로 만들어줘 {url}")
+    assert r.reference_ref == url
+    assert r.product.source is None
+
+
+def test_generation_input_to_brief_preserves_structured_fields():
+    gen_input = GenerationInput(
+        objective="수분 미스트를 아침 루틴 광고로 소개",
+        meta=InputMeta(language="ko"),
+        product=ProductSpec(
+            name="BIODANCE mist",
+            url="https://example.com/product",
+            usp="건조한 피부에 빠른 수분감",
+        ),
+        model=ModelSpec(gender="female", look="clean beauty creator"),
+        style=StyleSpec(tone=["fresh", "calm"], pacing="mixed"),
+        style_prompt="밝고 산뜻한 K-beauty 톤",
+    )
+
+    brief = generation_input_to_brief(gen_input)
+    result = intake(brief)
+
+    assert "수분 미스트를 아침 루틴 광고로 소개" in brief
+    assert result.product.source.startswith("BIODANCE mist")
+    assert result.product_url == "https://example.com/product"
+    assert result.character.source.startswith("female")
+    assert "clean beauty creator" in result.character.source
+    assert result.language == "ko"
+
+
+def test_generation_input_prompt_behaves_like_freeform_run_brief():
+    url = "https://www.youtube.com/shorts/abc123"
+    gen_input = GenerationInput(
+        prompt=f"이런 영상이었으면 좋겠어요. 밝은 욕실 루틴 톤으로 만들고 레퍼런스는 {url}",
+        objective="BIODANCE 미스트 15초 광고",
+        product=ProductSpec(name="BIODANCE mist"),
+    )
+
+    brief = generation_input_to_brief(gen_input)
+    result = intake(brief)
+
+    assert brief.startswith("이런 영상이었으면 좋겠어요.")
+    assert "밝은 욕실 루틴 톤" in result.objective.goal
+    assert result.reference_ref == url
+    assert result.product.source.startswith("BIODANCE mist")
+
+
+def test_generation_input_prompt_detects_model_product_and_reference_assets(tmp_path):
+    model_image = tmp_path / "model.png"
+    product_image = tmp_path / "mist.png"
+    model_image.write_bytes(b"png")
+    product_image.write_bytes(b"png")
+    product_url = "https://shop.example/products/mist"
+    reference_url = "https://www.youtube.com/shorts/abc123"
+    gen_input = GenerationInput(
+        prompt=(
+            f"이런 영상이면 좋겠어요 {reference_url}\n"
+            f"모델 이미지는 {model_image} 참고하고\n"
+            f"제품 이미지는 {product_image} 쓰고 제품 url은 {product_url}"
+        ),
+        objective="BIODANCE 미스트 15초 광고",
+        product=ProductSpec(name="BIODANCE mist"),
+    )
+
+    result = intake(generation_input_to_brief(gen_input))
+
+    assert result.reference_ref == reference_url
+    assert result.character_image == str(model_image.resolve())
+    assert result.product_image == str(product_image.resolve())
+    assert result.product_url == product_url
+
+
+def test_generation_input_product_path_becomes_product_image(tmp_path):
+    product_image = tmp_path / "demo" / "sample_imgs" / "mist.png"
+    product_image.parent.mkdir(parents=True)
+    product_image.write_bytes(b"png")
+    gen_input = GenerationInput(
+        objective="수분 미스트 아침 루틴 광고",
+        product=ProductSpec(
+            name="BIODANCE mist",
+            path="./sample_imgs/mist.png",
+            usp="빠른 수분감",
+        ),
+    )
+
+    brief = generation_input_to_brief(gen_input, base_dir=tmp_path / "demo")
+    result = intake(brief)
+
+    assert result.product.source.startswith("BIODANCE mist")
+    assert result.product_image == str(product_image.resolve())
+
+
+def test_generation_input_model_path_becomes_character_image(tmp_path):
+    model_image = tmp_path / "demo" / "sample_imgs" / "model.png"
+    model_image.parent.mkdir(parents=True)
+    model_image.write_bytes(b"png")
+    gen_input = GenerationInput(
+        objective="수분 미스트 아침 루틴 광고",
+        product=ProductSpec(name="BIODANCE mist"),
+        model=ModelSpec(path="./sample_imgs/model.png", look="clean beauty creator"),
+    )
+
+    brief = generation_input_to_brief(gen_input, base_dir=tmp_path / "demo")
+    result = intake(brief)
+
+    assert result.character.source.startswith("clean beauty creator")
+    assert result.character_image == str(model_image.resolve())

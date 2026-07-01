@@ -116,6 +116,30 @@ def product_identity(product: ProductSpec) -> str:
     return ", ".join(bits) or (product.name or "the product")
 
 
+def product_brief(product: ProductSpec) -> str:
+    """제품 '알맹이' 요약(카피용). 시각 정체성(product_identity)과 달리 이름·효능·성분·사용법·
+    설명을 담아 hook·스토리보드·나레이션이 두툼하고 사실적인 카피를 쓰게 한다. 빈 조각은 생략.
+
+    스크랩 근거에서 채운 실질 필드를 여기 모아, 예전처럼 '이름만' 넘겨 카피가 빈약해지는 걸 막는다.
+    """
+    bits: list[str] = []
+    if product.name:
+        bits.append(product.name)
+    if product.category:
+        bits.append(f"({product.category})")
+    if product.usp:
+        bits.append(f"USP: {product.usp}")
+    if product.benefits:
+        bits.append(f"benefits: {', '.join(product.benefits)}")
+    if product.key_ingredients:
+        bits.append(f"key ingredients/materials: {', '.join(product.key_ingredients)}")
+    if product.how_to_use:
+        bits.append(f"how to use: {product.how_to_use}")
+    if product.description:
+        bits.append(product.description)
+    return " | ".join(bits) or (product.name or "the product")
+
+
 def derive_product(
     name: str,
     brief: str,

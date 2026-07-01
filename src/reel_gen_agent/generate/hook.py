@@ -72,9 +72,11 @@ def _window(duration_sec: float) -> tuple[float, float]:
 
 
 def generate_hooks(request: HookRequest, client: TextClient, brief: str = "") -> HookSet:
+    from .product import product_brief
+
     prompt = _PROMPT.format(
         count=request.count,
-        product=request.product.name,
+        product=product_brief(request.product),
         category=request.category or "auto",
         tone=", ".join(request.tone) or "auto",
         character=request.character or "an attractive early-20s American beauty creator",

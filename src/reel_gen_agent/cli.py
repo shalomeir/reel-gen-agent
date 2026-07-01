@@ -29,7 +29,7 @@ from .analysis.rubric import evaluate_video
 from .analysis.similarity import SimilarityReport, compare_profiles
 from .generate.backends.veo import VeoImageRAIError
 from .generate.conformance import verify_conformance
-from .generate.intake import intake, validate_purpose
+from .generate.intake import intake, normalized_input_to_brief, validate_purpose
 from .generate.planning_graph import run_planning, run_replan
 from .generate.product import ProductGroundingError
 from .generate.production_graph import run_production
@@ -76,6 +76,16 @@ app = typer.Typer(
 def _read(path: str) -> str:
     """JSON 파일을 UTF-8 텍스트로 읽는다(verify의 입력 로딩용)."""
     return Path(path).read_text(encoding="utf-8")
+
+
+def _planning_brief(source: str, *, text_client=None) -> str:
+    """입력 파일이면 내용 기반으로, 아니면 원문 기반으로 plan 그래프용 브리프를 만든다."""
+    source_path = Path(source)
+    if source_path.exists() and source_path.is_file():
+        return normalized_input_to_brief(
+            _read(source), text_client=text_client, base_dir=source_path.parent
+        )
+    return source
 
 
 def _produce(profile_path: str, *, use_vlm: bool):
@@ -341,14 +351,15 @@ def plan(
     영상 목적이 명확하지 않으면 거절한다. 그 외에는 목적만으로 나머지를 추론해 채운다.
     """
     client = None if no_llm else make_text_client()
-    ok, reason = validate_purpose(brief, text_client=client)
+    planning_brief = _planning_brief(brief, text_client=client)
+    ok, reason = validate_purpose(planning_brief, text_client=client)
     if not ok:
         typer.echo(f"거절: {reason}", err=True)
         raise typer.Exit(code=2)
     img = None if no_images else _make_image_client()
     path = _working(
         "기획 중 (ReelProfile·에셋 생성)",
-        lambda: run_planning(brief, outputs, text_client=client, image_client=img),
+        lambda: run_planning(planning_brief, outputs, text_client=client, image_client=img),
     )
     typer.echo(f"ReelProfile: {path}", err=True)
 
@@ -356,7 +367,6 @@ def plan(
 @app.command()
 def execute(
     profile: str = typer.Argument(..., help="ReelProfile JSON 경로"),
-    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
     no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
 ) -> None:
     """ReelProfile을 받아 Production을 돌려 outputs/<run_id>/에 영상·리포트를 만든다.
@@ -444,15 +454,26 @@ def run(
             return
 
     text = None if no_llm else make_text_client()
+    planning_brief = _planning_brief(brief, text_client=text)
     # 영상 목적이 제대로 서술되지 않았으면 실행 거절(그 외에는 목적만으로 나머지 추론).
-    ok, reason = validate_purpose(brief, text_client=text)
+    ok, reason = validate_purpose(planning_brief, text_client=text)
     if not ok:
         typer.echo(f"거절: {reason}", err=True)
         raise typer.Exit(code=2)
     img = None if no_images else _make_image_client()
 
     # 레퍼런스가 있으면 한 번만 analyze해 비교 기준으로 재사용한다.
-    ref_path = intake(brief).reference_ref
+    ref_path = intake(planning_brief).reference_ref
+    if ref_path and _is_url(ref_path):
+        try:
+            root = _find_project_root()
+            video_path = download_via_script(ref_path, root)
+        except Exception as exc:
+            typer.echo(f"레퍼런스 다운로드 실패: {exc}", err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(f"레퍼런스 내려받음: {video_path}", err=True)
+        planning_brief = planning_brief.replace(ref_path, str(video_path), 1)
+        ref_path = str(video_path)
     ref_profile: VideoProfile | None = None
     if ref_path and not no_similarity and Path(ref_path).exists():
         typer.echo(f"레퍼런스 분석: {ref_path}", err=True)
@@ -467,7 +488,7 @@ def run(
         path = _working(
             "기획 중 (ReelProfile·에셋 생성)",
             lambda f=feedback: run_planning(
-                brief, outputs, text_client=text, image_client=img, style_feedback=f
+                planning_brief, outputs, text_client=text, image_client=img, style_feedback=f
             ),
         )
         typer.echo(f"ReelProfile: {path}", err=True)
