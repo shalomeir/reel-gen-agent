@@ -6,7 +6,7 @@
 - evaluate: 영상 -> 드라이버 Rubric 채점(RubricResult JSON). 구현 완료.
 - verify: 영상 -> Conformance 무결성·적합성 검증(ConformanceReport JSON). 구현 완료.
 - plan: 입력 -> ReelProfile(JSON) 산출. 워킹 스켈레톤.
-- execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. 워킹 스켈레톤.
+- execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. --replan 시 새 훅으로 재전개(새 폴더). 워킹 스켈레톤.
 - run: 입력 -> ReelProfile -> Production을 확인 게이트 없이 한 번에. 유사도 루프 포함.
 - chat: plan/execute를 엮은 대화형 진입점.
 """
