@@ -27,7 +27,7 @@
 | 레퍼런스 비전 분석(VLM) | Gemini Flash 계열 | Gemini Pro 계열 | 빠르고 싸며 멀티모달. 분석 층은 결정론 수치가 주연이라 지각 묘사는 가벼운 모델로 충분 |
 | 기획·카피 생성(LLM) | Gemini 3.1 Pro | Claude Opus(병행 비교) | 카피 품질이 결과를 좌우하는 텍스트 레인. 두 키를 다 보유해 일급으로 나란히 비교, 작업별로 나은 쪽 채택 |
 | 이미지 생성(에셋 시트, 패널 스틸) | Google Nano Banana 계열(Gemini 네이티브 이미지) | 없음(단일 경로) | 단일 키 안에서 돌고, 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞음. 스틸 품질이 영상으로 전파되므로 품질 우선. 이미지는 Nano Banana 단일 경로로 좁힘 |
-| image-to-video(패널 클립) | Veo 3.1 Fast(Vertex 전용 개발 기본) | Kling O3 Pro reference-to-video(성능 최선), Kling O3 image-to-video(Veo 치환 후보), Veo 3.1 Standard/Pro(고품질 승격), 스틸 켄 번스 폴백 | 개발 검증 기본은 Veo Fast지만, 현시점 이 프로젝트에서 품질 최선은 Kling O3. 특히 O3 Pro reference-to-video가 캐릭터·제품·스토리보드 reference 일관성에서 가장 강함 |
+| image-to-video(패널 클립) | Veo 3.1 Fast(Vertex 전용 개발 기본) | Kling O3 image-to-video(Veo 대체 용으로 추천), Veo 3.1 Standard/Pro(고품질 승격), 스틸 켄 번스 폴백 | 개발 검증 기본은 Veo Fast지만, 현시점 이 프로젝트에서 품질 최선은 Kling O3. 특히 O3 Pro image-to-video가 Veo 와 유사하게 작동하면서 자연스러운 모습을 보임 |
 | 배경 음악(BGM) | Lyria 3(Clip, 30초 이하 기본) | 30초 초과 시 Lyria 3 Pro, 사용자 제공 음악 또는 무음 | 컷 리듬에 BGM 템포를 맞춤. 대부분 숏폼은 30초 이하라 Clip으로 충분, 30초 넘으면 Pro로 승격 |
 | voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs `eleven_v3`(한국어/영어 공통 기본, Google TTS보다 한 수 위. 없을 때만 Google TTS 3.1 preview 폴백) | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 나레이션 톤은 광고 카피가 아니라 진짜 크리에이터의 1인칭 경험 공유로 쓴다. 레퍼런스 발화 결(tone/pace)이 있으면 eleven_v3 오디오 태그로 전달. 컷이 나뉘어도 톤 일관 |
 | 효과음(SFX) | 씬 자연음: 영상 모델 네이티브 오디오(Veo `generate_audio`, 거의 항상 켬 → 무음 영상 지양) | 비-diegetic 편집 효과음(전환 whoosh·그래픽 액센트·후크 riser·엔딩 징글): ElevenLabs `text_to_sound_effects`(옵션) | 씬 안의 소리는 영상 모델이 맥락째 내는 게 낫다. 예능식 편집 효과음만 플랜이 켤 때 별도 생성해 조립 단계에서 loudnorm으로 눅여 얹는다 |
@@ -37,7 +37,7 @@
 고른다. 기본 `auto`는 GCP 자격이 있으면 Vertex AI(크레딧), 없으면 `GEMINI_API_KEY` lane이다.
 
 홀딩/제외(왜 안 쓰는지): Claude 비전(단일 키 약속 위배, 분석은 결정론 수치가 우선), 게이트웨이
-멀티 라우팅(현 규모에 과함), Gemini API Veo lane(Veo는 Vertex 전용으로 못박음), Veo 3.1
+멀티 라우팅(현 규모에 과함), Veo 3.1
 Lite(start/end control에서 split artifact가 생겨 품질 실망), Seedance 2.0 Fast(face/persona
 reference 검열이 강해 캐릭터 reference 기반 제품 광고에서 사용성 리스크가 큼), 외부
 audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedance/Veo/Kling O3 모두 기본 채택
@@ -65,23 +65,14 @@ audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedanc
 영상 백엔드는 Veo 3.1을 Vertex AI lane으로만 호출한다(`GOOGLE_CLOUD_PROJECT`,
 `GOOGLE_APPLICATION_CREDENTIALS`, `VEO_OUTPUT_GCS_URI` 필요). Veo는 절대 fal로 호출하지 않는다.
 
-2026-07-01 smoke test 기준 운영 판단:
-
-- 개발 검증 단계의 기본 영상 백엔드는 Vertex API의 `Veo 3.1 Fast`다. Fast가 가장 무난했고,
-  짧은 뷰티 사용 컷과 `시원하다` 같은 짧은 네이티브 발화를 안정적으로 처리했다.
-- 고품질 승격은 `Veo 3.1 Standard/Pro`(`veo-3.1-generate-001`)만 쓴다. 중요한 히어로 컷이나
-  질감·얼굴·카메라 품질이 더 필요한 컷에서만 Fast 대신 호출한다.
-- 성능상 최선의 영상 모델은 Kling O3다. 특히 `fal-ai/kling-video/o3/pro/reference-to-video`가
-  여러 reference와 storyboard를 한 번에 넣는 복잡한 캐릭터 기반 제품 영상에서 가장 강했다.
-  start/action image, 구체적인 캐릭터 설정 이미지, 구체적인 제품 이미지, 멀티샷 storyboard를
-  prompt로 묶어 넣으면 캐릭터·제품·액션 일관성이 좋다.
+- 성능상 최선의 영상 모델은 Kling O3다. 특히 `fal-ai/kling-video/o3/pro/image-to-video`가
+  등장 모델 일관성 유지 측면에서 컨트롤이 더 쉬웠다.
+  `image_url`에 시작 이미지를, `end_image_url`에 끝
+  이미지를 넣을 수 있어 Veo 3.1 image-to-video와 치환하기 쉽다. 명확한 A→B 컷은 이 방식이 확실히 편하다.
 - Kling O3 reference-to-video는 품질 욕심이 있거나, 일관성 있게 여러 컷을 밀어붙이고 싶거나,
-  컷별 일관성이 중요한 복잡한 영상에 쓴다. 최선은 O3 Pro reference-to-video다. 더 높은 품질은
-  컷별로 잘라 생성한 뒤 조립하는 방식이고, 멀티샷이 필요하면 O3 `multi_prompt`로 한 번에
-  생성할 수도 있다.
-- Kling O3 image-to-video도 충분히 좋다. `image_url`에 시작 이미지를, `end_image_url`에 끝
-  이미지를 넣을 수 있어 Veo 3.1 image-to-video와 치환하기 쉽다. 명확한 A→B 액션 컷은 이 경로가
-  강하다.
+  컷별 일관성이 중요한 복잡한 영상에 쓴다. 단, 
+  충분히 테스트 하지 않고 Reference 를 너무
+  넣으면 생성 결과가 자칫 기이해진다.
 - `Veo 3.1 Lite`는 기본 후보에서 내린다. 단일 start image 제품 데모는 가능했지만,
   start/end control board에서 split-screen artifact를 만들었고 결과가 실망스러웠다.
 - Veo는 **start image를 넣어야 한다.** 텍스트만으로는 제품, 캐릭터, 시작 동작, 끝 상태가
