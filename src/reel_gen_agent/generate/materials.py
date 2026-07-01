@@ -160,6 +160,10 @@ def _multishot_prompt(
         f"A single vertical 9:16 clip that cuts through {len(seg_panels)} shots played one after "
         "another over time (a fast-edited sequence with hard cuts on a timeline).",
         "Keep the same person and the same product consistent across every shot.",
+        # Veo가 인물을 지나치게 사실적으로 바꾸며 매력도를 떨어뜨릴 때가 있어, 시작 이미지의
+        # 미모·매력을 그대로 유지하라고 명시한다(단, 플라스틱 아닌 자연스러움은 유지).
+        "Keep the person exactly as attractive and beautiful as the start image — flattering, "
+        "photogenic, camera-ready; do not make her look plainer or less attractive.",
         skin_directive,
         _speech_directive(speaking),
         # 자막은 편집단계에서 따로 올리므로, 영상 모델이 화면에 글자를 그리면 안 된다.

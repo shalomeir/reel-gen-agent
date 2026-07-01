@@ -21,6 +21,7 @@ from .environment import derive_environment
 from .hook import generate_hooks
 from .intake import intake
 from .music import derive_music
+from .product import derive_product
 from .profile_assembly import assemble_profile, write_profile
 from .reference_seed import seed_from_reference
 from .run_paths import create_run_dir
@@ -56,6 +57,7 @@ class PlanState(TypedDict, total=False):
     delivery: str
     ref_subject: Any
     ref_hook: Any
+    ref_product: Any
     cut_count: int
     provenance: Any
     hook_feedback: str
@@ -110,6 +112,18 @@ def _reference_node(state: PlanState) -> dict:
             "delivery": seed.delivery,
             "ref_subject": seed.subject,
             "ref_hook": seed.style.hook,
+            "ref_product": seed.product,
+        }
+
+
+def _product_node(state: PlanState) -> dict:
+    """제품 분석: 이름만 들고온 product를 카테고리·USP·용기·행동으로 채운다(레퍼런스 힌트 반영)."""
+    with state["tracer"].node("product"):
+        return {
+            "product": derive_product(
+                state["product"].name, state["objective"].goal, state.get("ref_product"),
+                state.get("text_client"),
+            )
         }
 
 
@@ -274,6 +288,7 @@ def build_plan_graph():
     g = StateGraph(PlanState)
     for name, fn in [
         ("intake", _intake_node), ("reference_seed", _reference_node),
+        ("product", _product_node),
         ("character", _character_node), ("environment", _environment_node),
         ("music", _music_node), ("hook", _hook_node), ("storyboard", _storyboard_node),
         ("narration", _narration_node), ("assets", _assets_node), ("write_profile", _write_node),
@@ -281,7 +296,8 @@ def build_plan_graph():
         g.add_node(name, fn)
     g.add_edge(START, "intake")
     g.add_edge("intake", "reference_seed")
-    g.add_edge("reference_seed", "character")
+    g.add_edge("reference_seed", "product")
+    g.add_edge("product", "character")
     g.add_edge("character", "environment")
     g.add_edge("environment", "music")
     g.add_edge("music", "hook")

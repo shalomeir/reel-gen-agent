@@ -15,21 +15,21 @@ from .text_client import TextClient
 
 # 단서가 전혀 없을 때만 쓰는 기본 캐릭터. 인종/국적을 명시해 이미지 모델이 임의로 동양인 등으로
 # 흐르지 않게 한다(사용자 지시: 기본은 20대 초반 미국인 매력적인 여성).
-# 기본은 확실한 미인(매력적)으로 생성한다(사용자 지시). 단서 없을 때만 쓰는 기본값.
+# 기본은 연예인/슈퍼모델 급 미모로 생성한다(사용자 지시). 단서 없을 때만 쓰는 기본값.
 DEFAULT_CHARACTER = ModelSpec(
     age="early 20s",
     gender="female",
     look=(
-        "a strikingly beautiful, gorgeous early-20s American woman with Western features, "
-        "stunning aspirational beauty-influencer looks, flawless symmetrical features, radiant "
-        "clear complexion, effortless minimal-makeup glam, warm magnetic vibe"
+        "a celebrity-level, supermodel-tier gorgeous early-20s American woman with Western "
+        "features, stunning flawless symmetrical features, radiant clear complexion, magnetic "
+        "head-turning aspirational beauty, effortless minimal-makeup glam"
     ),
 )
 
 # 매력도는 '기본 편향'이다(강제 고정 아님). 브리프/레퍼런스가 다른 외모를 분명히 원하면 그걸 따른다.
 _ATTRACTIVE = (
-    "Default bias (override only if the brief clearly asks for a different look): make the person "
-    "strikingly attractive and beautiful — a gorgeous, scroll-stopping beauty influencer."
+    "Default bias (override only if the brief clearly asks for a different look): the person is "
+    "celebrity-level, supermodel-tier gorgeous — a stunning, flawless, head-turning beauty."
 )
 
 _PROMPT = (
@@ -85,9 +85,8 @@ def _from_subject(subject: Subject) -> ModelSpec:
         subject.hair,
         subject.look,
         subject.wardrobe,
-        # LLM 없는 폴백: 레퍼런스 인물을 충실히 반영하고 가벼운 '세련된 인플루언서' 톤만 더한다
-        # (강제 미인 고정 아님).
-        "polished beauty-influencer look",
+        # 레퍼런스 인물을 충실히 반영하되, 매력도는 연예인급을 기본 편향으로 얹는다(과잉 고정 아님).
+        "celebrity-level, supermodel-tier gorgeous beauty-influencer looks",
     ]
     return ModelSpec(
         age=subject.age_range or DEFAULT_CHARACTER.age,
