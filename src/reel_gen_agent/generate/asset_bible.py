@@ -37,42 +37,39 @@ def _palette_phrase(palette: list[str] | None) -> str:
     if not palette:
         return ""
     tones = ", ".join(palette[:5])
-    return f" Color grading and overall tones in this palette: {tones}. Match this mood and warmth."
+    return f" Color grading and overall tones in this palette: {tones}. Match this palette's mood."
 
 
 def _character_prompt(
     character: ModelSpec, palette: list[str] | None, has_reference: bool = False
 ) -> str:
-    # 인물 정체성·매력도는 character 노드가 이미 정했다(look). 여기서 다시 하드코딩하지 않고
-    # 그 결정을 쓴다. 레퍼런스 시트라 배경은 중립(깨끗한 실내)으로 — 실제 환경은 컷별 스틸이 입힌다.
-    look = character.look or "an exceptionally attractive early-20s woman, aspirational influencer look"
+    """캐릭터 정면 레퍼런스 시트 프롬프트. character 노드가 정한 값(look/age/gender)을 그대로
+    렌더할 뿐, 성별·미모 같은 '내용'을 여기서 다시 하드코딩하지 않는다.
+
+    미모/매력도 편향은 입력이 특정하지 않을 때만 쓰는 default로 이미 character.look에 담겨 있다
+    (DEFAULT_CHARACTER, 그리고 LLM 도출 프롬프트가 그렇게 유도). 여기서 "She must be a
+    supermodel it-girl" 같은 문구를 다시 주입하면 사용자가 요청한 성별·외모를 덮어써 버그가 난다
+    (남성 요청→여성 생성). 그래서 이 함수는 render 전용이고, 레퍼런스 충실도 지시도 성별 표지 없이
+    성 중립 대명사로 쓴다. 배경만 중립(깨끗한 실내)으로 둔다 — 실제 환경은 컷별 스틸이 입힌다.
+    """
+    look = character.look or "an attractive early-20s creator"
     age = character.age or "early 20s"
     gender = character.gender or "female"
-    # 입력 인물 이미지를 가깝게 따르되, 얼굴을 '살짝만' 바꾼다(완전히 다른 사람 X). 레퍼런스의
-    # 이목구비·헤어·분위기·그리고 높은 미모를 그대로 유지하고, 미세한 특징만 조정해 픽셀 단위
-    # 동일 복제만 피한다. 이렇게 해야 원하는 룩과 매력도가 함께 살고, 완전 별인으로 만들다 평범해
-    # 지는 것을 막는다(사용자 지시: 살짝만 바꿔라).
+    # 입력 인물 이미지가 있으면 그 룩·매력도를 가깝게 따르되, 완전 동일 복제만 피하도록 '살짝만'
+    # 바꾼다. 성별을 못 박지 않으려 대명사는 성 중립(this person/them)으로 둔다.
     ref_clause = (
         "Follow the reference image CLOSELY: keep the same overall face, features, hair, coloring, "
-        "styling and — most importantly — her high level of beauty. Make only a SLIGHT variation "
-        "(subtly adjust a few minor features) so the result is not a pixel-perfect identity copy of "
-        "the exact same individual, while still clearly reading as the same look and the same "
-        "(or higher) attractiveness. Do NOT turn her into a noticeably different-looking or less "
-        "attractive person; stay close and keep her stunning. "
+        "styling and the same high level of attractiveness. Make only a SLIGHT variation (subtly "
+        "adjust a few minor features) so the result is not a pixel-perfect identity copy of the "
+        "exact same individual, while still clearly reading as the same look and the same (or "
+        "higher) attractiveness. Do NOT turn this person into a noticeably different-looking or "
+        "less attractive one; stay close and keep them striking. "
         if has_reference
         else ""
     )
-    # 매력도는 광고 성패를 가르는 요소라 강하게 못 박는다(사용자 지시: 셀럽/톱인플루언서급).
-    beauty = (
-        "She must be breathtakingly, exceptionally beautiful: a supermodel / top viral beauty-"
-        "influencer / A-list-celebrity-tier face — flawless and strikingly symmetrical features, "
-        "big luminous eyes, sculpted bone structure, radiant perfect skin, glossy healthy hair, "
-        "the aspirational 'it-girl' look that stops the scroll. Absolutely not plain, ordinary or "
-        "average-looking; maximize conventional beauty and on-camera magnetism."
-    )
     return (
         f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
-        f"{age} {gender}. {ref_clause}{beauty} "
+        f"{age} {gender}. {ref_clause}"
         "Looking straight at the camera, natural soft indoor lighting, clean neutral "
         "bright background, authentic UGC selfie aesthetic, clean and bright. "
         "A fictional person, not a real or identifiable individual." + _palette_phrase(palette)

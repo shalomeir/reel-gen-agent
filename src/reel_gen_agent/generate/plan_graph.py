@@ -17,7 +17,12 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from .asset_bible import build_character_asset, build_key_visual, build_product_asset
-from .character import character_brief, derive_character, voice_persona
+from .character import (
+    character_brief,
+    derive_character,
+    describe_character_image,
+    voice_persona,
+)
 from .environment import derive_environment
 from .hook import generate_hooks
 from .intake import intake
@@ -158,26 +163,57 @@ def _product_node(state: PlanState) -> dict:
     스크래핑/분석이 안 되면 텍스트 브리프 기반 derive_product로 폴백한다. 실제 제품 사진은 히어로/
     패키지 렌더의 참조로도 쓴다. 이 노드 산출물(스펙+사진)이 훅·스토리보드로도 흘러 앵커가 된다.
     """
+    from .intake import _goal_text
+    from .product import ProductGroundingError
     from .product_source import collect_materials, extract_product
 
     with state["tracer"].node("product"):
-        goal = state["objective"].goal
+        # 목적 텍스트에서 URL/라벨을 걷어낸다. 판매 URL의 도메인(예: oliveyoung.co.kr)이 제품
+        # LLM 컨텍스트로 새면 소매점명을 브랜드로 오인해 엉뚱한 제품('올리브영 토너패드')을 지어낸다.
+        goal = _goal_text(state["objective"].goal)
         plan_dir = _plan_asset_dir(state)
         url = (state.get("product_url") or "").strip()
-
-        materials = collect_materials(url, plan_dir) if url else None
-        # 참조 이미지: 스크래핑한 실제 제품 사진(상위 2장) + 사용자가 직접 준 로컬 제품 이미지.
-        refs = list(materials.image_paths[:2]) if materials else []
         local_img = state.get("product_image")
+        # 제품 이름이 실제로 주어졌는지(사용자 서술). "product"는 URL/이미지만 있고 이름은 없을 때
+        # intake가 넣는 자리표시자라 '이름 없음'으로 본다.
+        raw_name = (state["product"].name or "").strip()
+        has_name = bool(raw_name) and raw_name.lower() != "product"
+
+        product = None
+        refs: list[str] = []  # 스크래핑한 실제 제품 사진(상위 2장) + 사용자가 준 로컬 제품 이미지
+        materials = None
+        if url:
+            # 제품 URL이 주어졌으면 그 실제 판매 페이지에서 제품을 뽑는 게 최우선이다. 순간적
+            # 실패에도 브리프로 '가짜 제품'을 지어내면 안 된다. 재시도하고, 페이지 자체를 못 읽으면
+            # 조용한 폴백 대신 명확히 실패시킨다(chat은 다시 묻고 run은 실패).
+            for _ in range(2):
+                materials = collect_materials(url, plan_dir)
+                if materials is not None:
+                    break
+            if materials is None:
+                raise ProductGroundingError(
+                    f"제품 URL을 읽지 못했습니다: {url}\n실제 제품 페이지를 스크래핑하지 못해 "
+                    "제품을 임의로 추정하지 않고 중단합니다. 잠시 후 다시 시도하거나 "
+                    "다른 제품 URL/이미지를 주세요."
+                )
+            refs = list(materials.image_paths[:2])
+            product = extract_product(materials, fallback_name=raw_name)
+
         if local_img:
             refs.append(local_img)
 
-        product = None
-        if materials is not None:
-            product = extract_product(materials, fallback_name=state["product"].name)
-        if product is None:  # 스크래핑/분석 실패 -> 텍스트 경로(근거 있으면 web_context로 전달)
+        if product is None:
+            # 여기까지 왔는데 실제 소스가 없으면(제품 URL·이미지·사용자 이름 모두 없음) 제품을
+            # 지어내지 않고 실패시킨다(사용자 지시: 제품은 추정 폴백 금지). 소스가 있으면 명시된
+            # 것만 추출한다: materials가 있으면 실제 페이지 본문(web_context)이 권위 근거이고,
+            # 없으면 사용자가 준 제품 이름/서술만 쓴다. goal은 도메인 누출 방지용 정제본.
+            if not materials and not local_img and not has_name:
+                raise ProductGroundingError(
+                    "홍보할 제품을 확보하지 못했습니다. 제품 판매 URL(권장)이나 제품 이미지, "
+                    "또는 구체적인 제품 설명을 주세요. 제품은 임의로 추정하지 않습니다."
+                )
             product = derive_product(
-                state["product"].name, goal, state.get("ref_product"),
+                raw_name, goal, state.get("ref_product"),
                 state.get("text_client"),
                 web_context=(materials.web_context if materials else ""),
             )
@@ -192,8 +228,17 @@ def _product_node(state: PlanState) -> dict:
 def _character_node(state: PlanState) -> dict:
     """캐릭터 도출 + 캐릭터 레퍼런스 시트 생성. 이 단계에서 인물 이미지까지 만든다(노드에서 처리)."""
     with state["tracer"].node("character"):
+        # 사용자가 준 캐릭터 참조 이미지가 있으면 먼저 그 인물 정체성을 VLM으로 읽어 넘긴다.
+        # 이 명시적 캐릭터 의도는 레퍼런스 영상의 부수 인물(ref_subject)보다 우선한다. 안 그러면
+        # 성별·나이·인종이 default로 흘러 참조와 다른 사람(예: 남성 참조인데 여성)이 생성된다.
+        ref_subject = state.get("ref_subject")
+        char_img = state.get("character_image")
+        if char_img:
+            described = describe_character_image(char_img)
+            if described is not None:
+                ref_subject = described
         character = derive_character(
-            state["objective"].goal, state["product"], state.get("ref_subject"),
+            state["objective"].goal, state["product"], ref_subject,
             state.get("text_client"),
         )
         profile = build_character_asset(

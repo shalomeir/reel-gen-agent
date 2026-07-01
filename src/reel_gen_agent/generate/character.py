@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from ..analysis.profile import Subject
 from .schema import ModelSpec, ProductSpec
@@ -51,6 +52,61 @@ _PROMPT = (
 )
 
 
+# 사용자가 준 캐릭터 참조 이미지를 인물 정체성으로 읽는 VLM 지시. 관측한 것만 채우고 default로
+# 흐르지 말라고 못 박는다(성별·인종·나이대는 이 이미지에서 나온다).
+_DESCRIBE_PROMPT = (
+    "You are looking at a reference photo of a PERSON that a creator wants the on-camera model to "
+    "resemble. Describe THIS person's real identity so a generator can create a similar-looking "
+    "(not identical) model. Report ONLY what you actually observe in the photo — do not assume or "
+    "fall back to any default. Fill: present=true (a person is shown), gender (as observed: female "
+    "or male), age_range (e.g. 'early 20s', 'late 30s'), ethnicity (as observed, e.g. 'east asian', "
+    "'white', 'black/african'), skin_tone (e.g. 'fair', 'medium tan', 'deep'), hair (length, color, "
+    "style), look (one line on the face, features and overall vibe), wardrobe (what they are "
+    "wearing). If the image clearly shows no identifiable person, set present=false."
+)
+
+
+def describe_character_image(image_path: str | None) -> Subject | None:
+    """사용자가 준 캐릭터 참조 이미지를 VLM으로 읽어 Subject(인물 정체성)로 돌려준다.
+
+    이 이미지는 그동안 image-to-image 참조로만 쓰였다. 그 인물의 성별·나이대·인종이 text
+    LLM(derive_character)에 전달되지 않으면, 브리프에 성별을 안 적었을 때 캐릭터가 default(여성)로
+    흘러 남성 참조를 줘도 여성이 생성되는 버그가 난다(관측). 그래서 참조 이미지를 먼저 서술해
+    derive_character가 그 정체성을 매칭하게 한다. 백엔드가 없거나 실패하면 None(호출 측이 폴백).
+    """
+    if not image_path or not os.path.exists(image_path):
+        return None
+    from ..analysis.gemini_client import (
+        generate_structured,
+        make_client,
+        resolve_model,
+        select_backend,
+    )
+
+    selection = select_backend()
+    if selection is None:
+        return None
+    try:
+        from google.genai import types
+
+        client = make_client(selection)
+        mime = "image/png" if image_path.lower().endswith(".png") else "image/jpeg"
+        with open(image_path, "rb") as fh:
+            part = types.Part.from_bytes(data=fh.read(), mime_type=mime)
+        result = generate_structured(
+            client, types, resolve_model(None), [part, _DESCRIBE_PROMPT], Subject
+        )
+    except Exception:
+        return None
+    if result is not None and not result.present and (
+        result.gender or result.look or result.ethnicity
+    ):
+        # VLM이 성별·외모를 읽었는데 present만 빠뜨렸으면 인물이 있는 것으로 본다(present 누락 방어).
+        # 아무것도 못 읽었으면 인물 없음(present=false)을 그대로 존중한다.
+        result.present = True
+    return result
+
+
 def character_brief(character: ModelSpec) -> str:
     """캐릭터를 한 줄 요약한다. 다른 노드(대사·후크·음악·톤)가 문맥으로 공유한다.
 
@@ -86,14 +142,15 @@ def _from_subject(subject: Subject) -> ModelSpec:
 
     인종·피부톤·헤어·착장까지 실어 레퍼런스 인물을 최대한 반영한다(정체성 보존).
     """
+    # 레퍼런스 인물은 input이다. 그 인물의 실제 외모(인종·피부톤·헤어·룩·착장)를 그대로 옮기고,
+    # 미모를 supermodel급으로 덧칠하지 않는다(사용자 지시: 하드코딩 금지, input 우선). 매력도
+    # 기본 편향은 단서가 아예 없을 때 쓰는 DEFAULT_CHARACTER에만 있다.
     look_bits = [
         subject.ethnicity,
         f"{subject.skin_tone} skin" if subject.skin_tone else None,
         subject.hair,
         subject.look,
         subject.wardrobe,
-        # 레퍼런스 인물을 충실히 반영하되, 매력도는 연예인급을 기본 편향으로 얹는다(과잉 고정 아님).
-        "celebrity-level, supermodel-tier gorgeous beauty-influencer looks",
     ]
     return ModelSpec(
         age=subject.age_range or DEFAULT_CHARACTER.age,

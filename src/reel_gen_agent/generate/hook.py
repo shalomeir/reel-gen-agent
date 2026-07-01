@@ -15,7 +15,7 @@ _PROMPT = (
     "Role: generate {count} first-1-3-second hooks for a 20-30s vertical beauty short.\n"
     "Product: {product}. Category: {category}. Tone: {tone}. Creator: {character}. "
     "Language: {language}.\n"
-    "Write hooks that fit this specific creator's persona (what she would actually say/do).\n"
+    "Write hooks that fit this specific creator's persona above (what they would actually say/do).\n"
     'Output raw JSON only (no markdown fences, no prose): {{"candidates": [{{'
     '"hook_type": "H1..H12", "headline": str, "bottom_caption": str, '
     '"no_text_visual": false, "visual_direction": str, "opening_beat": str, '

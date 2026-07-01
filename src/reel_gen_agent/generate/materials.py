@@ -137,7 +137,7 @@ _BEAT_ACTION: dict[str, str] = {
     "reveal": "presenting the product to the camera",
     "use": "using the product naturally",
     "apply": "using the product naturally",
-    "routine": "using the product as part of her routine",
+    "routine": "using the product as part of their daily routine",
     "reaction": "a delighted, pleased reaction",
     "proof": "showing the happy result with a pleased expression",
     "after": "showing the happy result with a pleased expression",

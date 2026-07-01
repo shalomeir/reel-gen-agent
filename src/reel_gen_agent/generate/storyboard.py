@@ -87,7 +87,7 @@ def _global_prompt(
         f"product (keep identical in every shot): {product_identity(product)}",
         f"mood and tone: {', '.join(style.tone)}" if style.tone else "",
         _framing_directive(product),
-        f"color grading in warm tones matching this palette: {', '.join(style.palette)}"
+        f"color grading matching this palette: {', '.join(style.palette)}"
         if style.palette
         else "",
         f"location: {environment.location}" if environment.location else "",
