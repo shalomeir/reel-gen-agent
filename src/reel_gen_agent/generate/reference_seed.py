@@ -46,8 +46,12 @@ def _delivery_from(vp: VideoProfile) -> str:
     return "on_camera" if vp.voice.on_camera else "voiceover"
 
 
+_DEFAULT_DURATION = 14.0  # 기본 제작 포맷 상한. 레퍼런스가 더 짧으면 그 길이를 반영한다.
+
+
 def _meta_from(vp: VideoProfile) -> InputMeta:
-    dur = min(max(vp.container.duration_sec or 14.0, 1.0), 60.0)
+    # 레퍼런스가 14초보다 짧으면 그 길이를, 길면 기본 14초로 캡한다(사용자 지시).
+    dur = min(max(vp.container.duration_sec or _DEFAULT_DURATION, 1.0), _DEFAULT_DURATION)
     fps = int(round(vp.container.fps)) if vp.container.fps else 30
     if fps not in _ALLOWED_FPS:
         fps = 30

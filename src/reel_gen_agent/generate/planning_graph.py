@@ -153,6 +153,7 @@ def run_planning(
         {
             "objective": result.objective,
             "product": product,
+            "meta": meta,  # 스토리보드가 쓴 meta를 그대로 실어 길이 정렬을 보장한다
             "character": character,
             "style": style,
             "narrative_arc": narrative_arc,

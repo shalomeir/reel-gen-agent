@@ -12,6 +12,7 @@ from pathlib import Path
 from .image_client import ImageClient
 from .schema import (
     AssetBible,
+    AssetView,
     CharacterProfile,
     EnvironmentSpec,
     ModelSpec,
@@ -66,6 +67,18 @@ def _product_prompt(product: ProductSpec, palette: list[str] | None) -> str:
     )
 
 
+def _product_packaging_prompt(product: ProductSpec, palette: list[str] | None) -> str:
+    """제품 박스·풀 패키지 카탈로그 컷. 정면 히어로 외에 개봉/박스 상태를 함께 잡는다."""
+    packaging = product.packaging_desc or "as described"
+    return (
+        f"Studio e-commerce catalog photo of {product.name} with its full packaging: "
+        f"the retail box and the product bottle/tube shown together. Packaging: {packaging}. "
+        "Clean seamless off-white background, soft even studio lighting, three-quarter angle, "
+        "subtle reflection, sharp focus, high detail, no text overlay, no hands, no human, "
+        "vertical 9:16 framing, photorealistic." + _palette_phrase(palette)
+    )
+
+
 def build_asset_bible(
     character: ModelSpec,
     product: ProductSpec,
@@ -83,9 +96,11 @@ def build_asset_bible(
     out.mkdir(parents=True, exist_ok=True)
     char_prompt = _character_prompt(character, environment, palette)
     prod_prompt = _product_prompt(product, palette)
+    pkg_prompt = _product_packaging_prompt(product, palette)
 
     char_rel: str | None = None
     prod_rel: str | None = None
+    views: list[AssetView] = []
     if image_client is not None:
         try:
             # 캐릭터 설정 샷·제품 카탈로그 모두 히어로 스틸(4K Pro)로 만든다(ai-model-records.md §3).
@@ -98,11 +113,21 @@ def build_asset_bible(
             prod_rel = "product.png"
         except Exception:
             prod_rel = None
+        try:
+            # 풀 카탈로그: 박스·패키지 뷰도 plan 단계에서 함께 생성한다(사용자 지시).
+            image_client.generate(pkg_prompt, [], str(out / "product_packaging.png"), hero=True)
+            views.append(
+                AssetView(name="packaging", image="product_packaging.png", satisfied=True)
+            )
+        except Exception:
+            pass
 
     return AssetBible(
         character=CharacterProfile(
             name=character.name, prompt_used=char_prompt, key_shot_image=char_rel
         ),
-        product=ProductProfile(name=product.name, prompt_used=prod_prompt, hero_image=prod_rel),
+        product=ProductProfile(
+            name=product.name, prompt_used=prod_prompt, hero_image=prod_rel, views=views
+        ),
         environment=environment,
     )

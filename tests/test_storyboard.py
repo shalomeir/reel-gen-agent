@@ -77,6 +77,23 @@ def test_subtitles_on_meaningful_cuts_not_forced_on_all():
     assert any(have) and not all(have)  # 일부 컷엔 있고, 전부 강제되진 않는다
 
 
+def test_beats_do_not_pad_with_cta():
+    # 컷을 채우려고 마지막 beat(cta)를 도배하지 않는다. cta는 한 번(마지막)만.
+    from reel_gen_agent.generate.storyboard import _expand_beats
+
+    beats = _expand_beats(["hook", "problem", "use", "reaction", "proof", "cta"], 9)
+    assert len(beats) == 9
+    assert beats[0] == "hook"
+    assert beats[-1] == "cta"
+    assert beats.count("cta") == 1  # cta 도배 금지
+
+
+def test_storyboard_duration_matches_meta():
+    # 스토리보드 마지막 컷 끝 = meta.duration_sec(정렬). 따로 놀면 안 된다.
+    sb = build_storyboard(**_parts(duration=12.0))
+    assert abs((sb.panels[-1].t_end or 0.0) - 12.0) < 0.05
+
+
 def test_fast_pacing_makes_more_cuts_than_slow():
     fast = build_storyboard(**_parts(pacing="fast_montage", duration=18.0))
     slow = build_storyboard(**_parts(pacing="slow_demo", duration=18.0))

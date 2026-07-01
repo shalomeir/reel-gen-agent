@@ -10,6 +10,7 @@ from pathlib import Path
 from .run_paths import profile_filename
 from .schema import (
     AssetBible,
+    InputMeta,
     ModelSpec,
     MusicSpec,
     NarrationSpec,
@@ -28,6 +29,9 @@ def assemble_profile(parts: dict) -> ReelProfile:
     return ReelProfile(
         objective=objective,
         product=product,
+        # meta는 스토리보드가 쓴 것과 같아야 한다(길이·fps 정렬). 빠지면 프로필 meta가 기본
+        # 14초로 남아 스토리보드(레퍼런스 길이)와 어긋난다.
+        meta=parts.get("meta") or InputMeta(),
         character=parts.get("character") or ModelSpec(),
         style=parts.get("style") or StyleDimensions(),
         narrative_arc=parts.get("narrative_arc", []),

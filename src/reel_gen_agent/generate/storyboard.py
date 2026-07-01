@@ -122,6 +122,26 @@ def _subtitle_for(
     return None
 
 
+def _expand_beats(template: list[str], n: int) -> list[str]:
+    """템플릿 arc를 n개 컷에 '비례 분배'한다. 마지막 beat(cta)만 반복해 도배하지 않고, 중간
+    beat들이 고르게 늘어나 서사 흐름을 유지한다. 항상 hook으로 시작하고 cta로 끝낸다.
+
+    예) [hook, problem, use, reaction, proof, cta], n=9
+      -> [hook, problem, problem, use, use, reaction, proof, proof, cta]
+    (기존의 [..., cta, cta, cta, cta] 도배를 없앤다.)
+    """
+    if n <= 0 or not template:
+        return []
+    if n == 1:
+        return [template[0]]
+    last = len(template) - 1
+    beats = [template[round(i * last / (n - 1))] for i in range(n)]
+    beats[0] = "hook"
+    if "cta" in template:
+        beats[-1] = "cta"
+    return beats
+
+
 def build_storyboard(
     *,
     meta: InputMeta,
@@ -138,11 +158,7 @@ def build_storyboard(
     """
     beats_template = template_for(category)
     n = _panel_count(meta, style, cut_count)
-    # 비트를 패널 수에 맞춰 늘이거나 줄인다. 첫 비트(hook)는 유지, 마지막은 cta로 끝낸다.
-    beats = [beats_template[min(i, len(beats_template) - 1)] for i in range(n)]
-    beats[0] = "hook"
-    if "cta" in beats_template:
-        beats[-1] = "cta"
+    beats = _expand_beats(beats_template, n)
 
     seg = meta.duration_sec / n
     global_prompt = _global_prompt(style, product, character, environment)
