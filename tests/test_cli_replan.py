@@ -1,4 +1,4 @@
-"""execute --replan: run_replan로 새 프로필을 만든 뒤 그 프로필로 production을 돈다."""
+"""rerun: run_replan로 새 프로필을 만든 뒤 그 프로필로 production을 돈다(1-level 커맨드)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from reel_gen_agent import cli
 from reel_gen_agent.generate.schema import RunManifest
 
 
-def test_execute_replan_invokes_run_replan_then_produce(tmp_path, monkeypatch):
+def test_rerun_invokes_run_replan_then_produce(tmp_path, monkeypatch):
     original = tmp_path / "orig" / "plan" / "ReelProfile-orig.json"
     original.parent.mkdir(parents=True)
     original.write_text("{}", encoding="utf-8")
@@ -32,14 +32,14 @@ def test_execute_replan_invokes_run_replan_then_produce(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_make_image_client", lambda: object())
     monkeypatch.setattr(cli, "_produce", fake_produce)
 
-    result = CliRunner().invoke(cli.app, ["execute", str(original), "--replan"])
+    result = CliRunner().invoke(cli.app, ["rerun", str(original)])
 
     assert result.exit_code == 0, result.output
     assert calls["replan_input"] == str(original)
     assert calls["produced"] == str(new_profile)
 
 
-def test_execute_without_replan_produces_directly(tmp_path, monkeypatch):
+def test_execute_produces_directly(tmp_path, monkeypatch):
     profile = tmp_path / "run" / "plan" / "ReelProfile.json"
     profile.parent.mkdir(parents=True)
     profile.write_text("{}", encoding="utf-8")

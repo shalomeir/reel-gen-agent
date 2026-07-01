@@ -6,7 +6,8 @@
 - evaluate: 영상 -> 드라이버 Rubric 채점(RubricResult JSON). 구현 완료.
 - verify: 영상 -> Conformance 무결성·적합성 검증(ConformanceReport JSON). 구현 완료.
 - plan: 입력 -> ReelProfile(JSON) 산출. 워킹 스켈레톤.
-- execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. --replan 시 새 훅으로 재전개(새 폴더). 워킹 스켈레톤.
+- execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. 워킹 스켈레톤.
+- rerun: 기존 ReelProfile로 정체성은 고정하고 style→훅→스토리→나레이션→음악을 재생성(새 폴더) -> Production.
 - run: 입력 -> ReelProfile -> Production을 확인 게이트 없이 한 번에. 유사도 루프 포함.
 - chat: plan/execute를 엮은 대화형 진입점.
 """
@@ -30,6 +31,7 @@ from .generate.backends.veo import VeoImageRAIError
 from .generate.conformance import verify_conformance
 from .generate.intake import intake, validate_purpose
 from .generate.planning_graph import run_planning, run_replan
+from .generate.product import ProductGroundingError
 from .generate.production_graph import run_production
 from .generate.schema import GenerationInput, ReelProfile, RunManifest, Storyboard
 from .generate.text_client import make_text_client
@@ -354,39 +356,48 @@ def plan(
 @app.command()
 def execute(
     profile: str = typer.Argument(..., help="ReelProfile JSON 경로"),
-    replan: bool = typer.Option(
-        False,
-        "--replan",
-        help="정체성(제품·모델·에셋)은 고정하고 훅→스토리→나레이션→음악을 새 아이디어로 "
-        "다시 뽑아 새 폴더의 ReelProfile로 생성한다.",
-    ),
-    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리(--replan 시 새 폴더 위치)"),
+    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
     no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
 ) -> None:
     """ReelProfile을 받아 Production을 돌려 outputs/<run_id>/에 영상·리포트를 만든다.
 
-    --replan을 주면 먼저 같은 목적·같은 제품·같은 모델로 훅을 새로 잡아 스토리·나레이션·음악을
-    다시 전개한 새 ReelProfile(새 폴더)을 만들고, 그걸로 production을 돌린다(다른 어프로치 1편).
+    프로필을 있는 그대로 렌더한다. 같은 정체성으로 다른 어프로치 1편을 뽑고 싶으면 rerun을 쓴다.
     """
     if not Path(profile).exists():
         typer.echo(f"파일 없음: {profile}", err=True)
         raise typer.Exit(code=1)
+    manifest = _working("영상 생성 중 (production)", lambda: _produce(profile, use_vlm=not no_vlm))
+    typer.echo(f"영상: {manifest.final_video}", err=True)
 
-    target = profile
-    if replan:
-        text = make_text_client()
-        if text is None:
-            typer.echo("--replan은 텍스트 LLM 키가 필요합니다(GEMINI_API_KEY 등).", err=True)
-            raise typer.Exit(code=2)
-        img = _make_image_client()  # key_visual 재생성용(없으면 원본 커버 폴백)
-        new_path = _working(
-            "재기획 중 (새 훅→스토리→나레이션→음악)",
-            lambda: run_replan(profile, outputs, text_client=text, image_client=img),
-        )
-        typer.echo(f"재기획: 새 훅 -> 새 폴더 {new_path}", err=True)
-        target = str(new_path)
 
-    manifest = _working("영상 생성 중 (production)", lambda: _produce(target, use_vlm=not no_vlm))
+@app.command()
+def rerun(
+    profile: str = typer.Argument(..., help="기존 ReelProfile JSON 경로"),
+    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리(재생성물의 새 폴더 위치)"),
+    no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
+) -> None:
+    """기존 ReelProfile로 다른 어프로치 1편을 다시 뽑는다: 정체성 고정, narrative 재생성 -> production.
+
+    정체성(제품·모델·에셋)은 그대로 두고 style→훅→스토리→나레이션→음악을 새로 전개한 새
+    ReelProfile(새 폴더)을 만든 뒤, 그걸로 production을 돌린다("같은 시스템, 다른 결과" 증명).
+    replan은 레퍼런스를 무시하고 style부터 재생성하므로 매번 다른 결과가 나온다.
+    """
+    if not Path(profile).exists():
+        typer.echo(f"파일 없음: {profile}", err=True)
+        raise typer.Exit(code=1)
+    text = make_text_client()
+    if text is None:
+        typer.echo("rerun은 텍스트 LLM 키가 필요합니다(GEMINI_API_KEY 등).", err=True)
+        raise typer.Exit(code=2)
+    img = _make_image_client()  # key_visual 재생성용(없으면 원본 커버 폴백)
+    new_path = _working(
+        "재기획 중 (새 style→훅→스토리→나레이션→음악)",
+        lambda: run_replan(profile, outputs, text_client=text, image_client=img),
+    )
+    typer.echo(f"재기획: 새 폴더 {new_path}", err=True)
+    manifest = _working(
+        "영상 생성 중 (production)", lambda: _produce(str(new_path), use_vlm=not no_vlm)
+    )
     typer.echo(f"영상: {manifest.final_video}", err=True)
 
 
@@ -620,12 +631,26 @@ def chat(
     feedback = ""
     path: Path | None = None
     while True:
-        path = _spin(
-            "기획을 정리하고 대표 이미지를 만드는 중",
-            lambda b=brief, f=feedback: run_planning(
-                b, outputs, text_client=text, image_client=img, style_feedback=f
-            ),
-        )
+        try:
+            path = _spin(
+                "기획을 정리하고 대표 이미지를 만드는 중",
+                lambda b=brief, f=feedback: run_planning(
+                    b, outputs, text_client=text, image_client=img, style_feedback=f
+                ),
+            )
+        except ProductGroundingError as e:
+            # 제품을 실제 소스로 확보하지 못한 경우. 임의 추정 대신 사용자에게 다시 묻고 재시도한다.
+            console.print(f"\n🤖 {e}")
+            resp = _ask("제품 URL(권장)이나 제품 이미지 경로, 또는 구체적인 제품 설명을 알려주세요 > ")
+            if not resp:
+                console.print("종료합니다.")
+                raise typer.Exit(code=2) from None
+            brief = f"{brief}\n제품: {resp}"
+            continue
+        except ValueError as e:
+            # 그 외 계획 불가 사유. 가짜로 진행하지 않고 사유를 알린 뒤 종료한다.
+            console.print(f"\n[red]계획을 세우지 못했습니다:[/] {e}")
+            raise typer.Exit(code=2) from None
         kv_abs, plan_dir = _print_plan_summary(str(path))
         _open_file(str(plan_dir))  # 기획 폴더를 열어 캐릭터·제품·대표이미지를 직접 보게 한다(맥)
         if kv_abs and Path(kv_abs).exists():
