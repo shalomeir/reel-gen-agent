@@ -32,6 +32,7 @@ class VisualMaterials:
     subtitle_spans: list[list[float]] = field(default_factory=list)
     total_dur: float = 0.0
     native_audio: bool = False  # 온카메라 발화(영상 네이티브 음성) 보존 여부
+    prompts: list[str] = field(default_factory=list)  # 세그먼트별 영상 모델 프롬프트(리포트용)
 
 
 def _build_bgm(profile, plan, bpm: int, total_dur: float, panels_dir: str) -> str | None:
@@ -410,6 +411,7 @@ def build_visuals(
     prev_last_frame: str | None = None
     cut_index = 0  # 전체 서브컷 순번(줌 홀짝 번갈기용)
     made_any = False  # Veo가 오디오 있는 클립을 하나라도 만들었나(씬 오디오 보존 판단)
+    prompts: list[str] = []  # 세그먼트별 영상 모델 프롬프트(리포트 "노드별 프롬프트"용)
 
     for seg_pos, indices in enumerate(segments):
         anchor = panels[indices[0]]
@@ -432,6 +434,7 @@ def build_visuals(
                     motion=profile.style.motion, product_identity=product_id,
                     language=language, dialogue=dialogue,
                 )
+                prompts.append(f"[segment {seg_pos}] {prompt}")
                 veo.render_panel(
                     start_image, seg_dur, m.width, m.height, m.fps, seg_clip,
                     motion=motions[0], prompt=prompt, generate_audio=gen_audio,
@@ -513,6 +516,7 @@ def build_visuals(
         # Veo가 오디오 있는 클립을 만들었으면 그 씬 오디오를 보존한다(integrated면 발화,
         # voiceover면 나레이션 아래 씬 효과음). ken_burns 폴백만 있으면 무음이라 False.
         native_audio=made_any and gen_audio,
+        prompts=prompts,
     )
 
 

@@ -181,7 +181,11 @@ def _visuals_node(state: ExecState) -> dict:
             product_image=prod_img,
             key_visual=kv_img,
         )
-        state["manifest"].nodes.append(NodeRun(name="visuals", artifacts=visuals.shot_clips))
+        # 영상 모델에 보낸 세그먼트 프롬프트를 매니페스트에 남긴다(리포트 "노드별 프롬프트").
+        video_prompt = "\n\n".join(visuals.prompts) or None
+        state["manifest"].nodes.append(
+            NodeRun(name="visuals", artifacts=visuals.shot_clips, prompt=video_prompt)
+        )
         return {"visuals": visuals}
 
 

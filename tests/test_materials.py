@@ -137,3 +137,17 @@ def test_lang_name_defaults_to_english():
     assert _lang_name(None) == "English"
     assert _lang_name("en") == "English"
     assert _lang_name("ko") == "Korean"
+
+
+def test_build_visuals_captures_video_prompts(tmp_path, monkeypatch):
+    # 리포트 "노드별 프롬프트"용으로 세그먼트별 영상 프롬프트를 모아 돌려준다.
+    from reel_gen_agent.generate.materials import build_visuals
+
+    profile = _profile(tmp_path, n=2)
+    fake = _FakeVeo()
+    monkeypatch.setattr(materials_mod, "_video_backend", lambda plan: fake)
+    plan = ProductionPlan(video_model="veo-3.1-fast-generate-001", segments=[[0, 1]])
+    v = build_visuals(profile, plan, str(tmp_path / "run"))
+    assert len(v.prompts) == 1  # 세그먼트 1개
+    assert "segment 0" in v.prompts[0]
+    assert "Shot 1:" in v.prompts[0]

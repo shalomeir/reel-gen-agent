@@ -579,8 +579,9 @@ class UploadKit(BaseModel):
 
 class BgmReport(BaseModel):
     kind: str = "none"  # gen / file / none
-    model: str | None = None  # 생성이면 모델 ID
+    model: str | None = None  # 생성이면 모델 ID(합성 폴백이면 "합성")
     source: str | None = None  # 제공 파일이면 경로/출처
+    description: str | None = None  # 무드·장르·템포 등 음악 의도(MusicSpec에서)
 
 
 class UserInputEcho(BaseModel):
@@ -626,6 +627,11 @@ class FinalReport(BaseModel):
 
     run_id: str
     user_input: UserInputEcho
+    # 기획 산출 요약(profile에서): 캐릭터·스타일·훅·스토리보드. report.md에 그대로 보인다.
+    character: dict = Field(default_factory=dict)  # 캐릭터 설정(ModelSpec 요약)
+    style: dict = Field(default_factory=dict)  # tone/pacing/motion/palette
+    hook: dict = Field(default_factory=dict)  # 유형/헤드라인/하단카피/비주얼
+    storyboard: list = Field(default_factory=list)  # 컷별 타임코드·beat·자막·행동
     node_prompts: list[NodePrompt] = Field(default_factory=list)
     final_opinion: str = ""  # 결과 영상 종합 의견(LLM)
     node_flow: list[str] = Field(default_factory=list)  # 노드 그래프 흐름

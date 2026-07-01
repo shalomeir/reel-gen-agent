@@ -81,3 +81,46 @@ def test_final_report_md_puts_user_input_first_and_prompts_last(tmp_path):
     assert text.index("## 예상 비용") < text.index("serum on a table")
     # rubric이 채워졌으니 VLM 평가 비용 라인이 잡힌다.
     assert "품질 평가" in text
+
+
+def test_report_includes_plan_summary_and_video_prompt(tmp_path):
+    # 캐릭터·스타일·훅·스토리보드·BGM(실제 모델)·영상 프롬프트가 리포트에 실린다.
+    from reel_gen_agent.generate.schema import (
+        HookCandidate,
+        ModelSpec,
+        MusicSpec,
+        StyleDimensions,
+    )
+
+    profile = ReelProfile(
+        objective=Objective(goal="glow reel"),
+        product=ProductSpec(name="Glow Serum"),
+        character=ModelSpec(age="mid-20s", gender="female", look="radiant dewy skin"),
+        style=StyleDimensions(
+            tone=["sensorial", "fresh"],
+            pacing="fast_montage",
+            motion="gentle",
+            hook=HookCandidate(hook_type="H1", headline="Want this glow?", visual_direction="macro"),
+        ),
+        music=MusicSpec(mood="uplifting", style="lofi", tempo="120 bpm"),
+        storyboard=Storyboard(
+            panels=[StoryboardPanel(index=0, t_start=0, t_end=2, beat="hook", subtitle_text="Want this glow?")]
+        ),
+    )
+    manifest = RunManifest(
+        run_id="r",
+        nodes=[NodeRun(name="visuals", prompt="[segment 0] Shot 1: macro CU of the serum")],
+        production_plan=ProductionPlan(video_model="veo-3.1-fast-generate-001", bgm="gen"),
+    )
+    rep = build_final_report("r", profile, manifest, {"passed": True}, {})
+    out = tmp_path / "report.md"
+    render_report_md(rep, str(out))
+    text = out.read_text(encoding="utf-8")
+    assert "## 캐릭터" in text and "radiant dewy skin" in text
+    assert "## 스타일" in text and "fast_montage" in text
+    assert "## 훅" in text and "Want this glow?" in text
+    assert "## 스토리보드" in text
+    # BGM은 'gen'만이 아니라 음악 의도(무드/장르/템포)를 보인다.
+    assert "무드 uplifting" in text
+    # 영상 모델 프롬프트(노드별 프롬프트)가 채워진다.
+    assert "Shot 1: macro CU of the serum" in text
