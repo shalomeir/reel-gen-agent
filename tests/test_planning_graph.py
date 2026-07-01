@@ -102,6 +102,42 @@ def test_run_planning_uses_generation_input_model_path_as_character_ref(tmp_path
     assert character_calls[0]["refs"] == [str(model_image.resolve())]
 
 
+def test_run_planning_fails_fast_when_all_asset_generation_fails(tmp_path):
+    # 이미지 클라이언트가 있는데 모든 에셋 생성이 실패하면, 에셋 없는 ReelProfile을 쓰지 말고
+    # 발생 지점(plan)에서 진짜 사유로 실패해야 한다(execute의 stills에서 뒤늦게 터지는 대신).
+    from reel_gen_agent.generate.asset_bible import AssetGenerationError
+
+    class _FailingImageClient:
+        def __init__(self):
+            self.last_error = None
+
+        def generate(self, prompt, refs, out, hero=False):
+            self.last_error = RuntimeError("429 RESOURCE_EXHAUSTED: quota")
+            raise self.last_error
+
+    cands = {
+        "candidates": [
+            {
+                "hook_type": "H1",
+                "headline": "Glow",
+                "visual_direction": "macro",
+                "bridge": "serum",
+                "variant": "question",
+            }
+        ]
+    }
+    client = StubTextClient([json.dumps(cands)])
+    with pytest.raises(AssetGenerationError, match="429 RESOURCE_EXHAUSTED"):
+        run_planning(
+            "발랄한 15초 언박싱 릴. 제품: 글로우세럼",
+            str(tmp_path / "outputs"),
+            text_client=client,
+            image_client=_FailingImageClient(),
+        )
+    # 에셋 없는 ReelProfile을 파일로 남기지 않는다.
+    assert not list((tmp_path / "outputs").rglob("ReelProfile-*.json"))
+
+
 def test_reference_node_downloads_youtube_url_before_seeding(tmp_path, monkeypatch):
     import contextlib
     from types import SimpleNamespace
