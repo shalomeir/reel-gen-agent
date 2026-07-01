@@ -1,7 +1,8 @@
 """plan 페이즈 LangGraph. 노드/조건부 엣지로 ReelProfile을 만든다([workflows.md]).
 
-흐름: intake -> reference_seed -> character -> environment -> music -> hook <-> storyboard
-(핑퐁 루프) -> narration -> assets -> write. 각 노드는 공유 상태(PlanState)를 읽고 부분
+흐름: intake -> reference_seed -> product -> character -> environment -> hook <-> storyboard
+(핑퐁 루프) -> narration -> music -> write. music은 확정 훅·스토리·나레이션을 보고 정하도록
+마지막에 둔다. 각 노드는 공유 상태(PlanState)를 읽고 부분
 업데이트를 돌려주며, Tracer가 노드 span을 로컬 trace(+옵션 Langfuse)에 남긴다.
 
 hook <-> storyboard 핑퐁: storyboard 노드가 주어진 hook을 전체 스토리에 녹여보고 안 맞으면
@@ -220,9 +221,13 @@ def _music_node(state: PlanState) -> dict:
                 state["objective"].goal, state["product"], state["style"].tone,
                 state["music"], state.get("text_client"), character=state["character"],
                 pacing=state["style"].pacing,
-                # 후크 설계(레퍼런스 시드가 채운 style.hook)를 넘겨 SFX(임팩트 액센트) 여부를
-                # 후크가 임팩트를 필요로 하는지에 근거해 판단하게 한다(하드코딩 아닌 LLM 판단).
+                # music은 plan 마지막 노드다. 핑퐁으로 확정된 최종 훅과 스토리보드·아크·나레이션을
+                # 넘겨, 장르·리듬·다이내믹스는 스토리 전개에, prominence(→BGM 볼륨)는 나레이션
+                # 강도에 맞춰 LLM이 정하게 한다(하드코딩 아닌 노드별 LLM 판단).
                 hook=state["style"].hook,
+                storyboard=state["storyboard"],
+                narrative_arc=state.get("narrative_arc"),
+                narration=state["narration"],
             )
         }
 
@@ -379,12 +384,13 @@ def build_plan_graph():
     g.add_edge("reference_seed", "product")
     g.add_edge("product", "character")
     g.add_edge("character", "environment")
-    g.add_edge("environment", "music")
-    g.add_edge("music", "hook")
+    g.add_edge("environment", "hook")
     g.add_edge("hook", "storyboard")
     g.add_conditional_edges(
         "storyboard", _route_after_storyboard, {"hook": "hook", "narration": "narration"}
     )
-    g.add_edge("narration", "write_profile")
+    # music은 plan의 마지막 노드다: 확정 훅·스토리·나레이션을 보고 음악을 정한 뒤 write로.
+    g.add_edge("narration", "music")
+    g.add_edge("music", "write_profile")
     g.add_edge("write_profile", END)
     return g.compile()

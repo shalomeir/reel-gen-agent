@@ -9,7 +9,14 @@ from __future__ import annotations
 
 import json
 
-from .schema import HookCandidate, ModelSpec, MusicSpec, ProductSpec
+from .schema import (
+    HookCandidate,
+    ModelSpec,
+    MusicSpec,
+    NarrationSpec,
+    ProductSpec,
+    Storyboard,
+)
 from .text_client import TextClient
 
 _PROMPT = (
@@ -37,16 +44,20 @@ _PROMPT = (
     "filtered chord stabs, crisp minimal hi-hats, gentle atmospheric pads') — without this the bed "
     "comes out thin and generic.\n"
     "Brief: {brief}\nProduct: {product}\nTone: {tone}\nCreator: {character}\n"
-    "Editing energy (cut pacing): {pacing}\n{hook}\n{ref}\n"
+    "Editing energy (cut pacing): {pacing}\n{hook}\n{story}\n{narration}\n{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"style": str, "mood": str, "type": str, "instrumentation": str, "dynamics_detail": str, '
     '"dynamics": "flat"|"build", "prominence": "background"|"prominent", "bgm": "bed"|"none", '
     '"sfx": bool}}. '
     "style is the concrete genre/production style; type is a short descriptor; instrumentation is the "
     "detailed instrument/sound palette; dynamics_detail is a short phrase describing the energy "
-    "contour; dynamics is the coarse flag (build if energy rises to a payoff, else flat). prominence: "
-    "'prominent' when the video is vibe/aesthetic-driven and narration is minimal/interjections, else "
-    "'background' when narration carries the information (the bed stays instrumental either way). "
+    "contour; dynamics is the coarse flag (build if energy rises to a payoff, else flat). "
+    "Follow the STORY: let the genre, rhythmic feel, and especially the dynamics contour track the "
+    "storyboard's arc — a build arc that rises to a payoff wants energy that lifts into it, a calm "
+    "even arc wants a steady bed. prominence: read the NARRATION strength — "
+    "'prominent' when narration is minimal/interjections or there is no spoken narration (vibe/"
+    "aesthetic-driven), else 'background' when narration carries the information (the bed stays "
+    "instrumental either way). "
     "bgm: 'none' only when the concept works better with NO music bed (e.g. crisp ASMR/texture-"
     "forward), otherwise 'bed'. "
     "sfx: true ONLY when the edit calls for produced, non-diegetic effect sounds — transition "
@@ -92,6 +103,56 @@ def _hook_hint(hook: HookCandidate | None) -> str:
     return "Hook design (decide if it needs a produced impact accent): " + ("; ".join(bits) or "minimal")
 
 
+def _story_hint(storyboard: Storyboard | None, narrative_arc: list | None) -> str:
+    """스토리 전개를 music 노드가 장르·리듬·다이내믹스 판단에 참고할 힌트로 만든다.
+
+    컷 수와 서사 아크(beat 흐름), 몇 개 컷의 행동을 요약한다. 음악이 스토리 아크에 맞춰
+    에너지 컨투어(build/flat)와 리듬 필을 고르게 한다(결정은 LLM).
+    """
+    if storyboard is None or not storyboard.panels:
+        return "Story: unspecified."
+    panels = storyboard.panels
+    arc = " → ".join(str(a) for a in narrative_arc) if narrative_arc else " → ".join(
+        p.beat for p in panels if p.beat
+    )
+    # 컷별 행동을 짧게 훑어 전개의 '결'을 전한다(과도하지 않게 앞 6컷까지).
+    beats = []
+    for p in panels[:6]:
+        label = p.beat or f"cut{p.index}"
+        action = (p.action or p.subtitle_text or "").strip()
+        beats.append(f"{label}: {action}" if action else label)
+    return (
+        f"Story (follow this arc — let genre, rhythmic feel, and dynamics track it): "
+        f"{len(panels)} cuts, arc: {arc or 'unspecified'}. Beats: " + "; ".join(beats) + "."
+    )
+
+
+def _narration_hint(narration: NarrationSpec | None) -> str:
+    """나레이션 강도를 music 노드가 prominence(→ BGM 볼륨감) 판단에 참고할 힌트로 만든다.
+
+    대사 유무·분량과 delivery(voiceover/none)를 전한다. 나레이션이 정보를 촘촘히 나르면
+    background, 최소·감탄사거나 발화가 없으면 prominent 쪽. 결정은 LLM이 한다.
+    """
+    if narration is None:
+        return "Narration: unspecified."
+    delivery = narration.delivery or "voiceover"
+    line_count = len(narration.lines)
+    word_count = sum(len(ln.text.split()) for ln in narration.lines)
+    if delivery == "none" or line_count == 0:
+        return (
+            "Narration (drives prominence): no spoken narration "
+            f"(delivery={delivery}) — vibe-led, lean prominent."
+        )
+    voice = narration.voice
+    tone = getattr(voice, "tone", None)
+    pace = getattr(voice, "pace", None)
+    return (
+        "Narration (drives prominence — decide how much the bed should carry): "
+        f"delivery={delivery}, {line_count} lines / ~{word_count} words, "
+        f"tone={tone or 'default'}, pace={pace or 'default'}."
+    )
+
+
 def derive_music(
     brief: str,
     product: ProductSpec,
@@ -101,6 +162,9 @@ def derive_music(
     character: ModelSpec | None = None,
     pacing: str | None = None,
     hook: HookCandidate | None = None,
+    storyboard: Storyboard | None = None,
+    narrative_arc: list | None = None,
+    narration: NarrationSpec | None = None,
 ) -> MusicSpec:
     """브리프·톤·페이싱·레퍼런스로 MusicSpec을 도출한다. LLM 우선, 실패/부재 시 레퍼런스/중립 폴백.
 
@@ -128,6 +192,8 @@ def derive_music(
                     character=(character_brief(character) if character else "unspecified"),
                     pacing=pacing or "unspecified",
                     hook=_hook_hint(hook),
+                    story=_story_hint(storyboard, narrative_arc),
+                    narration=_narration_hint(narration),
                     ref=ref_hint,
                 ),
                 temperature=0.7,
