@@ -17,7 +17,11 @@ def capability_for(model_id: str) -> ModelCapability:
     # Veo 3.1은 네이티브 오디오(발화 포함)를 낸다 -> 온카메라 발화가 가능하다.
     if mid.startswith("veo"):
         return ModelCapability(model_id=model_id, lane="vertex", integrated_voice=True)
-    # Kling O3(fal)도 네이티브 발화·립싱크가 가능하다.
-    if mid.startswith("kling"):
-        return ModelCapability(model_id=model_id, lane="fal", integrated_voice=True)
+    # fal 레인(Kling O3 / Seedance). 실제 id는 'fal-ai/kling-...' 또는 'bytedance/seedance-...'
+    # 형태라 접두어가 아닌 부분일치로 잡는다. Kling은 네이티브 발화·립싱크가 가능하다. duration을
+    # 3~15초 자유로 받으므로 세그먼트를 조금 더 길게 묶어 호출 수를 줄인다(max_clip_sec=10).
+    if "kling" in mid or "seedance" in mid or mid.startswith(("fal-ai/", "fal:", "bytedance/")):
+        return ModelCapability(
+            model_id=model_id, lane="fal", integrated_voice="kling" in mid, max_clip_sec=10.0
+        )
     return _MATRIX.get(model_id, ModelCapability(model_id=model_id, lane="vertex"))

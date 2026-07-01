@@ -17,6 +17,43 @@ def _has_video_backend(env: dict[str, str]) -> bool:
     return any(env.get(k) for k in _VIDEO_KEYS)
 
 
+def _lane_available(lane: str, env: dict[str, str]) -> bool:
+    """VIDEO_MODEL_PRIORITY 항목의 lane에 필요한 자격이 있는지. lane 접두어로 판별한다."""
+    lane = lane.lower()
+    if lane.startswith("fal"):
+        return bool(env.get("FAL_KEY"))
+    if lane.startswith("vertex"):
+        return bool(env.get("GOOGLE_CLOUD_PROJECT"))
+    if lane.startswith("gemini"):
+        return bool(env.get("GEMINI_API_KEY") or env.get("GOOGLE_API_KEY"))
+    return False
+
+
+def _select_video_model(env: dict[str, str]) -> str | None:
+    """영상 모델을 고른다. VIDEO_MODEL_PRIORITY(lane:model, 콤마 구분)를 순회하며 lane 자격이
+    있는 첫 후보를 쓴다. 없으면 레거시 폴백(VEO_MODEL / GCP·FAL 키). 다 없으면 None(ken_burns).
+
+    이렇게 해야 .env의 우선순위(예: fal Kling 최우선)가 실제로 반영된다(예전엔 VEO_MODEL만 봤다).
+    """
+    prio = (env.get("VIDEO_MODEL_PRIORITY") or "").strip()
+    for entry in prio.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        lane, sep, model = entry.partition(":")
+        model = (model if sep else "").strip() or lane.strip()
+        if _lane_available(lane.strip(), env):
+            return model
+    # 레거시 폴백(우선순위 미설정/자격 없음).
+    if env.get("VEO_MODEL"):
+        return env["VEO_MODEL"]
+    if env.get("GOOGLE_CLOUD_PROJECT"):
+        return "veo-3.1-fast-generate-001"
+    if env.get("FAL_KEY"):
+        return "fal-ai/kling-video/o3/standard/image-to-video"
+    return None
+
+
 def motion_for_panel(
     panel: StoryboardPanel, general_index: int = 0, product_index: int = 0
 ) -> str:
@@ -92,9 +129,8 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
     panels = profile.storyboard.panels or []
     n = max(1, len(panels))
 
-    if _has_video_backend(env):
-        video_model = env.get("VEO_MODEL", "veo-3.1-fast-generate-001")
-    else:
+    video_model = _select_video_model(env)
+    if video_model is None:
         video_model = "ken_burns"
         fallbacks.append("no_video_key->ken_burns")
     cap = capability_for(video_model)

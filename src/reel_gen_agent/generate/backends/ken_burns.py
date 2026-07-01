@@ -45,6 +45,7 @@ class KenBurnsBackend:
         motion: str = DEFAULT_MOTION,
         prompt: str = "",
         generate_audio: bool = False,  # 인터페이스 통일용(켄 번스는 항상 무음 트랙)
+        reference_images: list[str] | None = None,  # 인터페이스 통일용(미사용)
     ) -> str:
         total = max(1, int(round(duration_sec * fps)))
         # 원본 해상도에서 목표 종횡비로만 잘라낸다(crop은 x/y 생략 시 중앙). 최종 축소는

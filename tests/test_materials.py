@@ -57,10 +57,13 @@ class _FakeVeo:
     def __init__(self):
         self.calls = []
 
-    def render_panel(self, still, dur, w, h, fps, out, motion="", prompt="", generate_audio=False):
+    def render_panel(
+        self, still, dur, w, h, fps, out, motion="", prompt="", generate_audio=False,
+        reference_images=None,
+    ):
         from reel_gen_agent.generate.backends.ken_burns import KenBurnsBackend
 
-        self.calls.append((still, dur, prompt, generate_audio))
+        self.calls.append((still, dur, prompt, generate_audio, reference_images))
         return KenBurnsBackend().render_panel(still, dur, w, h, fps, out, motion=motion)
 
 

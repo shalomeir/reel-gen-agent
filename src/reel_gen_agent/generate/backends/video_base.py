@@ -20,4 +20,5 @@ class VideoBackend(Protocol):
         motion: str = "",
         prompt: str = "",
         generate_audio: bool = False,
+        reference_images: list[str] | None = None,
     ) -> str: ...

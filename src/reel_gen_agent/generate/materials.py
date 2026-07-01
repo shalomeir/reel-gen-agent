@@ -100,7 +100,15 @@ def _video_backend(plan: ProductionPlan):
             return VeoBackend(plan.video_model)
         except Exception:
             return None
-    # Kling 등 다른 백엔드는 아직 미배선 -> 켄 번스 폴백.
+    # fal 레인(Kling O3 / Seedance): id가 'fal-ai/...', 'bytedance/...' 또는 kling/seedance 포함.
+    if "kling" in model or "seedance" in model or model.startswith(("fal-ai/", "bytedance/")):
+        try:
+            from .backends.kling import FalVideoBackend
+
+            return FalVideoBackend(plan.video_model)
+        except Exception:
+            return None
+    # 그 밖의 미배선 모델 -> 켄 번스 폴백.
     return None
 
 
@@ -435,9 +443,13 @@ def build_visuals(
                     language=language, dialogue=dialogue,
                 )
                 prompts.append(f"[segment {seg_pos}] {prompt}")
+                # reference-to-video 백엔드(Kling)는 캐릭터·제품 이미지를 외모 참조로 함께 넣어
+                # 컷마다 인물·제품 일관성을 높인다. i2v(Veo/Kling i2v)는 이 인자를 무시한다.
+                ref_imgs = [r for r in (character_image, product_image) if r]
                 veo.render_panel(
                     start_image, seg_dur, m.width, m.height, m.fps, seg_clip,
                     motion=motions[0], prompt=prompt, generate_audio=gen_audio,
+                    reference_images=ref_imgs,
                 )
                 made = True
                 made_any = True

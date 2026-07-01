@@ -183,6 +183,7 @@ class VeoBackend:
         motion: str = "",
         prompt: str = "",
         generate_audio: bool = False,
+        reference_images: list[str] | None = None,  # Veo는 시작 이미지만 쓴다(미사용).
     ) -> str:
         from google.genai import types
 
