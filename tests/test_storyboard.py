@@ -32,6 +32,21 @@ def _parts(pacing="mixed", duration=18.0, hook=True):
     )
 
 
+def test_face_beauty_product_frames_tighter():
+    """얼굴용 뷰티 제품이면 더 타이트(얼굴 중심) 프레이밍을 콘티에 박는다."""
+    parts = _parts()
+    parts["product"] = ProductSpec(name="Glow Serum")
+    sb = build_storyboard(**parts)
+    assert "face fills most" in (sb.global_prompt or "")
+
+
+def test_non_face_product_defaults_to_upper_body():
+    parts = _parts()
+    parts["product"] = ProductSpec(name="Canvas Tote Bag")
+    sb = build_storyboard(**parts)
+    assert "upper body only" in (sb.global_prompt or "")
+
+
 def test_storyboard_always_has_panels_and_hook_first():
     sb = build_storyboard(**_parts())
     assert len(sb.panels) >= 2

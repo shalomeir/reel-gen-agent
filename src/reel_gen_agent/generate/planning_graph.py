@@ -40,8 +40,18 @@ def run_planning(
         raise ValueError("objective(영상 목적)는 필수다. 입력이 비었다.")
 
     product = ProductSpec(name=(result.product.source or "product"))
-    character = ModelSpec()
-    environment = EnvironmentSpec()
+    # 기본 캐릭터: 자연스러운 내추럴함이 매력인 동안의 20대 초중반 여성(specs/trd.md 기본 포맷).
+    character = ModelSpec(
+        age="early-to-mid 20s",
+        gender="female",
+        look="naturally pretty, effortless natural look with minimal makeup, "
+        "youthful baby face, warm approachable vibe",
+    )
+    # 장소 언급이 없으면 기본 환경은 등장인물 본인 방(실내)이다(specs/trd.md 기본 제작 포맷).
+    environment = EnvironmentSpec(
+        location="the creator's own bedroom, indoor",
+        lighting="soft natural indoor light",
+    )
     meta = InputMeta()
     style = StyleDimensions()
     provenance = Provenance(

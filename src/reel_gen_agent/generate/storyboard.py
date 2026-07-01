@@ -24,6 +24,46 @@ from .templates import PRODUCT_LOCK_BEATS, shot_for, template_for
 # 페이싱 -> 평균 컷 길이(초). 컷 수 시딩에 쓴다.
 _AVG_CUT_SEC = {"fast_montage": 1.2, "mixed": 2.5, "slow_demo": 4.0}
 
+# 얼굴용 뷰티 제품 힌트. 제품명에 이 단어가 있으면 더 타이트하게(얼굴 중심) 잡는다.
+_FACE_BEAUTY_HINTS = (
+    "serum",
+    "cream",
+    "toner",
+    "essence",
+    "ampoule",
+    "moistur",
+    "cleanser",
+    "cushion",
+    "foundation",
+    "lip",
+    "eyeshadow",
+    "mask",
+    "sunscreen",
+    "skin",
+    "spf",
+    "세럼",
+    "크림",
+    "토너",
+    "에센스",
+    "쿠션",
+    "선크림",
+    "립",
+)
+
+
+def _framing_directive(product: ProductSpec) -> str:
+    """세로형 인물 프레이밍 기본값. 인물을 크게, 기본은 상반신. 얼굴용 뷰티는 더 타이트.
+
+    프레이밍 규칙 정본은 specs/trd.md "기본 제작 포맷".
+    """
+    name = (product.name or "").lower()
+    if any(h in name for h in _FACE_BEAUTY_HINTS):
+        return (
+            "framing: vertical 9:16, subject very large — tight on the face, from the "
+            "upper chest up so the face fills most of the frame (face beauty product)"
+        )
+    return "framing: vertical 9:16, subject large — upper body only by default"
+
 
 def _panel_count(meta: InputMeta, style: StyleDimensions, cut_count: int | None) -> int:
     if cut_count and cut_count >= 2:
@@ -41,6 +81,7 @@ def _global_prompt(
     bits = [
         f"character: {character.look or character.name or 'a beauty content creator'}",
         f"product: {product.name}",
+        _framing_directive(product),
         f"palette: {', '.join(style.palette)}" if style.palette else "",
         f"location: {environment.location}" if environment.location else "",
         f"lighting: {environment.lighting}" if environment.lighting else "",
