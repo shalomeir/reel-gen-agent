@@ -18,6 +18,23 @@ PLAN 과정에서는 스타일을 코드에 박지 않고 주어진 레퍼런스
 생성된 결과는 SPEC 에 맞는지 검증 단계, 숏폼으로서 정성적으로 어필할 수 있는지 Evaluate 한다.
 이후 최종 영상과 결과 리포트를 생성한다.
 
+## 데모 결과
+
+같은 시스템, 다른 입력. 제품과 레퍼런스만 바꿔 뽑은 세로 숏폼 두 편이다.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>샌들형 운동화</b><br/>나이키 에어맥스 아일라 여성 샌들</p>
+    </td>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>린넨 셔츠 추천</b><br/>여름 오픈카라 린넨 셔츠</p>
+    </td>
+  </tr>
+</table>
+
 ## 요구사항
 
 - Python 3.10 이상

@@ -16,6 +16,24 @@ analysis from generation through a stable JSON interface, so the generation
 backend can change without touching the rest. Bring your own API key and you get
 an mp4 with no timeline editor and no render farm.
 
+## Demo results
+
+Same system, different inputs. Two vertical shorts made by swapping only the
+product and the reference.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>Sandal sneakers</b><br/>Nike Air Max Isla women's sandal</p>
+    </td>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>Linen shirt pick</b><br/>Lightweight open-collar summer linen shirt</p>
+    </td>
+  </tr>
+</table>
+
 ## Requirements
 
 - Python 3.10+
