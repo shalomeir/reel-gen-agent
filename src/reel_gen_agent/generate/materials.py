@@ -98,7 +98,8 @@ def _video_backend(plan: ProductionPlan):
             from .backends.veo import VeoBackend
 
             return VeoBackend(plan.video_model)
-        except Exception:
+        except Exception as exc:
+            print(f"[materials] Veo 백엔드 생성 실패 -> 켄 번스 폴백: {exc!r}", file=sys.stderr)
             return None
     # fal 레인(Kling O3 / Seedance): id가 'fal-ai/...', 'bytedance/...' 또는 kling/seedance 포함.
     if "kling" in model or "seedance" in model or model.startswith(("fal-ai/", "bytedance/")):
@@ -106,9 +107,14 @@ def _video_backend(plan: ProductionPlan):
             from .backends.kling import FalVideoBackend
 
             return FalVideoBackend(plan.video_model)
-        except Exception:
+        except Exception as exc:
+            print(f"[materials] fal 백엔드 생성 실패 -> 켄 번스 폴백: {exc!r}", file=sys.stderr)
             return None
-    # 그 밖의 미배선 모델 -> 켄 번스 폴백.
+    # 그 밖의 미배선 모델 -> 켄 번스 폴백(조용한 폴백을 남기지 않도록 사유를 찍는다).
+    print(
+        f"[materials] 영상 모델 '{plan.video_model}' 백엔드 미배선 -> 켄 번스 폴백",
+        file=sys.stderr,
+    )
     return None
 
 
@@ -453,10 +459,12 @@ def build_visuals(
                     file=sys.stderr,
                 )
             except Exception as exc:
-                # 그 밖의 영상 모델 실패 -> 앵커 스틸 폴백. 조용히 삼키지 않고 원인을 노출한다.
+                # 그 밖의 영상 모델 실패 -> 앵커 스틸 폴백. 조용히 삼키지 않고 실제 백엔드 이름과
+                # 전체 에러(repr)를 노출한다(예전엔 Kling 실패도 'Veo'로 찍혀 원인 추적이 어려웠다).
                 made = False
                 print(
-                    f"[materials] Veo 세그먼트{seg_pos}(패널 {indices}) 실패 -> 스틸 폴백: {exc}",
+                    f"[materials] {type(veo).__name__} 세그먼트{seg_pos}(패널 {indices}) 실패 "
+                    f"-> 스틸 폴백: {exc!r}",
                     file=sys.stderr,
                 )
         # 폴백이면 이 세그먼트 패널들에 개별 스틸을 채운다(없는 것만). 컷마다 다른 이미지가
