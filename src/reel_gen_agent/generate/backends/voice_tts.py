@@ -18,18 +18,21 @@ from __future__ import annotations
 
 import os
 
-# 한국어에 적당한 여성 프리메이드 보이스를 이름 우선순위로 고른다. Bella가 1순위다.
+# 성별별 프리메이드 보이스 이름 우선순위. 캐릭터 페르소나(voice_desc)의 성별에 맞춰 고른다.
 # ID가 계정/버전마다 달라(같은 ID가 Sarah로 바뀌기도) 이름으로 계정에서 찾는다.
-_PREFERRED_VOICE_NAMES = (
-    "bella",
-    "sarah",
-    "alice",
-    "laura",
-    "matilda",
-    "jessica",
-    "lily",
-    "rachel",
-)
+_FEMALE_VOICE_NAMES = ("bella", "sarah", "alice", "laura", "matilda", "jessica", "lily", "rachel")
+_MALE_VOICE_NAMES = ("adam", "antoni", "josh", "arnold", "sam", "charlie", "george", "liam")
+_PREFERRED_VOICE_NAMES = _FEMALE_VOICE_NAMES  # 기본(성별 단서 없을 때) 여성 우선
+
+
+def _persona_gender(voice_desc: str) -> str:
+    """voice 페르소나 문자열에서 성별을 읽는다. 남성 단서가 뚜렷하면 male, 아니면 female."""
+    d = (voice_desc or "").lower()
+    if any(w in d for w in ("male", " man", "guy", "boy", "masculine", "he ", "his ")) and (
+        "female" not in d and "woman" not in d
+    ):
+        return "male"
+    return "female"
 # 이름으로 못 찾거나 계정 조회가 막힐 때 쓰는 접근 가능한 여성 프리메이드 보이스 ID(폴백).
 _FALLBACK_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 # eleven_v3: 다국어 표현력이 가장 좋아 한국어·영어 나레이션 기본값([ai-model-records.md] §6).
@@ -56,15 +59,29 @@ class ElevenLabsVoiceClient:
         except Exception:
             return []
 
-    def _pick_account_voice(self, voices: list) -> str | None:
-        """계정 보이스에서 선호 이름 우선순위(Bella 1순위)로 하나 고른다.
+    def _pick_account_voice(self, voices: list, voice_desc: str = "") -> str | None:
+        """계정 보이스에서 캐릭터 페르소나에 맞는 보이스를 고른다.
 
-        선호 이름이 하나도 없으면 첫 번째 보이스를 쓴다.
+        1) voice_desc의 성별에 맞는 보이스(라벨 gender 또는 선호 이름)를 우선한다.
+        2) 성별 일치가 없으면 선호 이름, 그래도 없으면 첫 보이스.
+        캐릭터에 맞는 보이스를 골라야 개성이 산다(사용자 지시).
         """
-        for name in _PREFERRED_VOICE_NAMES:
+        gender = _persona_gender(voice_desc)
+        names = _MALE_VOICE_NAMES if gender == "male" else _FEMALE_VOICE_NAMES
+
+        def _label_gender(v) -> str:
+            labels = getattr(v, "labels", None) or {}
+            return str(labels.get("gender", "")).lower() if isinstance(labels, dict) else ""
+
+        # 1) 선호 이름(성별별) 우선
+        for name in names:
             for v in voices:
                 if name in (v.name or "").lower():
                     return v.voice_id
+        # 2) 라벨 성별 일치
+        for v in voices:
+            if _label_gender(v) == gender:
+                return v.voice_id
         return voices[0].voice_id if voices else None
 
     def _convert(self, client, voice_id: str, text: str, out_path: str) -> str:
@@ -87,16 +104,16 @@ class ElevenLabsVoiceClient:
         voices: list | None = None
         voice_id = self.voice_id
         if not voice_id:
-            # 명시 지정이 없으면 계정에서 Bella 우선으로 고르고, 못 찾으면 폴백 ID.
+            # 명시 지정이 없으면 계정에서 캐릭터 페르소나(성별 등)에 맞는 보이스를 고른다.
             voices = self._account_voices(client)
-            voice_id = self._pick_account_voice(voices) or _FALLBACK_VOICE_ID
+            voice_id = self._pick_account_voice(voices, voice_desc) or _FALLBACK_VOICE_ID
         try:
             return self._convert(client, voice_id, text, out_path)
         except Exception:
             # 지정 보이스가 막히면(무료 플랜 라이브러리 보이스 등) 다른 계정 보이스로 재시도.
             if voices is None:
                 voices = self._account_voices(client)
-            alt = self._pick_account_voice(voices)
+            alt = self._pick_account_voice(voices, voice_desc)
             if not alt or alt == voice_id:
                 alt = next((v.voice_id for v in voices if v.voice_id != voice_id), None)
             if not alt:

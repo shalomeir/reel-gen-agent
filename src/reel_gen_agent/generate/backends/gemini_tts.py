@@ -17,10 +17,34 @@ _SAMPLE_WIDTH = 2
 _CHANNELS = 1
 
 
+# Gemini 프리빌트 보이스의 대략적 성별 매핑(캐릭터 페르소나에 맞춰 고른다).
+_GEMINI_FEMALE_VOICES = ("Kore", "Aoede", "Leda")
+_GEMINI_MALE_VOICES = ("Puck", "Charon", "Fenrir")
+
+
+def _persona_gender(voice_desc: str) -> str:
+    d = (voice_desc or "").lower()
+    if any(w in d for w in ("male", " man", "guy", "boy", "masculine")) and (
+        "female" not in d and "woman" not in d
+    ):
+        return "male"
+    return "female"
+
+
 class GeminiTTSVoiceClient:
     def __init__(self, model: str | None = None, voice: str | None = None) -> None:
         self.model = model or os.environ.get("GEMINI_TTS_MODEL") or "gemini-3.1-flash-tts-preview"
-        self.voice = voice or os.environ.get("GEMINI_TTS_VOICE") or "Kore"
+        # env로 고정하지 않으면 캐릭터 페르소나에 맞춰 synthesize에서 성별별로 고른다.
+        self.voice = voice or os.environ.get("GEMINI_TTS_VOICE")
+
+    def _pick_voice(self, voice_desc: str) -> str:
+        if self.voice:
+            return self.voice
+        return (
+            _GEMINI_MALE_VOICES[0]
+            if _persona_gender(voice_desc) == "male"
+            else _GEMINI_FEMALE_VOICES[0]
+        )
 
     @staticmethod
     def _extract_pcm(response) -> bytes | None:
@@ -46,7 +70,9 @@ class GeminiTTSVoiceClient:
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice)
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=self._pick_voice(voice_desc)
+                    )
                 )
             ),
         )

@@ -79,9 +79,8 @@ def _global_prompt(
     environment: EnvironmentSpec,
 ) -> str:
     bits = [
-        # 인물은 평범한 일반인이 아니라 매력적인 뷰티 인플루언서/틱톡커로 묘사한다(사용자 지시).
-        f"character: an attractive, camera-ready beauty influencer / TikTok creator — "
-        f"{character.look or character.name or 'magnetic good looks, healthy natural skin, subtle glam'}"
+        # 인물 정체성·매력도는 character 노드가 정한 look을 그대로 쓴다(재하드코딩 금지, 의도 존중).
+        f"character: {character.look or character.name or 'an attractive early-20s creator'}"
         ", natural realistic skin texture (not oily, wet or overly shiny, no plastic glossy sheen)",
         f"product: {product.name}",
         f"mood and tone: {', '.join(style.tone)}" if style.tone else "",

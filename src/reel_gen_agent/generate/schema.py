@@ -205,6 +205,7 @@ class HookRequest(BaseModel):
     product: ProductSpec
     category: str | None = None  # CATEGORY_HOOK_DEFAULTS 키. 없으면 추론
     tone: list[str] = Field(default_factory=list)
+    character: str = ""  # 등장 캐릭터 요약(주인공 문맥). 후크 문구·톤이 캐릭터에 맞도록.
     platform: str = "tiktok"
     language: str = "en"
     duration_sec: float = 18.0

@@ -4,9 +4,11 @@
 ([ADR.md] ADR-0011). 모션은 beat 기준으로 plan이 골라 넘긴다
 ([2026-07-01-ken-burns-motion-design.md]).
 
-지터(드드득) 방지: 스틸을 먼저 W:H로 줄이지 않는다. 원본 해상도에서 9:16으로 crop만 하고
-zoompan이 최종 s=WxH로 축소하게 한다. 패널 스틸은 보통 고해상도(히어로 4K)라 그 해상도가
-서브픽셀 이동의 여유가 되어 별도 오버샘플 없이 매끄럽다.
+지터(덜그덕/흔들림) 방지: zoompan은 줌 중심 x/y를 매 프레임 정수 픽셀로 반올림한다. 줌이
+서서히 커지면 소수부가 정수 경계를 넘을 때마다 중심이 1px씩 튀어 흔들려 보인다. 원본이
+4K여도 출력(1080) 기준으로는 그 튐이 남는다. 그래서 crop 후 출력의 SUPERSAMPLE배로 키운
+캔버스 위에서 zoompan을 돌리고 s=WxH로 내린다. 그러면 1px 튐이 출력 기준 1/SUPERSAMPLE
+px가 되어 눈에 안 보인다. 좌우 팬은 쓰지 않고 중앙 기준 줌만 한다.
 
 일반 컷은 약한 줌인/줌아웃을 번갈아(plan이 지정) 인접 클립의 경계 프레임을 다르게 해,
 스틸이 비슷해도 컷 감지기가 경계를 잡도록 돕는다. 어색해지기 쉬운 좌우 팬은 쓰지 않는다.
@@ -25,6 +27,10 @@ _ZOOM_EXPR: dict[str, str] = {
     "product_push_in": "1+0.18*on/{total}",  # 제품 강조 컷: 제품으로 또렷하게 줌인
 }
 DEFAULT_MOTION = "zoom_in_slow"
+
+# zoompan의 정수 픽셀 반올림 지터를 없애기 위한 오버샘플 배율. 출력의 이 배로 키운 캔버스
+# 위에서 줌해서 1px 튐이 출력 기준 1/SUPERSAMPLE px가 되게 한다(4면 눈에 안 보인다).
+SUPERSAMPLE = 4
 
 
 class KenBurnsBackend:
@@ -50,8 +56,11 @@ class KenBurnsBackend:
             vf = f"{crop},scale={width}:{height}"
         else:
             zexpr = _ZOOM_EXPR.get(motion, _ZOOM_EXPR[DEFAULT_MOTION]).format(total=total)
+            # crop 후 출력의 SUPERSAMPLE배 캔버스로 키우고, 그 위에서 zoompan을 돌려 s=WxH로
+            # 내린다. zoompan의 x/y 정수 반올림(1px 튐)이 출력 기준 서브픽셀이 되어 매끄럽다.
+            work_w, work_h = width * SUPERSAMPLE, height * SUPERSAMPLE
             vf = (
-                f"{crop},"
+                f"{crop},scale={work_w}:{work_h}:flags=bicubic,"
                 f"zoompan=z='{zexpr}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
                 f"d={total}:s={width}x{height}:fps={fps}"
             )

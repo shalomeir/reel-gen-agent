@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..analysis.profile import Subject
 from .asset_bible import build_asset_bible
-from .character import derive_character
+from .character import character_brief, derive_character, voice_persona
 from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
@@ -23,6 +23,7 @@ from .schema import (
     EnvironmentSpec,
     HookRequest,
     InputMeta,
+    ModelSpec,
     MusicSpec,
     NarrationLine,
     NarrationSpec,
@@ -81,9 +82,11 @@ def run_planning(
     # 아무 단서 없으면 기본값(매력적인 20대 초반 미국 여성). 하드코딩하지 않는다(사용자 지시).
     character = derive_character(result.objective.goal, product, ref_subject, text_client)
 
-    # 음악 노드: 장르·무드·다이내믹을 LLM이 문맥으로 정한다(코드/프롬프트에 스타일 하드코딩
-    # 금지). 레퍼런스 음악은 힌트로만. bpm은 execute가 컷 리듬으로 맞춘다.
-    music = derive_music(result.objective.goal, product, style.tone, music, text_client)
+    # 음악 노드: 장르·무드·다이내믹을 LLM이 문맥(브리프·톤·주인공 캐릭터)으로 정한다(스타일
+    # 하드코딩 금지). 레퍼런스 음악은 힌트로만. bpm은 execute가 컷 리듬으로 맞춘다.
+    music = derive_music(
+        result.objective.goal, product, style.tone, music, text_client, character=character
+    )
 
     # 후크: 유형·문구는 LLM이 제품·목적·톤에 맞춰 유연하게 고른다(하드코딩 X, temperature로
     # 다양성). 레퍼런스가 있으면 그 첫 3초 시각 컨셉(visual_direction)·문구·윈도를 LLM이 고른
@@ -96,7 +99,12 @@ def run_planning(
         try:
             hooks = generate_hooks(
                 HookRequest(
-                    product=product, tone=style.tone, duration_sec=meta.duration_sec, count=2
+                    product=product,
+                    tone=style.tone,
+                    character=character_brief(character),  # 주인공 문맥 공유
+                    language=meta.language,  # 기본 영어(en). 명시 요청 시만 다른 언어.
+                    duration_sec=meta.duration_sec,
+                    count=2,
                 ),
                 text_client,
             )
@@ -117,7 +125,8 @@ def run_planning(
 
     narration = NarrationSpec(
         delivery=delivery,
-        voice=VoiceSpec(from_character=True, type=(character.look or None)),
+        # voice 성향을 캐릭터에서 유도한다(성별·나이·분위기). TTS가 이 페르소나로 보이스를 고른다.
+        voice=VoiceSpec(from_character=True, type=voice_persona(character)),
     )
 
     # 스토리보드/콘티는 항상 채운다(텍스트 패널). 레퍼런스 컷 수가 있으면 그 수에 맞춘다.
@@ -137,7 +146,8 @@ def run_planning(
     # 매핑한다. execute가 각 라인을 TTS해 패널 t_start에 깔아 콘티에 맞물리게 한다.
     if text_client is not None:
         narration.lines = _narration_lines(
-            text_client, product, style, meta, [p.beat or "" for p in storyboard.panels]
+            text_client, product, style, meta, [p.beat or "" for p in storyboard.panels],
+            character=character,
         )
 
     run_id = make_run_id(result.objective.goal)
@@ -179,20 +189,25 @@ def _narration_lines(
     style: StyleDimensions,
     meta: InputMeta,
     beats: list[str],
+    character: ModelSpec | None = None,
 ) -> list[NarrationLine]:
     """패널 비트에 맞춘 짧은 나레이션 라인을 생성한다(비주얼-only 비트는 제외).
 
+    주인공 캐릭터(성향)를 문맥으로 넣어 "이 캐릭터라면 이렇게 말한다" 톤의 대사를 만든다.
     LLM이 beats와 같은 길이의 JSON 배열(각 원소는 짧은 대사 또는 "")을 내면, 비어 있지 않은
     라인만 그 패널 인덱스에 매핑한다. 실패하면 빈 목록(voice 없이 진행).
     """
     import json
 
+    from .character import character_brief
     from .hook import _extract_json
 
     tone_hint = ", ".join(style.tone) if style.tone else "natural, authentic"
+    persona = character_brief(character) if character else "an attractive early-20s US creator"
     prompt = (
-        f"You are writing a first-person voiceover for a {meta.duration_sec:.0f}-second "
-        f"vertical beauty short about {product.name}. Tone: {tone_hint}, natural UGC, English.\n"
+        f"You are {persona}, speaking a first-person voiceover for a {meta.duration_sec:.0f}-second "
+        f"vertical beauty short about {product.name}. Speak in that persona's voice.\n"
+        f"Tone: {tone_hint}, natural UGC. Language: {meta.language} (default US English).\n"
         f"The video has {len(beats)} cuts with these beats in order: {beats}.\n"
         "Write ONE short spoken line (3-8 words) per cut that matches that beat, or an empty "
         "string for purely visual cuts with no voice. The lines should flow as one natural "

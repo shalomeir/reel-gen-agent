@@ -13,7 +13,9 @@ from .text_client import TextClient
 
 _PROMPT = (
     "Role: generate {count} first-1-3-second hooks for a 20-30s vertical beauty short.\n"
-    "Product: {product}. Category: {category}. Tone: {tone}. Language: English.\n"
+    "Product: {product}. Category: {category}. Tone: {tone}. Creator: {character}. "
+    "Language: {language}.\n"
+    "Write hooks that fit this specific creator's persona (what she would actually say/do).\n"
     'Output raw JSON only (no markdown fences, no prose): {{"candidates": [{{'
     '"hook_type": "H1..H12", "headline": str, "bottom_caption": str, '
     '"no_text_visual": false, "visual_direction": str, "opening_beat": str, '
@@ -75,6 +77,8 @@ def generate_hooks(request: HookRequest, client: TextClient) -> HookSet:
         product=request.product.name,
         category=request.category or "auto",
         tone=", ".join(request.tone) or "auto",
+        character=request.character or "an attractive early-20s American beauty creator",
+        language=request.language or "en",
     )
     raw = client.complete(prompt, temperature=0.9)
     data = json.loads(_extract_json(raw))

@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import json
 
-from .schema import MusicSpec, ProductSpec
+from .schema import ModelSpec, MusicSpec, ProductSpec
 from .text_client import TextClient
 
 _PROMPT = (
     "Choose background music (an instrumental bed under a voiceover) for a vertical short-form "
-    "beauty ad. Decide the genre/style, mood, and dynamics that best fit this specific video; "
-    "do not default to any fixed genre.\n"
-    "Brief: {brief}\nProduct: {product}\nTone: {tone}\n{ref}\n"
+    "beauty ad. Decide the genre/style, mood, and dynamics that best fit this specific video and "
+    "its on-camera creator; do not default to any fixed genre.\n"
+    "Brief: {brief}\nProduct: {product}\nTone: {tone}\nCreator: {character}\n{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"style": str, "mood": str, "type": str, "dynamics": "flat"|"build"}}. '
     "style is the genre/production style; type is a short descriptor; dynamics is whether energy "
@@ -40,6 +40,7 @@ def derive_music(
     tone: list[str],
     reference_music: MusicSpec | None,
     text_client: TextClient | None,
+    character: ModelSpec | None = None,
 ) -> MusicSpec:
     """브리프·톤·레퍼런스로 MusicSpec을 도출한다. LLM 우선, 실패/부재 시 레퍼런스/중립 폴백.
 
@@ -56,9 +57,12 @@ def derive_music(
 
     if text_client is not None:
         try:
+            from .character import character_brief
+
             raw = text_client.complete(
                 _PROMPT.format(
                     brief=brief, product=product.name, tone=", ".join(tone) or "unspecified",
+                    character=(character_brief(character) if character else "unspecified"),
                     ref=ref_hint,
                 ),
                 temperature=0.7,
