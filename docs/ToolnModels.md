@@ -29,7 +29,9 @@
 | 이미지 생성(에셋 시트, 패널 스틸) | Google Nano Banana 계열(Gemini 네이티브 이미지) | 없음(단일 경로) | 단일 키 안에서 돌고, 한 이미지에 멀티뷰를 렌더링해 에셋 시트에 맞음. 스틸 품질이 영상으로 전파되므로 품질 우선. 이미지는 Nano Banana 단일 경로로 좁힘 |
 | image-to-video(패널 클립) | Veo 3.1 Fast(Vertex 전용 개발 기본) | Kling O3 Pro reference-to-video(성능 최선), Kling O3 image-to-video(Veo 치환 후보), Veo 3.1 Standard/Pro(고품질 승격), 스틸 켄 번스 폴백 | 개발 검증 기본은 Veo Fast지만, 현시점 이 프로젝트에서 품질 최선은 Kling O3. 특히 O3 Pro reference-to-video가 캐릭터·제품·스토리보드 reference 일관성에서 가장 강함 |
 | 배경 음악(BGM) | Lyria 3(Clip, 30초 이하 기본) | 30초 초과 시 Lyria 3 Pro, 사용자 제공 음악 또는 무음 | 컷 리듬에 BGM 템포를 맞춤. 대부분 숏폼은 30초 이하라 Clip으로 충분, 30초 넘으면 Pro로 승격 |
-| voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs `eleven_v3`(한국어/영어 공통 기본, Google TTS보다 한 수 위. 없을 때만 Google TTS 3.1 preview 폴백) | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 한국어 지원 voice를 골라 캐릭터 음색을 길게 연속으로 뽑아 컷이 나뉘어도 톤 일관. voice를 먼저 만들어 영상 모델에 주입하는 립싱크는 쓰지 않는다 |
+| voice(나레이션·발화, 되도록 사용) | voiceover 나레이션: ElevenLabs `eleven_v3`(한국어/영어 공통 기본, Google TTS보다 한 수 위. 없을 때만 Google TTS 3.1 preview 폴백) | on_camera=영상 모델 네이티브 발화(역동적 발화 컷에서만; 멀티컷+립싱크 일관은 Kling O3 Pro만) | 기본은 나레이션이다. 나레이션 톤은 광고 카피가 아니라 진짜 크리에이터의 1인칭 경험 공유로 쓴다. 레퍼런스 발화 결(tone/pace)이 있으면 eleven_v3 오디오 태그로 전달. 컷이 나뉘어도 톤 일관 |
+| 효과음(SFX) | 씬 자연음: 영상 모델 네이티브 오디오(Veo `generate_audio`, 거의 항상 켬 → 무음 영상 지양) | 비-diegetic 편집 효과음(전환 whoosh·그래픽 액센트·후크 riser·엔딩 징글): ElevenLabs `text_to_sound_effects`(옵션) | 씬 안의 소리는 영상 모델이 맥락째 내는 게 낫다. 예능식 편집 효과음만 플랜이 켤 때 별도 생성해 조립 단계에서 loudnorm으로 눅여 얹는다 |
+| BGM/voice/SFX 믹스 | ffmpeg amix + loudnorm(-16 LUFS) | - | 나레이션 있으면 BGM 덕킹(prominence 따름), 없으면 BGM 주연. 네이티브 오디오는 낮은 앰비언스로만(덕킹 트리거 아님). 클리핑 방지 최종 정규화 |
 
 비전 분석, Rubric 채점, Conformance 검사 같은 Gemini 멀티모달 호출은 `GENAI_BACKEND`가 백엔드를
 고른다. 기본 `auto`는 GCP 자격이 있으면 Vertex AI(크레딧), 없으면 `GEMINI_API_KEY` lane이다.
@@ -54,7 +56,7 @@ audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedanc
 | google-genai | 비전 분석, 이미지 생성, Gemini 호출, Vertex AI Veo 호출 | 단일 키 약속의 중심. `GENAI_BACKEND=auto`로 Vertex(크레딧) 우선, Gemini 키 폴백을 한 SDK로 처리 |
 | google-cloud-storage | Vertex Veo 출력 다운로드 | Vertex Veo 결과가 GCS로 떨어질 때 내려받는 용도 |
 | fal-client | Kling O3 영상 전환 후보, Seedance 비교 후보 | `FAL_KEY`가 있으면 영상 후보 provider로. 영상은 개발 기본 경로가 아니지만, 품질 최선 후보인 Kling O3 전환 대기 경로로 둔다. 이미지에는 쓰지 않는다(Nano Banana 단일) |
-| elevenlabs | voiceover TTS(서브) | voice는 되도록 사용. 캐릭터 음색 매칭과 자연스러운 감정 전달이 더 필요할 때 Google TTS 대신 |
+| elevenlabs | voiceover TTS(`text_to_speech`) + 편집 효과음(`text_to_sound_effects`, 옵션) | voice는 되도록 사용(Google TTS보다 자연스러운 감정·음색). SFX는 비-diegetic 편집 효과음만 별도 생성 |
 | firecrawl-py | 제품 URL에서 정보·이미지 추출 | 컨셉 단계의 product-fetch 노드. 입력을 URL 하나로 줄이는 경로 |
 | langfuse | 트레이싱·관측, 튜닝 루프 | 그래프 실행을 단계별로 기록. 키 있을 때만 붙는 옵션 sink(로컬 trace가 진실의 원천) |
 | yt-dlp | 레퍼런스 영상 URL 다운로드 | 분석에 투입할 레퍼런스 확보. `utils/add-reference.sh`를 노드로 승격 |
@@ -109,9 +111,10 @@ audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedanc
 
 | 라이브러리 | 용도 |
 |---|---|
-| langgraph | 오케스트레이션. 단계를 노드로, 사람 확인 지점을 interrupt로 표현. 게이트 ask/pass/run을 그래프 위에서 일반화 |
+| langgraph | 오케스트레이션. plan/execute를 노드 StateGraph로. execute는 visuals→voice·bgm·sfx 병렬(fan-out)→assemble(fan-in). 확인 게이트(HITL)는 없다(run 일괄) |
 | pydantic | 스키마 경계. 분석과 생성이 통신하는 유일한 인터페이스. 백엔드를 갈아끼워도 스키마는 고정 |
-| typer + rich | CLI. 챗 모드와 런 모드, `execute` 직행 명령. 코어를 같은 프로세스에서 직접 호출 |
+| typer + rich | CLI 프레임워크. `run` 일괄 실행, `plan`/`execute` 분리, `compare` 유사도. 코어를 같은 프로세스에서 직접 호출 |
+| prompt_toolkit | 대화형 `chat` 모드 입력 UI. 필요한 걸 물어 채우고 ReelProfile+대표이미지 확인 후 생성(대화형 인테이크+확인 1회) |
 
 ### 영상 분석(결정론 층)
 
@@ -135,7 +138,7 @@ audio/voice 파일을 영상 모델에 넣는 립싱크 경로(실측상 Seedanc
 | 라이브러리 | 용도 |
 |---|---|
 | google-genai, google-cloud-storage, fal-client, elevenlabs, firecrawl-py, langfuse, yt-dlp | 외부 서비스 어댑터(2번 표 참고) |
-| tenacity | 외부 호출 재시도 백오프 |
+| tenacity | 외부 호출 재시도 백오프. 특히 Veo 일시적 오류(미완료/응답없음)를 지수 백오프 재시도(RAI 빈 결과는 원인 진단 후 프롬프트 재작성으로 별도 처리) |
 | python-dotenv | `.env`에서 키와 모델 ID 주입 |
 
 ### 개발 도구
