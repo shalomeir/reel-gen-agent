@@ -21,7 +21,6 @@ dependencies = [
     "google-cloud-storage>=2.18",
     "langfuse>=2.52",
     "langgraph>=0.2",
-    "moviepy>=2.0",
     "scenedetect>=0.6",
     "librosa>=0.10",
     "numba>=0.60",

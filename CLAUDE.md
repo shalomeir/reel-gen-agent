@@ -92,11 +92,14 @@ rewrites. The loop:
 
 ## Stages and gates
 
-The generation pipeline is a sequence of stages, each behind its schema and a
-human-in-the-loop gate. A gate behaves as **ask** (confirm/edit), **pass**
-(`--force-step-pass <step>`), or **run mode** (all gates pass). When adding a
-stage, wire its gate the same way so chat mode and run mode stay consistent. The
-stage plan and intended first slice (walking skeleton) are in
+The generation pipeline is a sequence of stages, each behind its schema. Human
+confirmation happens in two modes: **chat mode** (the `chat` command asks the user
+to confirm/edit the plan and key visual out of the graph), and **run mode**
+(`run`/`plan`/`execute` run the graph end to end with no per-step prompts). There
+is no per-step pass flag; in-graph node-level gates are a deferred item. The one
+in-graph gate that does exist is `verify`, a hard conformance gate with a bounded
+repair loop (see [specs/workflows.md](specs/workflows.md)). The stage plan and
+intended first slice (walking skeleton) are in
 [docs/pipeline-design.md](docs/pipeline-design.md).
 
 When adding a stage:

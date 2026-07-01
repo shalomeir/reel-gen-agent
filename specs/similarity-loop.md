@@ -52,16 +52,21 @@ through, not to special-case any one video.
 
 All read from `VideoProfile`. Weights sum to 1.0.
 
-- **rhythm 0.26** — `cut.mode` (ordinal fast_montage/mixed/slow_demo) + `cut.mean_sec`
+- **rhythm 0.28** — `cut.mode` (ordinal fast_montage/mixed/slow_demo) + `cut.mean_sec`
   ratio closeness.
 - **voice 0.22** — `voice.present`/`on_camera` + `pace` (reliable base) with `tone`
   as a floored soft bonus (max +20%). (The "결" axis.)
-- **music 0.16** — `dynamics` match + `bpm` closeness + `continuous` match.
+- **music 0.15** — `dynamics` match + `bpm` closeness + `continuous` match.
 - **visual 0.18** — `motion` ordinal + `brightness`/`contrast` closeness + palette
   soft overlap.
-- **tone 0.07** — `tone` soft overlap.
-- **subtitle 0.06** — `density` + `position` match.
-- **narrative 0.05** — `narrative_arc` soft overlap.
+- **subtitle 0.09** — `density` + `position` match.
+- **tone 0.05** — `tone` soft overlap.
+- **narrative 0.03** — `narrative_arc` soft overlap.
+
+These weights are the source of truth and mirror `analysis/similarity.py` (`_WEIGHTS`).
+Deterministic axes (rhythm, voice base, music, visual, subtitle) carry more weight
+than the free-text perceptual axes (tone, narrative), which stay low because judge
+labels vary run to run.
 
 Overall pass threshold: **0.78**. Each axis also has its own soft threshold (0.6)
 below which it emits a delta line.

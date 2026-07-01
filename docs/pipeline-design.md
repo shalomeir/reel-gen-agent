@@ -23,15 +23,15 @@ Gate: profile(output) vs style_profile (유사도 점수)
 
 ## 휴먼 인 더 루프 게이트
 
-중요한 단계는 모두 확인을 거칠 수 있다. 게이트는 세 가지 중 하나로 동작한다.
+사람 확인은 두 가지 모드로 한다.
 
-- **ask**(기본, 챗 모드): 결과를 보여주고 사용자가 확인하거나 수정한다.
-- **pass**(`--force-step-pass <step>`, 또는 CLI 안에서 `/pass <step>`): 프롬프트를
-  건너뛰고 계속 진행한다.
-- **런 모드**: 모든 게이트를 통과시키고 입력에서 바로 영상까지 생성한다.
+- **챗 모드(ask)**: `chat` 명령이 그래프 밖에서 입력을 대화로 채우고, ReelProfile과
+  대표이미지를 보여준 뒤 확인·수정 루프를 돈다.
+- **런 모드**: `run`/`plan`/`execute`가 입력에서 바로 영상까지 프롬프트 없이 생성한다.
 
-이렇게 인터랙티브 리뷰를 게이트 설정으로 일반화하면, 그것이 곧 비인터랙티브 런 모드
-(입력 넣으면 영상 나오고 프롬프트 없음)의 토대가 된다.
+초안이 계획했던 그래프 안 단계별 게이트(ask/pass 플래그로 일반화)는 배선하지 않았다
+(ADR-0007에서 superseded). 그래프 안에 실제로 있는 게이트는 `verify`(하드 conformance +
+repair 유한 루프)뿐이다. 자세한 건 [../specs/workflows.md](../specs/workflows.md).
 
 ## 스키마
 
@@ -184,7 +184,7 @@ outputs/<run_id>/  # generation_input.json, assets/, storyboard/, panels/, final
 1. 손으로 작성한 `generation_input.json`에서 시작한다(컨셉 LLM 단계는 나중에).
 2. asset bible -> [gate] -> 스토리보드 JSON과 스틸 -> [gate] -> image-to-video ->
    조립된 mp4 -> [gate].
-3. 게이트 프레임워크(ask/pass, `--force-step-pass`, 챗/런 모드)를 포함한다.
+3. 챗 모드(그래프 밖 확인)와 런 모드(프롬프트 없이 일괄)를 포함한다.
 
 이러면 게이트, 에셋 바이블, 스토리보드를 모두 돌려보면서 완성된 영상이 나온다. 전체
 컨셉, 템플릿 단계는 그다음이다.

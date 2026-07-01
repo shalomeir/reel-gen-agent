@@ -56,18 +56,23 @@ Scope decisions (confirmed):
 
 ### Sub-graph: `generate/replan_graph.py`
 
-A focused LangGraph that reuses the existing plan nodes for the narrative segment
-only:
+A focused LangGraph that reuses the existing plan nodes for the style + narrative
+segment only. Style leads so the take genuinely diverges (see "Narrative is
+re-rolled, style first" above):
 
 ```
-START -> hook -> storyboard -(_route_after_storyboard)-> [hook | narration]
-      -> narration -> music -> END
+START -> style -> hook -> storyboard -(_route_after_storyboard)-> [hook | style_refine]
+      -> style_refine -> narration -> music -> END
 ```
 
-It imports and reuses `_hook_node`, `_storyboard_node`, `_route_after_storyboard`,
-`_narration_node`, and `_music_node` from `plan_graph.py` unchanged. None of these
-nodes touch the image client or the plan asset directory, so the sub-graph is
-text-only. There is no `write_profile` node; assembly and paths are handled by the
+It imports and reuses `_style_node`, `_hook_node`, `_storyboard_node`,
+`_route_after_storyboard`, `_style_refine_node`, `_narration_node`, and
+`_music_node` from `plan_graph.py` unchanged. `style` runs first and, because
+replan state carries no `provenance`, takes the no-reference LLM path (regenerate
+from scratch); `style_refine` runs after the ping-pong. The route's "forward"
+branch goes to `style_refine` (not straight to `narration`). None of these nodes
+touch the image client or the plan asset directory, so the sub-graph is text-only.
+There is no `write_profile` node; assembly and paths are handled by the
 orchestrator (the new keyword is unknown until the hook is regenerated).
 
 `build_replan_graph()` compiles and returns the graph.

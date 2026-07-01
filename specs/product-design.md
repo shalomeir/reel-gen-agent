@@ -247,8 +247,7 @@ reel-gen execute ReelProfile-glow-serum-20260630-204512.json
 
 `run`과 분리한 이유: `run`은 상위 입력(영상 목적·텍스트 브리프·GenerationInput)을 받아 plan부터
 끝까지 돌리는 반면, `execute`는 동결된 ReelProfile을 받아 Production만 돈다. 비싼 앞 단계
-(기획)를 반복하지 않는다. `execute`의 `--outputs` 옵션은 현재 production 경로 결정에 쓰이지
-않는다. 결과 폴더는 ReelProfile 파일 위치에서 정한다. 새 레이아웃
+(기획)를 반복하지 않는다. 결과 폴더는 별도 옵션 없이 ReelProfile 파일 위치에서 정한다. 새 레이아웃
 `outputs/<run_id>/plan/ReelProfile-....json`이면 결과물은 `outputs/<run_id>/`에 쓰고, 구 레이아웃처럼
 ReelProfile이 run 루트에 바로 있으면 그 폴더에 쓴다.
 
