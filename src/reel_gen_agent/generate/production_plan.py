@@ -40,6 +40,38 @@ def motion_for_panel(
     return "zoom_in_slow" if general_index % 2 == 0 else "zoom_out_slow"
 
 
+def _panel_dur(panel: StoryboardPanel) -> float:
+    """패널 길이(초). 없으면 최소 0.5초."""
+    return max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
+
+
+def segment_panels(
+    panels: list[StoryboardPanel], max_clip_sec: float, per_panel: bool
+) -> list[list[int]]:
+    """패널을 영상 모델 1회 호출 단위(세그먼트)로 묶는다([multishot-segments.md]).
+
+    per_panel(ken_burns)이면 패널마다 세그먼트 1개다(로컬 합성이라 호출 개념이 없다).
+    영상 모델이면 연속 패널을 max_clip_sec 이하로 그리디하게 묶어, ≤15초 릴이 ≤2회
+    호출로 끝나게 한다. 단일 패널이 상한을 넘어도 최소 한 세그먼트로 담는다.
+    """
+    if per_panel:
+        return [[i] for i in range(len(panels))]
+    segments: list[list[int]] = []
+    current: list[int] = []
+    acc = 0.0
+    for i, panel in enumerate(panels):
+        d = _panel_dur(panel)
+        if current and acc + d > max_clip_sec + 1e-6:
+            segments.append(current)
+            current = []
+            acc = 0.0
+        current.append(i)
+        acc += d
+    if current:
+        segments.append(current)
+    return segments
+
+
 def _panel_motions(panels: list[StoryboardPanel]) -> list[str]:
     """패널 목록을 모션 목록으로. 일반 컷/제품 컷 교대 인덱스를 따로 센다."""
     motions: list[str] = []
@@ -68,10 +100,14 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
     cap = capability_for(video_model)
 
     # ken_burns는 패널 수만큼 같은 렌더러를 쓰되 단일 패널이면 한 줄로 둔다.
-    if video_model == "ken_burns":
+    is_ken_burns = video_model == "ken_burns"
+    if is_ken_burns:
         renderers = ["ken_burns"] * n
     else:
         renderers = ["i2v"] * n
+
+    # 세그먼트: 영상 모델은 max_clip_sec로 묶어 ≤15초를 ≤2회 호출. ken_burns는 패널당 1개.
+    segments = segment_panels(panels, cap.max_clip_sec, per_panel=is_ken_burns)
 
     delivery = profile.narration.delivery
     if delivery == "none":
@@ -95,6 +131,7 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
         key_image_per_cut=(video_model != "ken_burns"),
         panel_renderers=renderers,
         panel_motions=_panel_motions(panels),
+        segments=segments,
         bgm=profile.production_intent.bgm_pref,
         sfx=profile.production_intent.sfx_pref,
         fallbacks_applied=fallbacks,

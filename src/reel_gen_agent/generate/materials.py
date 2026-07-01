@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 
 from .audio import bpm_for_cuts, compose_aligned_narration, synth_music_bed
 from .backends.ken_burns import DEFAULT_MOTION, KenBurnsBackend
-from .schema import Materials, ProductionPlan, ReelProfile
+from .schema import Materials, ProductionPlan, ReelProfile, StoryboardPanel
 from .subtitles import render_subtitle_png
 
 
@@ -80,6 +81,51 @@ def _veo_prompt(base_prompt: str, motion: str) -> str:
     return f"{base_prompt}. Camera: {directive}." if base_prompt else directive
 
 
+def _shot_subject(panel: StoryboardPanel, product_name: str) -> str:
+    """이 컷의 피사체 한 줄. 제품 강조 컷이면 제품, 아니면 인물 중심."""
+    if panel.product_lock:
+        return f"the {product_name} product in focus" if product_name else "the product in focus"
+    return "the beauty creator"
+
+
+def _multishot_prompt(
+    seg_panels: list[StoryboardPanel], motions: list[str], product_name: str, style: str
+) -> str:
+    """세그먼트 안 패널들을 샷 리스트 멀티샷 프롬프트로 편다([multishot-segments.md]).
+
+    앵커 이미지 1장 + 이 프롬프트로 영상 모델이 세그먼트 내부의 여러 컷을 스스로 만든다.
+    컷마다 shot_type, 피사체(제품 컷은 제품), beat 동작, 카메라 무빙(제품 컷은 제품 줌인)을
+    담아 컷 변화를 유도한다. 인물·제품 일관은 명시적으로 요구한다.
+    """
+    lines = [
+        f"Multishot sequence of {len(seg_panels)} quick vertical 9:16 shots for a beauty short.",
+        "Keep the same person and the same product consistent across every shot.",
+    ]
+    if style:
+        lines.append(style)
+    for k, panel in enumerate(seg_panels):
+        shot = (panel.shot_type or "medium shot").strip()
+        beat = (panel.beat or "").strip()
+        directive = _MOTION_DIRECTIVE.get(motions[k], "")
+        beat_bit = f", {beat} beat" if beat else ""
+        cam_bit = f". Camera: {directive}" if directive else ""
+        lines.append(f"Shot {k + 1}: {shot} of {_shot_subject(panel, product_name)}{beat_bit}{cam_bit}.")
+    return "\n".join(lines)
+
+
+def _last_frame(clip: str, out_png: str) -> str | None:
+    """클립의 마지막 프레임을 PNG로 뽑는다(다음 세그먼트 start image 연결용)."""
+    cmd = [
+        "ffmpeg", "-y", "-sseof", "-0.3", "-i", clip,
+        "-update", "1", "-frames:v", "1", out_png,
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        return None
+    return out_png if Path(out_png).exists() else None
+
+
 def _music_bpm(tempo: str | None) -> int | None:
     """MusicSpec.tempo 문자열("136 bpm")에서 bpm 정수를 뽑는다. 없으면 None."""
     if not tempo:
@@ -88,47 +134,82 @@ def _music_bpm(tempo: str | None) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _panel_dur(panel: StoryboardPanel) -> float:
+    return max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
+
+
 def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) -> Materials:
+    """세그먼트 단위로 클립을 만든다([multishot-segments.md]).
+
+    영상 백엔드가 있으면 세그먼트당 1회 호출(앵커 이미지 1장 + 멀티샷 프롬프트, 2번째부터는
+    직전 세그먼트 마지막 프레임으로 연결)로 만든다. 없거나 실패하면 세그먼트 앵커 스틸을
+    켄 번스 줌으로 대체한다. 자막은 패널별 PNG를 최종 타임라인 구간에 시간 기반으로 덮는다.
+    """
     panels_dir = Path(out_dir) / "panels"
     panels_dir.mkdir(parents=True, exist_ok=True)
     m = profile.meta
+    panels = profile.storyboard.panels
     ken = KenBurnsBackend()
-    veo = _video_backend(plan)  # Veo(있으면) / None. 실패 시 패널별 켄 번스로 폴백.
+    veo = _video_backend(plan)  # Veo(있으면) / None. 실패 시 앵커 스틸 켄 번스로 폴백.
+    # segments가 없으면(직접 만든 plan) 패널당 1개로 둔다.
+    segments = plan.segments or [[i] for i in range(len(panels))]
+    product_name = profile.product.name or ""
+    style = profile.storyboard.global_prompt or ""
+
     clips: list[str] = []
     subs: list[str] = []
+    spans: list[list[float]] = []
     total_dur = 0.0
-    for i, panel in enumerate(profile.storyboard.panels):
-        # 스틸이 없는 패널은 워킹 스켈레톤에서 만들 거리가 없으므로 건너뛴다.
-        if not panel.still_image:
-            continue
-        dur = max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
-        clip = str(panels_dir / f"clip_{panel.index}.mp4")
-        # plan.panel_motions는 패널 순서대로라 위치 i로 맞춘다(없으면 기본 모션).
-        motion = plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
+    prev_last_frame: str | None = None
+
+    for seg_pos, indices in enumerate(segments):
+        anchor = panels[indices[0]]
+        if not anchor.still_image:
+            continue  # 앵커 스틸이 없으면 만들 거리가 없다.
+        seg_dur = sum(_panel_dur(panels[i]) for i in indices)
+        motions = [
+            plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
+            for i in indices
+        ]
+        clip = str(panels_dir / f"clip_{seg_pos}.mp4")
+
         made = False
         if veo is not None:
             try:
-                base = panel.prompt or profile.storyboard.global_prompt or ""
+                start_image = prev_last_frame or anchor.still_image
+                prompt = _multishot_prompt(
+                    [panels[i] for i in indices], motions, product_name, style
+                )
                 veo.render_panel(
-                    panel.still_image,
-                    dur,
-                    m.width,
-                    m.height,
-                    m.fps,
-                    clip,
-                    motion=motion,
-                    prompt=_veo_prompt(base, motion),
+                    start_image, seg_dur, m.width, m.height, m.fps, clip,
+                    motion=motions[0], prompt=prompt,
                 )
                 made = True
             except Exception:
-                made = False  # Veo 실패 -> 이 컷은 켄 번스로 폴백
+                made = False  # 영상 모델 실패 -> 앵커 스틸 켄 번스로 폴백
         if not made:
-            ken.render_panel(panel.still_image, dur, m.width, m.height, m.fps, clip, motion=motion)
+            # 폴백: 세그먼트 앵커 스틸을 세그먼트 길이만큼 켄 번스 줌으로 렌더한다.
+            ken.render_panel(
+                anchor.still_image, seg_dur, m.width, m.height, m.fps, clip, motion=motions[0]
+            )
         clips.append(clip)
-        total_dur += dur
-        sub = str(panels_dir / f"sub_{panel.index}.png")
-        render_subtitle_png(panel.subtitle_text or "", m.width, m.height, sub)
-        subs.append(sub)
+
+        # 자막: 세그먼트 안 각 패널을 최종 타임라인 구간에 매핑한다(모델 내부 컷과 무관하게
+        # 계획된 패널 경계에 자막을 건다).
+        local = 0.0
+        for i in indices:
+            p = panels[i]
+            d = _panel_dur(p)
+            if (p.subtitle_text or "").strip():
+                sub = str(panels_dir / f"sub_{p.index}.png")
+                render_subtitle_png(p.subtitle_text or "", m.width, m.height, sub)
+                subs.append(sub)
+                spans.append([total_dur + local, total_dur + local + d])
+            local += d
+
+        total_dur += seg_dur
+        if veo is not None and made and seg_pos + 1 < len(segments):
+            prev_last_frame = _last_frame(clip, str(panels_dir / f"lastframe_{seg_pos}.png"))
 
     bgm_audio: str | None = None
     if plan.bgm != "none" and total_dur > 0:
@@ -140,7 +221,11 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     voice_audio = _build_voice(profile, str(panels_dir), total_dur)
 
     return Materials(
-        shot_clips=clips, subtitle_pngs=subs, bgm_audio=bgm_audio, voice_audio=voice_audio
+        shot_clips=clips,
+        subtitle_pngs=subs,
+        subtitle_spans=spans,
+        bgm_audio=bgm_audio,
+        voice_audio=voice_audio,
     )
 
 

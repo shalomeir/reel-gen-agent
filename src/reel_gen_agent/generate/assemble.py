@@ -14,21 +14,35 @@ from pathlib import Path
 from .schema import InputMeta, Materials
 
 
-def _overlay_subtitle(
-    clip: str, sub_png: str, width: int, height: int, fps: int, out_path: str
+def _overlay_subtitles_timed(
+    clip: str,
+    subs: list[str],
+    spans: list[list[float]],
+    fps: int,
+    out_path: str,
 ) -> str:
-    """클립 위에 자막 PNG(투명)를 전 구간 덮어 굽는다. 오디오는 그대로 복사한다."""
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        clip,
-        "-i",
-        sub_png,
+    """최종 타임라인에 자막 PNG들을 각자 [start, end] 구간에만 덮어 굽는다.
+
+    세그먼트가 2개든 컷이 9개든, 자막은 계획된 패널 구간(초)에 시간 기반으로 뜬다.
+    각 자막을 enable='between(t,s,e)'로 그 구간에만 켠다. 오디오는 그대로 복사한다.
+    """
+    cmd = ["ffmpeg", "-y", "-i", clip]
+    for sub in subs:
+        cmd += ["-i", sub]
+    chains: list[str] = []
+    prev = "[0:v]"
+    for i, (start, end) in enumerate(spans):
+        out_label = f"[v{i}]"
+        chains.append(
+            f"{prev}[{i + 1}:v]overlay=0:0:format=auto:"
+            f"enable='between(t,{start:.3f},{end:.3f})'{out_label}"
+        )
+        prev = out_label
+    cmd += [
         "-filter_complex",
-        "[0:v][1:v]overlay=0:0:format=auto[v]",
+        ";".join(chains),
         "-map",
-        "[v]",
+        prev,
         "-map",
         "0:a?",
         "-c:v",
@@ -155,24 +169,21 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
     if not materials.shot_clips:
         raise ValueError("assemble: shot_clips is empty")
 
-    # 자막 PNG가 패널별로 갖춰지면 각 클립 위에 구워 넣는다(개수 안 맞으면 건너뛴다).
-    clips = materials.shot_clips
-    subs = materials.subtitle_pngs
-    if subs and len(subs) == len(clips):
-        overlaid: list[str] = []
-        sub_dir = Path(tempfile.mkdtemp(prefix="reel_subs_"))
-        for i, (clip, sub) in enumerate(zip(clips, subs, strict=True)):
-            out = str(sub_dir / f"ov_{i}.mp4")
-            _overlay_subtitle(clip, sub, meta.width, meta.height, meta.fps, out)
-            overlaid.append(out)
-        clips = overlaid
-
-    if not materials.bgm_audio and not materials.voice_audio:
-        # 오디오 재료가 없으면 concat 결과(무음 트랙 포함)를 그대로 쓴다.
-        return _concat(clips, meta.fps, out_path)
-
-    # 오디오가 있으면 임시 영상으로 concat한 뒤 voice/BGM을 입혀 최종을 만든다.
+    # 1) 세그먼트/컷 클립을 순서대로 이어붙인다(자막 없는 순수 영상).
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
         video_only = tmp.name
-    _concat(clips, meta.fps, video_only)
+    _concat(materials.shot_clips, meta.fps, video_only)
+
+    # 2) 자막 PNG가 있으면 최종 타임라인의 각 구간(spans)에 시간 기반으로 덮는다.
+    subs = materials.subtitle_pngs
+    spans = materials.subtitle_spans
+    if subs and spans and len(subs) == len(spans):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
+            subbed = tmp.name
+        _overlay_subtitles_timed(video_only, subs, spans, meta.fps, subbed)
+        video_only = subbed
+
+    # 3) 오디오가 없으면 그대로, 있으면 voice/BGM을 입혀 마감한다.
+    if not materials.bgm_audio and not materials.voice_audio:
+        return _concat([video_only], meta.fps, out_path)
     return _mux_audio(video_only, materials.voice_audio, materials.bgm_audio, out_path)

@@ -1,4 +1,8 @@
-from reel_gen_agent.generate.production_plan import motion_for_panel, resolve_plan
+from reel_gen_agent.generate.production_plan import (
+    motion_for_panel,
+    resolve_plan,
+    segment_panels,
+)
 from reel_gen_agent.generate.schema import (
     NarrationSpec,
     Objective,
@@ -48,6 +52,30 @@ def test_on_camera_multicut_without_kling_downgrades_to_voiceover():
     plan = resolve_plan(_profile(delivery="on_camera", panels=3), env={})
     assert plan.voice_strategy == "separate_tts"
     assert any("on_camera" in f for f in plan.fallbacks_applied)
+
+
+def _timed_panels(n, dur=1.0):
+    return [
+        StoryboardPanel(index=i, t_start=i * dur, t_end=i * dur + dur) for i in range(n)
+    ]
+
+
+def test_segment_panels_groups_video_calls_under_max_clip():
+    # 14컷 x 1초 = 14초. Veo max_clip_sec 8초면 두 세그먼트로 묶여 호출 2회.
+    segs = segment_panels(_timed_panels(14), max_clip_sec=8.0, per_panel=False)
+    assert len(segs) == 2
+    assert segs[0] == list(range(8))
+    assert segs[1] == list(range(8, 14))
+
+
+def test_segment_panels_per_panel_for_ken_burns():
+    segs = segment_panels(_timed_panels(3), max_clip_sec=8.0, per_panel=True)
+    assert segs == [[0], [1], [2]]
+
+
+def test_resolve_plan_ken_burns_segments_are_per_panel():
+    plan = resolve_plan(_profile(panels=3, beats=["hook", "use", "cta"]), env={})
+    assert plan.segments == [[0], [1], [2]]
 
 
 def test_motion_for_panel_hook_pushes_in():

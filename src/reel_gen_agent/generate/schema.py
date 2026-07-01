@@ -457,6 +457,9 @@ class ProductionPlan(BaseModel):
     key_image_per_cut: bool = False
     panel_renderers: list[str] = Field(default_factory=list)  # 패널별 i2v/ken_burns/canvas
     panel_motions: list[str] = Field(default_factory=list)  # 켄 번스 폴백 패널별 모션(beat 기반)
+    # 영상 모델 호출 1회 단위(패널 인덱스 그룹). ken_burns면 패널당 1개, 영상 모델이면
+    # max_clip_sec 이하로 묶어 ≤15초는 ≤2회 호출한다([multishot-segments.md]).
+    segments: list[list[int]] = Field(default_factory=list)
     bgm: str = "none"  # gen / file / none
     sfx: bool = False
     fallbacks_applied: list[str] = Field(default_factory=list)
@@ -470,7 +473,9 @@ class Materials(BaseModel):
     voice_audio: str | None = None
     bgm_audio: str | None = None
     sfx_audio: list[str] = Field(default_factory=list)
-    subtitle_pngs: list[str] = Field(default_factory=list)
+    subtitle_pngs: list[str] = Field(default_factory=list)  # 패널별 자막 PNG(투명)
+    # subtitle_pngs와 평행한 [start, end] 초 구간. 최종 타임라인에 시간 기반으로 덮는다.
+    subtitle_spans: list[list[float]] = Field(default_factory=list)
 
 
 # --- 실행 매니페스트 (conformance 게이트가 노드/머지 무결성을 검증하는 계약) -----
@@ -540,6 +545,28 @@ class NodePrompt(BaseModel):
     model: str | None = None
 
 
+class CostLine(BaseModel):
+    """예상 비용 한 줄. 모델별 단가 x 실사용량으로 소계를 낸다(cost.py)."""
+
+    label: str  # 항목(패널 스틸 / 영상 클립 / BGM / 나레이션 / 효과음 / 품질 평가)
+    model: str  # 실제·유효 모델 ID 또는 로컬 백엔드명(ken_burns/synth)
+    unit: str  # 초 / 장 / 1k자 / 호출 / 클립
+    quantity: float
+    unit_price_usd: float
+    subtotal_usd: float
+    note: str | None = None
+
+
+class CostReport(BaseModel):
+    """회차 예상 비용. 공개 단가 근사치 기반이라 실제 청구와 다를 수 있다."""
+
+    as_of: str  # 단가 기준일(cost.PRICING_AS_OF)
+    currency: str = "USD"
+    lines: list[CostLine] = Field(default_factory=list)
+    total_usd: float = 0.0
+    caveats: list[str] = Field(default_factory=list)
+
+
 class FinalReport(BaseModel):
     """최종 결과 리포트. report 노드 산출, report.md로 렌더."""
 
@@ -553,4 +580,5 @@ class FinalReport(BaseModel):
     conformance: dict = Field(default_factory=dict)  # pass 여부와 체크 요약
     rubric: dict = Field(default_factory=dict)  # gated/flat과 D1~D7
     viral_prediction: str = ""  # 바이럴 효과 예측(LLM)
+    cost: CostReport | None = None  # 예상 비용(모델별 내역 + 합계)
     report_md: str | None = None  # 렌더된 마크다운 경로

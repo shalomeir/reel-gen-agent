@@ -36,9 +36,18 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
     out_dir = output_dir_for(profile_path)
     manifest = new_manifest(profile_path, profile)
 
-    # 스틸 보장: 패널에 still_image가 없으면 에셋을 reference로 생성(없으면 에셋 재사용).
-    # 키가 필요한 생성 클라이언트는 채울 게 있을 때만 만든다(스틸이 다 있으면 건드리지 않음).
-    if any(not p.still_image for p in profile.storyboard.panels):
+    # 실제 환경(GOOGLE_CLOUD_PROJECT/FAL_KEY 등)을 넘겨야 영상 백엔드가 선택된다.
+    # 빈 dict를 넘기면 항상 ken_burns로 폴백해 실 영상 생성이 꺼진다. 세그먼트를 먼저 알아야
+    # 앵커 스틸만 만들 수 있으므로 스틸 보장보다 먼저 계획을 세운다.
+    plan = resolve_plan(profile, env=dict(os.environ))
+    manifest.production_plan = plan
+    manifest.nodes.append(NodeRun(name="production_plan"))
+
+    # 스틸 보장: 세그먼트 앵커(첫 패널)만 생성한다([multishot-segments.md]). 멀티샷 경로는
+    # 컷마다 이미지를 만들지 않고, 앵커 1장 + 샷 리스트 프롬프트로 모델이 내부 컷을 만든다.
+    # ken_burns는 패널마다 세그먼트 1개라 사실상 전 패널이 앵커다(컷당 줌 유지).
+    anchor_indices = {seg[0] for seg in plan.segments if seg}
+    if any(not p.still_image for p in profile.storyboard.panels if p.index in anchor_indices):
         base_dir = Path(profile_path).resolve().parent
         char_img = _resolve_asset(profile.asset_bible.character.key_shot_image, base_dir)
         prod_img = _resolve_asset(profile.asset_bible.product.hero_image, base_dir)
@@ -50,16 +59,12 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
                 client = NanoBananaImageClient()
             except Exception:
                 client = None
-        filled = ensure_panel_stills(profile, str(out_dir), client, char_img, prod_img)
+        filled = ensure_panel_stills(
+            profile, str(out_dir), client, char_img, prod_img, anchor_indices=anchor_indices
+        )
         manifest.nodes.append(NodeRun(name="stills", artifacts=[]))
         if filled == 0:
-            raise ValueError("stills: 채울 수 있는 패널 스틸이 없다(에셋 이미지 확인).")
-
-    # 실제 환경(GOOGLE_CLOUD_PROJECT/FAL_KEY 등)을 넘겨야 영상 백엔드가 선택된다.
-    # 빈 dict를 넘기면 항상 ken_burns로 폴백해 실 영상 생성이 꺼진다.
-    plan = resolve_plan(profile, env=dict(os.environ))
-    manifest.production_plan = plan
-    manifest.nodes.append(NodeRun(name="production_plan"))
+            raise ValueError("stills: 채울 수 있는 앵커 스틸이 없다(에셋 이미지 확인).")
 
     materials = build_materials(profile, plan, str(out_dir))
     manifest.nodes.append(NodeRun(name="materials", artifacts=materials.shot_clips))

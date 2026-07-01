@@ -44,3 +44,9 @@ def test_final_report_md_puts_user_input_first_and_prompts_last(tmp_path):
     render_report_md(rep, str(out))
     text = out.read_text(encoding="utf-8")
     assert text.index("serum glow reel") < text.index("serum on a table")
+    # 예상 비용 섹션이 사용 모델 다음, 프롬프트 앞에 렌더된다.
+    assert "## 예상 비용" in text
+    assert rep.cost is not None
+    assert text.index("## 예상 비용") < text.index("serum on a table")
+    # rubric이 채워졌으니 VLM 평가 비용 라인이 잡힌다.
+    assert "품질 평가" in text

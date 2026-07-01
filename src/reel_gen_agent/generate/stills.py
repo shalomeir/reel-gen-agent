@@ -42,10 +42,19 @@ def ensure_panel_stills(
     image_client: ImageClient | None,
     character_image: str | None,
     product_image: str | None,
+    anchor_indices: set[int] | None = None,
 ) -> int:
-    """still_image가 없는 패널을 채운다. 채운(또는 폴백한) 패널 수를 반환한다."""
+    """still_image가 없는 패널을 채운다. 채운(또는 폴백한) 패널 수를 반환한다.
+
+    anchor_indices가 주어지면 그 패널만 채운다(멀티샷 세그먼트 경로: 세그먼트당 앵커 1장만
+    생성해 컷마다 이미지를 만들지 않는다). None이면 전 패널을 채운다(ken_burns 폴백).
+    """
     panels = profile.storyboard.panels
-    missing = [p for p in panels if not p.still_image]
+    missing = [
+        p
+        for p in panels
+        if not p.still_image and (anchor_indices is None or p.index in anchor_indices)
+    ]
     if not missing:
         return 0
 
