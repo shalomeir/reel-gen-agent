@@ -50,7 +50,7 @@ src/reel_gen_agent/
   generate/        # generation pipeline (schema present; stages designed)
     schema.py          # generation_input / asset bible / storyboard / RunManifest schemas
     conformance.py     # conformance gate: video + template/manifest -> ConformanceReport (hard pass/fail)
-  cli.py           # typer CLI (analyze[url|path], add-reference, evaluate, verify work; generate is a stub)
+  cli.py           # typer CLI (analyze[url|path], add-reference, evaluate, verify, plan, execute, run, chat)
 specs/             # planning docs: project-brief.md, rubric.md, conformance-gate.md, …
 docs/              # architecture and usage docs (incl. rubric.md rationale)
 tests/             # pytest

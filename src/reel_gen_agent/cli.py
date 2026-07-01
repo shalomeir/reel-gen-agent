@@ -7,9 +7,8 @@
 - verify: 영상 -> Conformance 무결성·적합성 검증(ConformanceReport JSON). 구현 완료.
 - plan: 입력 -> ReelProfile(JSON) 산출. 워킹 스켈레톤.
 - execute: ReelProfile -> Production 실행 -> final.mp4 + upload.md + report.md. 워킹 스켈레톤.
-
-설계만 된 명령(추후 구현):
-- generate: 생성 입력 -> 에셋 바이블 -> 스토리보드 -> 영상. docs/pipeline-design.md 참고.
+- run: 입력 -> ReelProfile -> Production을 확인 게이트 없이 한 번에. 유사도 루프 포함.
+- chat: plan/execute를 엮은 대화형 진입점.
 """
 
 from __future__ import annotations
@@ -619,19 +618,6 @@ def chat(
     out_dir = Path(manifest.final_video).parent if manifest.final_video else path.parent
     console.print(f"\n✅ 완료! 결과 폴더: {out_dir}")
     console.print(f"영상: {manifest.final_video}")
-
-
-@app.command()
-def generate(
-    input_json: str = typer.Argument(..., help="generation_input.json 경로"),
-) -> None:
-    """[미구현] 생성 입력으로 영상을 만든다. 설계는 docs/pipeline-design.md 참고."""
-    typer.echo(
-        "generate 명령은 아직 구현되지 않았습니다. "
-        "파이프라인 설계는 docs/pipeline-design.md를 참고하세요.",
-        err=True,
-    )
-    raise typer.Exit(code=2)
 
 
 def main() -> None:
