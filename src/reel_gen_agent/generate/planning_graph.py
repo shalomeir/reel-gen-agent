@@ -96,11 +96,12 @@ def run_planning(
     )
     if text_client is not None:
         try:
+            tone_hint = ", ".join(style.tone) if style.tone else "authentic, upbeat"
             script = text_client.complete(
                 f"Write a short, upbeat first-person narration voiceover script in English "
                 f"for a {meta.duration_sec:.0f}-second vertical beauty short about "
-                f"{product.name}. 2-3 short punchy sentences, natural UGC tone, no emojis, "
-                f"no stage directions. Return only the narration text.",
+                f"{product.name}. Tone: {tone_hint}. 2-3 short punchy sentences, natural UGC "
+                f"tone, no emojis, no stage directions. Return only the narration text.",
                 temperature=0.8,
             )
             if script.strip():

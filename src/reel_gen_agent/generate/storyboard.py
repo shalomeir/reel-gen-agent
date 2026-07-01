@@ -81,6 +81,7 @@ def _global_prompt(
     bits = [
         f"character: {character.look or character.name or 'a beauty content creator'}",
         f"product: {product.name}",
+        f"mood and tone: {', '.join(style.tone)}" if style.tone else "",
         _framing_directive(product),
         f"color grading in warm tones matching this palette: {', '.join(style.palette)}"
         if style.palette
