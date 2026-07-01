@@ -456,6 +456,7 @@ class ProductionPlan(BaseModel):
     multishot: bool = False
     key_image_per_cut: bool = False
     panel_renderers: list[str] = Field(default_factory=list)  # 패널별 i2v/ken_burns/canvas
+    panel_motions: list[str] = Field(default_factory=list)  # 켄 번스 폴백 패널별 모션(beat 기반)
     bgm: str = "none"  # gen / file / none
     sfx: bool = False
     fallbacks_applied: list[str] = Field(default_factory=list)

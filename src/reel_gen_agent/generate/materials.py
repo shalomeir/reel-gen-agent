@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 from .audio import bpm_for_cuts, synth_music_bed
-from .backends.ken_burns import KenBurnsBackend
+from .backends.ken_burns import DEFAULT_MOTION, KenBurnsBackend
 from .schema import Materials, ProductionPlan, ReelProfile
 from .subtitles import render_subtitle_png
 
@@ -33,15 +33,15 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     clips: list[str] = []
     subs: list[str] = []
     total_dur = 0.0
-    for panel in profile.storyboard.panels:
+    for i, panel in enumerate(profile.storyboard.panels):
         # 스틸이 없는 패널은 워킹 스켈레톤에서 만들 거리가 없으므로 건너뛴다.
         if not panel.still_image:
             continue
         dur = max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
         clip = str(panels_dir / f"clip_{panel.index}.mp4")
-        backend.render_panel(
-            panel.still_image, dur, m.width, m.height, m.fps, clip, variant=panel.index
-        )
+        # plan.panel_motions는 패널 순서대로라 위치 i로 맞춘다(없으면 기본 모션).
+        motion = plan.panel_motions[i] if i < len(plan.panel_motions) else DEFAULT_MOTION
+        backend.render_panel(panel.still_image, dur, m.width, m.height, m.fps, clip, motion=motion)
         clips.append(clip)
         total_dur += dur
         sub = str(panels_dir / f"sub_{panel.index}.png")

@@ -8,13 +8,39 @@ voice 기본은 나레이션(voiceover). on_camera 멀티컷 일관은 Kling O3 
 from __future__ import annotations
 
 from .capability import capability_for
-from .schema import ProductionPlan, ReelProfile
+from .schema import ProductionPlan, ReelProfile, StoryboardPanel
 
 _VIDEO_KEYS = ("GOOGLE_CLOUD_PROJECT", "FAL_KEY")  # 하나라도 있으면 영상 백엔드 가능
 
 
 def _has_video_backend(env: dict[str, str]) -> bool:
     return any(env.get(k) for k in _VIDEO_KEYS)
+
+
+def motion_for_beat(beat: str | None, general_index: int = 0) -> str:
+    """켄 번스 폴백 모션을 beat로 고른다([2026-07-01-ken-burns-motion-design.md]).
+
+    hook은 또렷한 push_in, proof/cta는 완전 정지(static). 그 외 일반 컷은 약한 줌인/줌아웃을
+    번갈아(general_index 홀짝) 인접 컷 경계를 다르게 한다. 어색한 좌우 팬은 쓰지 않는다.
+    """
+    b = (beat or "").strip().lower()
+    if b == "hook":
+        return "push_in"
+    if b in ("proof", "cta"):
+        return "static"
+    return "zoom_in_slow" if general_index % 2 == 0 else "zoom_out_slow"
+
+
+def _panel_motions(panels: list[StoryboardPanel]) -> list[str]:
+    """패널 목록을 beat 기반 모션 목록으로. 일반 컷만 줌인/줌아웃 교대 인덱스를 센다."""
+    motions: list[str] = []
+    general = 0
+    for panel in panels:
+        motion = motion_for_beat(panel.beat, general)
+        if motion in ("zoom_in_slow", "zoom_out_slow"):
+            general += 1
+        motions.append(motion)
+    return motions
 
 
 def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
@@ -56,6 +82,7 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
         multishot=cap.multishot,
         key_image_per_cut=(video_model != "ken_burns"),
         panel_renderers=renderers,
+        panel_motions=_panel_motions(panels),
         bgm=profile.production_intent.bgm_pref,
         sfx=profile.production_intent.sfx_pref,
         fallbacks_applied=fallbacks,

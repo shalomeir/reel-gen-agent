@@ -1,3 +1,4 @@
+import pytest
 from PIL import Image, ImageDraw
 
 from reel_gen_agent.analysis.frame_sampler import mean_adjacent_diff, sample_frames
@@ -39,9 +40,22 @@ def test_ken_burns_makes_clip_of_requested_duration(tmp_path):
     assert meta.resolution == "1080x1920"
 
 
-def test_ken_burns_motion_exceeds_freeze_threshold(tmp_path):
-    """켄 번스 모션이 not_frozen 임계값을 넘겨 정지영상으로 오판되지 않아야 한다."""
-    out = tmp_path / "clip.mp4"
-    KenBurnsBackend().render_panel(_textured_still(tmp_path), 3.0, 540, 960, 30, str(out))
+@pytest.mark.parametrize("motion", ["zoom_in_slow", "zoom_out_slow", "push_in"])
+def test_ken_burns_zoom_motions_exceed_freeze_threshold(tmp_path, motion):
+    """줌 모션은 not_frozen 임계값을 넘겨 정지영상으로 오판되지 않아야 한다."""
+    out = tmp_path / f"clip_{motion}.mp4"
+    KenBurnsBackend().render_panel(
+        _textured_still(tmp_path), 3.0, 540, 960, 30, str(out), motion=motion
+    )
     samples = sample_frames(str(out), 12)
     assert mean_adjacent_diff(samples) > FREEZE_MIN_DIFF
+
+
+def test_ken_burns_static_is_frozen(tmp_path):
+    """static 모션은 완전 정지라 인접 프레임 차이가 임계값 아래여야 한다."""
+    out = tmp_path / "clip_static.mp4"
+    KenBurnsBackend().render_panel(
+        _textured_still(tmp_path), 3.0, 540, 960, 30, str(out), motion="static"
+    )
+    samples = sample_frames(str(out), 12)
+    assert mean_adjacent_diff(samples) < FREEZE_MIN_DIFF
