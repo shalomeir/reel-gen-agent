@@ -206,6 +206,22 @@ About 10 minutes per reel (analysis ~30s, plan ~2min, execute ~6min), and around
 public-rate estimate, not an actual bill; the run report prints the per-model
 estimate.
 
+Same input, swapping only the video backend. Veo 3.1 Fast on the left, Kling o3
+Pro on the right.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/final.mp4" controls muted></video>
+      <p align="center"><b>Veo 3.1 Fast</b></p>
+    </td>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>Kling o3 Pro</b></p>
+    </td>
+  </tr>
+</table>
+
 ## Further reading
 
 - [analysis.md](analysis.md): development process and technical analysis:

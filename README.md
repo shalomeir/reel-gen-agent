@@ -189,6 +189,22 @@ reel-gen rerun outputs/<run_id>/plan/ReelProfile-<run_id>.json
 한 편에 대략 10분(분석 약 30초, plan 약 2분, execute 약 6분), 15초 숏폼 기준 대략
 **$3~$4**다(스틸, BGM, 나레이션 포함). 실제 청구가 아니라 공개 단가 기준 예상치이고,
 회차 리포트에 모델별 예상 비용이 함께 나온다.
+비디오 생성 모델 (Veo 또는 Kling) 별로 금액차이는 크지 않다.
+
+같은 입력을 백엔드만 바꿔 생성한 결과다. 왼쪽 Veo 3.1 Fast, 오른쪽 Kling o3 Pro.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/final.mp4" controls muted></video>
+      <p align="center"><b>Veo 3.1 Fast</b></p>
+    </td>
+    <td width="50%" valign="top">
+      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/final.mp4" controls muted></video>
+      <p align="center"><b>Kling o3 Pro</b></p>
+    </td>
+  </tr>
+</table>
 
 ## 더 읽을 문서
 
