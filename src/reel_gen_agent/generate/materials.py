@@ -354,6 +354,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     # voice: 나레이션(voiceover)이면 비트별 대사를 각 패널 t_start에 정렬 배치해 합성한다.
     voice_audio = _build_voice(profile, str(panels_dir), total_dur)
 
+    # 발화 아래 BGM 볼륨은 플랜(music.prominence)을 따른다. prominent면 더 크게(바이브 중심).
+    bgm_gain = 0.6 if (profile.music.prominence or "").lower() == "prominent" else 0.28
     return Materials(
         shot_clips=clips,
         subtitle_pngs=subs,
@@ -361,6 +363,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         bgm_audio=bgm_audio,
         voice_audio=voice_audio,
         native_audio=speaking,  # 온카메라 발화면 클립의 네이티브 음성을 보존한다
+        bgm_gain=bgm_gain,
     )
 
 

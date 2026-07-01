@@ -57,6 +57,11 @@ _PRINCIPLES = (
     "- Vary shot scale and camera per cut (macro texture, close-up, medium, wide, POV, "
     "over-the-shoulder, hands detail, push-in, whip-pan) so cuts read as distinct and dynamic.\n"
     "- Keep clear product moments; a concrete where/how-to-get (CTA) lands the ending.\n"
+    "- Make it DYNAMIC and high-energy: expressive faces and genuine reactions, movement and "
+    "gesture, purposeful camera moves (push-in on the product or face, quick zoom, snappy whip "
+    "cuts). Never blank, static posing at the camera.\n"
+    "- The camera field per cut must be a concrete move (e.g. 'slow push-in', 'quick zoom to "
+    "product', 'handheld orbit', 'whip pan') that the renderer will follow — not empty.\n"
     "- Keep it authentic UGC, not an infomercial; match the creator's persona and the tone."
 )
 

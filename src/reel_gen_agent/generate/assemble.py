@@ -115,6 +115,7 @@ def _mux_audio(
     bgm: str | None,
     out_path: str,
     keep_video_audio: bool = False,
+    bgm_gain: float | None = None,
 ) -> str:
     """영상에 나레이션 voice와 BGM을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
 
@@ -146,7 +147,9 @@ def _mux_audio(
         idx += 1
     if bgm:
         cmd += ["-i", bgm]
-        vol = 0.28 if has_speech else 0.85  # 발화가 있으면 BGM을 아래로 덕킹
+        # 발화가 있으면 BGM을 덕킹하되, 볼륨은 플랜(music.prominence -> bgm_gain)을 따른다.
+        duck = bgm_gain if (bgm_gain is not None) else 0.28
+        vol = duck if has_speech else 0.85
         chains.append(
             f"[{idx}:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume={vol}[a{idx}]"
         )
@@ -203,5 +206,5 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
         return _concat([video_only], meta.fps, out_path)
     return _mux_audio(
         video_only, materials.voice_audio, materials.bgm_audio, out_path,
-        keep_video_audio=materials.native_audio,
+        keep_video_audio=materials.native_audio, bgm_gain=materials.bgm_gain,
     )

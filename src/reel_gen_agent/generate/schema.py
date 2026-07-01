@@ -142,6 +142,9 @@ class MusicSpec(BaseModel):
     style: str | None = None  # 장르/스타일
     type: str | None = None  # 유형(예: lo-fi, upbeat pop)
     tempo: str | None = None  # 컷 리듬 정렬 템포
+    # BGM 존재감(믹스 의도). 나레이션이 정보 전달이면 "background", 바이브 중심이고 나레이션이
+    # 감탄사·최소면 "prominent"(발화 아래에서도 더 크게). 음악 노드(LLM)가 정하고 execute가 따른다.
+    prominence: str = "background"  # background / prominent
 
 
 class SubtitleSpec(BaseModel):
@@ -483,6 +486,8 @@ class Materials(BaseModel):
     # 클립에 영상 모델 네이티브 음성(온카메라 발화)이 들어 있는가. True면 assemble이 그 오디오를
     # 보존해 BGM과 믹스한다(별도 voice 없음). 기본 나레이션 경로는 False.
     native_audio: bool = False
+    # 발화가 있을 때 BGM 볼륨(플랜 music.prominence가 정함). None이면 assemble 기본 덕킹.
+    bgm_gain: float | None = None
 
 
 # --- 실행 매니페스트 (conformance 게이트가 노드/머지 무결성을 검증하는 계약) -----

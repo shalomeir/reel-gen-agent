@@ -18,9 +18,12 @@ _PROMPT = (
     "its on-camera creator; do not default to any fixed genre.\n"
     "Brief: {brief}\nProduct: {product}\nTone: {tone}\nCreator: {character}\n{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
-    '{{"style": str, "mood": str, "type": str, "dynamics": "flat"|"build"}}. '
+    '{{"style": str, "mood": str, "type": str, "dynamics": "flat"|"build", '
+    '"prominence": "background"|"prominent"}}. '
     "style is the genre/production style; type is a short descriptor; dynamics is whether energy "
-    "rises to a payoff (build) or stays even (flat)."
+    "rises to a payoff (build) or stays even (flat). prominence: 'prominent' when the video is "
+    "vibe/aesthetic-driven and narration is minimal/interjections (music should be felt loudly), "
+    "else 'background' when narration carries the information."
 )
 
 
@@ -72,9 +75,11 @@ def derive_music(
             mood = str(data.get("mood") or "").strip() or ref.mood
             type_ = str(data.get("type") or "").strip() or ref.type
             dynamics = str(data.get("dynamics") or "").strip() or ref.dynamics
+            prominence = "prominent" if str(data.get("prominence", "")).strip().lower() == "prominent" else "background"
             if style or mood or type_:
                 return MusicSpec(
-                    mood=mood, style=style, type=type_, dynamics=dynamics, tempo=ref.tempo
+                    mood=mood, style=style, type=type_, dynamics=dynamics, tempo=ref.tempo,
+                    prominence=prominence,
                 )
         except Exception:
             pass
