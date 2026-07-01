@@ -39,7 +39,9 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
             continue
         dur = max(0.5, (panel.t_end or 0.0) - (panel.t_start or 0.0))
         clip = str(panels_dir / f"clip_{panel.index}.mp4")
-        backend.render_panel(panel.still_image, dur, m.width, m.height, m.fps, clip)
+        backend.render_panel(
+            panel.still_image, dur, m.width, m.height, m.fps, clip, variant=panel.index
+        )
         clips.append(clip)
         total_dur += dur
         sub = str(panels_dir / f"sub_{panel.index}.png")

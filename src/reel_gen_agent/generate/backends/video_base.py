@@ -17,4 +17,5 @@ class VideoBackend(Protocol):
         height: int,
         fps: int,
         out_path: str,
+        variant: int = 0,
     ) -> str: ...
