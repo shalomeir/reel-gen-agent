@@ -158,10 +158,6 @@ def _multishot_prompt(
     lines = [
         f"A single vertical 9:16 clip that cuts through {len(seg_panels)} shots played one after "
         "another over time (a fast-edited sequence with hard cuts on a timeline).",
-        # 시간축 순차 컷임을 못박아 split-screen/그리드 오해를 막는다(사용자 지시).
-        "IMPORTANT: these are sequential shots shown one at a time, NOT a split-screen, NOT a "
-        "grid, NOT a collage, NOT multiple frames or panels visible at once. One full-frame shot, "
-        "then a hard cut to the next full-frame shot.",
         "Keep the same person and the same product consistent across every shot.",
         skin_directive,
         _speech_directive(speaking),

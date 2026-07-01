@@ -34,8 +34,9 @@ def _resolve_asset(image: str | None, base_dir: Path) -> str | None:
 def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
     profile = ReelProfile.model_validate_json(Path(profile_path).read_text(encoding="utf-8"))
     out_dir = output_dir_for(profile_path)  # run 루트: 결과물 3종이 여기 떨어진다
-    plan_dir = plan_dir_for(profile_path)  # plan 산출물(스틸 콘티)은 여기 둔다
-    render_dir = out_dir / "render"  # execute 작업 파일(클립·오디오): 재실행마다 다시 만든다
+    plan_dir = plan_dir_for(profile_path)  # plan 산출물(캐릭터·제품)만 여기 둔다
+    # execute 단계 생성물(앵커 스틸·클립·오디오)은 전부 execute/ 하위에 모은다. plan에 몰지 않는다.
+    exec_dir = out_dir / "execute"
     manifest = new_manifest(profile_path, profile)
 
     # 실제 환경(GOOGLE_CLOUD_PROJECT/FAL_KEY 등)을 넘겨야 영상 백엔드가 선택된다.
@@ -61,9 +62,9 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
                 client = NanoBananaImageClient()
             except Exception:
                 client = None
-        # 스틸(콘티)은 plan/ 하위에 만들어 plan 산출물로 남긴다.
+        # 앵커 스틸은 execute 단계 생성물이므로 execute/ 하위에 만든다.
         filled = ensure_panel_stills(
-            profile, str(plan_dir), client, char_img, prod_img, anchor_indices=anchor_indices
+            profile, str(exec_dir), client, char_img, prod_img, anchor_indices=anchor_indices
         )
         manifest.nodes.append(NodeRun(name="stills", artifacts=[]))
         if filled == 0:
@@ -74,7 +75,7 @@ def run_production(profile_path: str, *, use_vlm: bool = True) -> RunManifest:
             profile.model_dump_json(indent=2), encoding="utf-8"
         )
 
-    materials = build_materials(profile, plan, str(render_dir))
+    materials = build_materials(profile, plan, str(exec_dir))
     manifest.nodes.append(NodeRun(name="materials", artifacts=materials.shot_clips))
 
     final_video = str(out_dir / "final.mp4")

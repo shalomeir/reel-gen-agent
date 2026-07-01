@@ -74,8 +74,6 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     assert len(fake.calls) == 1  # ≤15초 = 영상 모델 호출 1회(세그먼트 1개)
     # 멀티샷 프롬프트에 샷 리스트가 들어간다.
     assert "Shot 1:" in fake.calls[0][2] and "Shot 6:" in fake.calls[0][2]
-    # 순차 컷임을 명시해 split-screen/그리드 생성을 막는다.
-    assert "split-screen" in fake.calls[0][2].lower()
     # 기본 나레이션(voiceover)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
     assert "NOT talking" in fake.calls[0][2]
     assert fake.calls[0][3] is False  # generate_audio: 별도 TTS라 영상 오디오 끔

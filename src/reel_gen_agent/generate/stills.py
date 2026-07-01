@@ -13,6 +13,13 @@ from pathlib import Path
 from .image_client import ImageClient
 from .schema import ReelProfile
 
+# 스틸은 image-to-video의 시작 프레임이다 -> 단일 순간 강제(콜라주/스토리보드 스틸 금지 rule).
+_SINGLE_MOMENT_RULE = (
+    "This is a single photographic instant, the first frame of one video shot. Show exactly one "
+    "moment: NOT a collage, storyboard, grid, split-screen, filmstrip, before/after, or multiple "
+    "panels/moments in one image. One clean full-frame photo."
+)
+
 
 def _panel_refs(panel, character_image: str | None, product_image: str | None) -> list[str]:
     """이 패널이 참조할 에셋 이미지 목록. 잠금 플래그를 따른다."""
@@ -63,7 +70,11 @@ def ensure_panel_stills(
     filled = 0
     for panel in missing:
         refs = _panel_refs(panel, character_image, product_image)
-        prompt = panel.prompt or profile.storyboard.global_prompt or profile.product.name
+        base = panel.prompt or profile.storyboard.global_prompt or profile.product.name
+        # image-to-video 시작 프레임이므로 반드시 단일 순간이어야 한다. 콘티/훅이 여러 동작을
+        # 묘사해도 스틸은 그 첫 순간 하나만 그린다(콜라주·스토리보드·그리드·분할·연속 패널 금지).
+        # reference-to-video가 아닌 한 콜라주 스틸을 그대로 넣으면 영상이 콜라주로 시작한다.
+        prompt = f"{base}. {_SINGLE_MOMENT_RULE}"
         out = str(panels_dir / f"still_{panel.index}.png")
         generated = False
         if image_client is not None:
