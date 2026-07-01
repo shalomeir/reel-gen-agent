@@ -28,6 +28,7 @@ from .generate.gates import GateConfig
 from .generate.planning_graph import run_planning
 from .generate.production_graph import run_production
 from .generate.schema import GenerationInput, RunManifest, Storyboard
+from .generate.text_client import make_text_client
 
 app = typer.Typer(
     add_completion=False,
@@ -233,10 +234,16 @@ def plan(
     brief: str = typer.Argument(..., help="영상 목적/브리프 또는 입력"),
     outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
     yes: bool = typer.Option(False, "-y", "--yes", help="모든 게이트 자동 승인"),
+    no_llm: bool = typer.Option(False, "--no-llm", help="LLM 없이(후크 생략) 결정론 콘티만"),
 ) -> None:
-    """입력에서 ReelProfile을 만들어 outputs/<run_id>/에 저장한다."""
+    """입력에서 ReelProfile을 만들어 outputs/<run_id>/에 저장한다.
+
+    기본은 실제 텍스트 LLM(Vertex Gemini 3.1 Pro, 옵션 Claude)으로 후크를 생성한다.
+    키가 없으면 자동으로 결정론 콘티만 만든다.
+    """
     cfg = GateConfig(mode="run" if yes else "ask")
-    path = run_planning(brief, outputs, gate=cfg)
+    client = None if no_llm else make_text_client()
+    path = run_planning(brief, outputs, gate=cfg, text_client=client)
     typer.echo(f"ReelProfile: {path}", err=True)
 
 

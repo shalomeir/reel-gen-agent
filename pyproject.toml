@@ -13,6 +13,7 @@ authors = [{ name = "shalomeir" }]
 keywords = ["video", "short-form", "reel", "generative-ai", "gemini", "ffmpeg", "cli"]
 
 dependencies = [
+    "anthropic>=0.40",
     "elevenlabs>=1.9",
     "fal-client>=0.7",
     "firecrawl-py>=1.0",
