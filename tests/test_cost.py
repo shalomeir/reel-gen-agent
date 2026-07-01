@@ -55,9 +55,11 @@ def test_paid_path_prices_each_backend():
     # 영상 3.5초 x $0.15 (veo fast)
     assert lines["영상 클립"].model == "veo-3.1-fast-generate-001"
     assert lines["영상 클립"].subtotal_usd == round(3.5 * 0.15, 4)
-    # BGM 3.5초 x $0.06 (lyria)
+    # BGM은 클립당 정액: 3.5초 영상 -> 1클립 x $0.04 (lyria, 초당 아님)
     assert lines["BGM"].model == "lyria-002"
-    assert lines["BGM"].subtotal_usd == round(3.5 * 0.06, 4)
+    assert lines["BGM"].unit == "클립"
+    assert lines["BGM"].quantity == 1
+    assert lines["BGM"].subtotal_usd == 0.04
     # 나레이션 eleven_v3, 11자 -> 0.011k
     assert lines["나레이션"].model == "eleven_v3"
     assert lines["나레이션"].unit == "1k자"
@@ -127,6 +129,25 @@ def test_multishot_counts_all_panel_seconds_not_just_stills():
     assert total_sec == 10.7  # 2.38이 아니라 전체 길이
     assert lines["영상 클립"].quantity == 10.7
     assert lines["영상 클립"].subtotal_usd == round(10.7 * 0.10, 4)
-    assert lines["BGM"].quantity == 10.7
+    # BGM은 초가 아니라 클립 수: 10.7초 -> 1클립(≤30초). 영상 초로 곱하지 않는다.
+    assert lines["BGM"].unit == "클립"
+    assert lines["BGM"].quantity == 1
+    assert lines["BGM"].subtotal_usd == 0.04
     # 스틸(이미지)은 실제 생성 장수(2장)와 맞게 유지된다.
     assert lines["패널 스틸"].quantity == 2
+
+
+def test_bgm_over_30s_uses_two_clips():
+    # 30초를 넘는 영상은 Lyria 클립 2회(30초 단위 올림)로 잡는다.
+    panels = [StoryboardPanel(index=0, t_start=0.0, t_end=45.0)]
+    profile = ReelProfile(
+        objective=Objective(goal="g"),
+        product=ProductSpec(name="P"),
+        storyboard=Storyboard(panels=panels),
+    )
+    plan = ProductionPlan(video_model="ken_burns", bgm="gen")
+    manifest = RunManifest(panel_segments=["c0.mp4"])
+    cost = estimate_cost(profile, plan, manifest, {}, {}, {"GOOGLE_CLOUD_PROJECT": "p"})
+    bgm = next(ln for ln in cost.lines if ln.label == "BGM")
+    assert bgm.quantity == 2  # ceil(45/30)
+    assert bgm.subtotal_usd == round(2 * 0.04, 4)
