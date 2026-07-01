@@ -58,10 +58,10 @@ rubric)가 결과물을 판정하며, 레퍼런스 골든이 회귀 기준선을
 - `reel-gen verify <video> [--input ... --storyboard ... --manifest ...]` — conformance.
 - `reel-gen evaluate <video>` — rubric.
 
-conformance가 fail이면 rubric으로 가지 않고, 결함 카테고리로 해당 샷 재생성을 트리거한다.
-두 게이트는 ask(챗 기본), pass(`--force-step-pass`), 런 모드(전부 통과)와 같은 그래프 위에서
-동작한다. 흐름의 정본은 [conformance-gate.md](conformance-gate.md)와
-[product-design.md](product-design.md)에 있다.
+단독 CLI에서 conformance가 fail이면 exit≠0이다. 그래프 안에서는 현재 conformance를 소프트로
+기록만 하고 다음으로 진행한다(fail 시 결함 노드만 재생성하는 하드 게이트+repair 루프는 향후,
+[../docs/Retrospective.md](../docs/Retrospective.md)). 흐름의 정본은
+[conformance-gate.md](conformance-gate.md)와 [product-design.md](product-design.md)에 있다.
 
 ## 로깅과 trace 계층 테스트
 
