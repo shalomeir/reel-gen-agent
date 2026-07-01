@@ -2,14 +2,79 @@
 
 자막 텍스트·타이밍은 스토리보드 패널에서 오므로 음성 인식·강제 정렬이 필요 없다.
 (docs/pipeline-design.md "자막과 이모지")
+
+이모지는 로컬 컬러 이모지 폰트(Apple Color Emoji / Noto Color Emoji)로 렌더한다. pilmoji
+기본 소스는 CDN에서 이모지 PNG를 내려받아 네트워크가 없거나 막히면 깨진다(tofu). 로컬 폰트
+소스로 오프라인·결정론 렌더를 보장하고, 로컬 폰트가 없을 때만 기본(온라인) 소스로 폴백한다.
 """
 
 from __future__ import annotations
 
+import os
+from io import BytesIO
 from typing import Any
 
-from PIL import Image, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
+from pilmoji.source import BaseSource
+
+# 컬러 이모지 폰트 후보(순서대로 탐색). 환경변수 REEL_EMOJI_FONT로 덮어쓸 수 있다.
+_EMOJI_FONT_CANDIDATES = [
+    os.environ.get("REEL_EMOJI_FONT"),
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "/System/Library/Fonts/Supplemental/Apple Color Emoji.ttc",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/NotoColorEmoji.ttf",
+    "/usr/local/share/fonts/NotoColorEmoji.ttf",
+]
+
+
+def _emoji_font() -> Any | None:
+    """설치된 컬러 이모지 폰트를 연다. 없으면 None(그때만 온라인 소스로 폴백)."""
+    path = next((p for p in _EMOJI_FONT_CANDIDATES if p and os.path.exists(p)), None)
+    if not path:
+        return None
+    # Apple/Noto는 고정 비트맵 strike만 있어 임의 크기가 안 된다. 가용 strike를 차례로 시도.
+    for sz in (137, 136, 96, 109, 64, 48, 32):
+        try:
+            return ImageFont.truetype(path, sz)
+        except Exception:
+            continue
+    return None
+
+
+class LocalEmojiSource(BaseSource):
+    """로컬 컬러 이모지 폰트로 이모지를 PNG로 렌더하는 pilmoji 소스(오프라인·결정론)."""
+
+    def __init__(self, font: Any) -> None:
+        self._font = font
+
+    def get_emoji(self, emoji: str, /) -> BytesIO | None:
+        try:
+            box = 176
+            img = Image.new("RGBA", (box, box), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            draw.text((box // 2, box // 2), emoji, font=self._font, embedded_color=True, anchor="mm")
+            bbox = img.getbbox()
+            if bbox is None:
+                return None
+            out = BytesIO()
+            img.crop(bbox).save(out, format="PNG")
+            out.seek(0)
+            return out
+        except Exception:
+            return None
+
+    def get_discord_emoji(self, id: int, /) -> BytesIO | None:
+        return None
+
+
+def _make_pilmoji(img: Any) -> Pilmoji:
+    """로컬 이모지 폰트가 있으면 로컬 소스로, 없으면 기본(온라인) 소스로 Pilmoji를 만든다."""
+    font = _emoji_font()
+    if font is not None:
+        return Pilmoji(img, source=LocalEmojiSource(font))
+    return Pilmoji(img)
 
 
 def _default_font(size: int) -> Any:
@@ -54,7 +119,7 @@ def render_subtitle_png(text: str, width: int, height: int, out_path: str) -> st
         max_width = width - 2 * margin
         # 밝은 배경에서도 글자가 묻히지 않도록 얇은 외곽선을 두른다(그림자 아님, 작은 반경).
         stroke_w = max(2, font.size // 16 if hasattr(font, "size") else 2)
-        with Pilmoji(img) as p:
+        with _make_pilmoji(img) as p:
             lines = _wrap(text, font, max_width, p.getsize)
             line_h = max(p.getsize(ln or "A", font=font)[1] for ln in lines)
             gap = int(line_h * 0.25)

@@ -118,7 +118,7 @@ def compose_aligned_narration(
     inputs: list[str] = []
     filters: list[str] = []
     labels: list[str] = []
-    for i, ((clip, _dur, _), start) in enumerate(zip(made, line_starts)):
+    for i, ((clip, _dur, _), start) in enumerate(zip(made, line_starts, strict=True)):
         chain = f"[{i + 1}:a]"
         if tempo > 1.0:
             chain += f"atempo={tempo:.3f},"

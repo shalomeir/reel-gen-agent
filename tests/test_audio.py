@@ -45,7 +45,7 @@ def test_cut_sync_fails_when_off_beat():
 
 def _ends(durs, tempo, starts):
     """각 대사의 끝 시각(압축 템포 반영)."""
-    return [s + d / tempo for s, d in zip(starts, durs)]
+    return [s + d / tempo for s, d in zip(starts, durs, strict=True)]
 
 
 def test_narration_timeline_never_overlaps_and_has_gap():
