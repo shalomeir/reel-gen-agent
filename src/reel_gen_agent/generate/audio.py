@@ -14,9 +14,106 @@ voice 정책([ADR.md] ADR-0012):
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Callable
+from pathlib import Path
 from typing import Protocol
 
-from .schema import StoryboardPanel
+from .schema import NarrationLine, StoryboardPanel
+
+
+def _audio_duration(path: str) -> float:
+    r = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nk=1:nw=1",
+            path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def compose_aligned_narration(
+    lines: list[NarrationLine],
+    panels: list[StoryboardPanel],
+    total_dur: float,
+    tts: Callable[[str, str], str],
+    work_dir: str,
+    out_path: str,
+) -> str | None:
+    """비트별 대사를 각 패널 t_start에 배치해 전체 길이 voice 트랙으로 합성한다.
+
+    각 대사를 TTS한 뒤, 그 패널 슬롯(다음 패널 시작까지)보다 길면 살짝 템포를 올려 넘치지
+    않게 맞추고(최대 1.6배), 해당 t_start에 지연 배치(adelay)해 amix한다. 스토리보드 비트에
+    맞물려 깔리고, 전체 길이가 total_dur라 영상과 함께 끝나 잘리지 않는다.
+    """
+    work = Path(work_dir)
+    work.mkdir(parents=True, exist_ok=True)
+    starts = {p.index: (p.t_start or 0.0) for p in panels}
+    ordered_starts = sorted(starts.values())
+
+    def _slot(start: float) -> float:
+        nxt = [s for s in ordered_starts if s > start + 1e-3]
+        return (min(nxt) if nxt else total_dur) - start
+
+    inputs: list[str] = []
+    filters: list[str] = []
+    labels: list[str] = []
+    n = 0
+    for line in lines:
+        if not line.text.strip():
+            continue
+        start = starts.get(line.panel_index, 0.0)
+        clip = str(work / f"nl_{line.panel_index}.mp3")
+        try:
+            tts(line.text.strip(), clip)
+        except Exception:
+            continue
+        dur = _audio_duration(clip)
+        if dur <= 0:
+            continue
+        slot = max(0.4, _slot(start))
+        chain = f"[{n + 1}:a]"
+        # 슬롯보다 길면 최대 1.6배까지 템포를 올려 다음 컷을 침범하지 않게 한다.
+        if dur > slot:
+            tempo = min(1.6, dur / slot)
+            chain += f"atempo={tempo:.3f},"
+        delay_ms = int(start * 1000)
+        filters.append(f"{chain}adelay={delay_ms}|{delay_ms}[d{n}]")
+        labels.append(f"[d{n}]")
+        inputs.append(clip)
+        n += 1
+
+    if not labels:
+        return None
+
+    cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={total_dur:.3f}"]
+    for clip in inputs:
+        cmd += ["-i", clip]
+    # 무음 베드([0])와 지연 배치한 대사들을 섞고 total_dur로 자른다.
+    mix = f"[0:a]{''.join(labels)}amix=inputs={len(labels) + 1}:normalize=0:duration=first[aout]"
+    cmd += [
+        "-filter_complex",
+        ";".join([*filters, mix]),
+        "-map",
+        "[aout]",
+        "-t",
+        f"{total_dur:.3f}",
+        "-c:a",
+        "pcm_s16le",
+        out_path,
+    ]
+    subprocess.run(cmd, check=True, capture_output=True)
+    return out_path
 
 
 def bpm_for_cuts(panels: list[StoryboardPanel], beats_per_cut: int = 1) -> int:

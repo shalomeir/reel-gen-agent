@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 
-from .audio import bpm_for_cuts, synth_music_bed
+from .audio import bpm_for_cuts, compose_aligned_narration, synth_music_bed
 from .backends.ken_burns import DEFAULT_MOTION, KenBurnsBackend
 from .schema import Materials, ProductionPlan, ReelProfile
 from .subtitles import render_subtitle_png
@@ -54,40 +54,58 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         bpm = _music_bpm(profile.music.tempo) or bpm_for_cuts(profile.storyboard.panels)
         bgm_audio = synth_music_bed(total_dur, bpm, str(panels_dir / "bgm.wav"))
 
-    # voice: 나레이션(voiceover)이면 대사 스크립트를 ElevenLabs로 TTS해 붙인다(키 있을 때).
-    voice_audio = _build_voice(profile, str(panels_dir))
+    # voice: 나레이션(voiceover)이면 비트별 대사를 각 패널 t_start에 정렬 배치해 합성한다.
+    voice_audio = _build_voice(profile, str(panels_dir), total_dur)
 
     return Materials(
         shot_clips=clips, subtitle_pngs=subs, bgm_audio=bgm_audio, voice_audio=voice_audio
     )
 
 
-def _build_voice(profile: ReelProfile, panels_dir: str) -> str | None:
-    """voiceover 나레이션 오디오를 만든다. 1차 ElevenLabs, 폴백 Google TTS(ai-model-records §6).
-
-    delivery가 voiceover이고 대사 스크립트가 있을 때만. ElevenLabs 키가 없거나 실패하면
-    Gemini TTS로 내려간다. 둘 다 안 되면 None(voice 없이 BGM만).
-    """
-    if profile.narration.delivery != "voiceover":
-        return None
-    text = " ".join(line.text for line in profile.narration.lines if line.text).strip()
-    if not text:
-        return None
-    desc = profile.narration.voice.type or ""
-
+def _tts_client(desc: str):
+    """(text, out) -> path 콜러블. 호출마다 1차 ElevenLabs, 실패/무키면 Gemini TTS 폴백."""
+    eleven = None
     if os.environ.get("ELEVENLABS_API_KEY"):
         try:
             from .backends.voice_tts import ElevenLabsVoiceClient
 
-            return ElevenLabsVoiceClient().synthesize(
-                text, desc, str(Path(panels_dir) / "voice.mp3")
-            )
+            eleven = ElevenLabsVoiceClient()
         except Exception:
-            pass  # ElevenLabs 실패 -> Google TTS 폴백으로
+            eleven = None
 
-    try:
+    def tts(text: str, out: str) -> str:
+        if eleven is not None:
+            try:
+                return eleven.synthesize(text, desc, out)
+            except Exception:
+                pass  # ElevenLabs 실패 -> Gemini TTS 폴백
         from .backends.gemini_tts import GeminiTTSVoiceClient
 
-        return GeminiTTSVoiceClient().synthesize(text, desc, str(Path(panels_dir) / "voice.wav"))
+        return GeminiTTSVoiceClient().synthesize(text, desc, out)
+
+    return tts
+
+
+def _build_voice(profile: ReelProfile, panels_dir: str, total_dur: float) -> str | None:
+    """비트별 나레이션을 스토리보드 t_start에 맞춰 깔아 전체 길이 voice 트랙으로 만든다.
+
+    delivery가 voiceover이고 대사가 있을 때만. 각 대사를 TTS(1차 ElevenLabs, 폴백 Gemini)한 뒤
+    compose_aligned_narration이 패널 t_start에 배치·합성한다. 잘리지 않고 콘티에 맞물린다.
+    """
+    if profile.narration.delivery != "voiceover":
+        return None
+    lines = [line for line in profile.narration.lines if line.text.strip()]
+    if not lines or total_dur <= 0:
+        return None
+    try:
+        tts = _tts_client(profile.narration.voice.type or "")
+        return compose_aligned_narration(
+            lines,
+            profile.storyboard.panels,
+            total_dur,
+            tts,
+            panels_dir,
+            str(Path(panels_dir) / "voice.wav"),
+        )
     except Exception:
         return None

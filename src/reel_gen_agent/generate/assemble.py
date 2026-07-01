@@ -73,28 +73,78 @@ def _concat(shot_clips: list[str], fps: int, out_path: str) -> str:
     return out_path
 
 
-def _mux_audio(video_path: str, audio_tracks: list[str], out_path: str) -> str:
-    """영상에 오디오 트랙(들)을 입힌다. 여러 개면 amix로 섞는다. 영상 길이에 맞춰 자른다."""
+def _duration(path: str) -> float:
+    """미디어 길이(초). 실패하면 0.0."""
+    r = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nk=1:nw=1",
+            path,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def _mux_audio(video_path: str, voice: str | None, bgm: str | None, out_path: str) -> str:
+    """영상에 나레이션 voice와 BGM을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
+
+    최종 길이는 max(영상, voice)라 나레이션이 중간에 잘리지 않는다. 영상이 짧으면 마지막
+    프레임을 이어(tpad) 채우고, 끝에 0.5초 페이드아웃을 걸어 툭 끊기지 않게 한다. BGM은
+    voice가 있으면 아래로 덕킹해 나레이션이 들리게 한다.
+    """
+    video_len = _duration(video_path)
+    voice_len = _duration(voice) if voice else 0.0
+    final = max(video_len, voice_len)
+    fade = 0.5
+    fade_start = max(0.0, final - fade)
+    pad_v = max(0.0, final - video_len)
+
     cmd = ["ffmpeg", "-y", "-i", video_path]
-    for track in audio_tracks:
-        cmd += ["-i", track]
-    if len(audio_tracks) == 1:
-        amap = "[1:a]volume=1[aout]"
-    else:
-        inputs = "".join(f"[{i + 1}:a]" for i in range(len(audio_tracks)))
-        amap = f"{inputs}amix=inputs={len(audio_tracks)}:duration=longest[aout]"
+    chains = [f"[0:v]tpad=stop_mode=clone:stop_duration={pad_v:.3f}[v]"]
+    labels: list[str] = []
+    idx = 1
+    if voice:
+        cmd += ["-i", voice]
+        chains.append(f"[{idx}:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume=1.0[a{idx}]")
+        labels.append(f"[a{idx}]")
+        idx += 1
+    if bgm:
+        cmd += ["-i", bgm]
+        vol = 0.28 if voice else 0.85  # voice가 있으면 BGM을 아래로 덕킹
+        chains.append(
+            f"[{idx}:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume={vol}[a{idx}]"
+        )
+        labels.append(f"[a{idx}]")
+        idx += 1
+
+    mix = f"{''.join(labels)}amix=inputs={len(labels)}:normalize=0[amx]"
+    fade_f = f"[amx]afade=t=out:st={fade_start:.3f}:d={fade}[aout]"
+    filter_complex = ";".join([*chains, mix, fade_f])
     cmd += [
         "-filter_complex",
-        amap,
+        filter_complex,
         "-map",
-        "0:v",
+        "[v]",
         "-map",
         "[aout]",
+        "-t",
+        f"{final:.3f}",
         "-c:v",
-        "copy",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
         "-c:a",
         "aac",
-        "-shortest",
         out_path,
     ]
     subprocess.run(cmd, check=True, capture_output=True)
@@ -117,13 +167,12 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
             overlaid.append(out)
         clips = overlaid
 
-    audio_tracks = [t for t in (materials.bgm_audio, materials.voice_audio) if t]
-    if not audio_tracks:
+    if not materials.bgm_audio and not materials.voice_audio:
         # 오디오 재료가 없으면 concat 결과(무음 트랙 포함)를 그대로 쓴다.
         return _concat(clips, meta.fps, out_path)
 
-    # 오디오가 있으면 임시 영상으로 concat한 뒤 BGM/voice를 입혀 최종을 만든다.
+    # 오디오가 있으면 임시 영상으로 concat한 뒤 voice/BGM을 입혀 최종을 만든다.
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
         video_only = tmp.name
     _concat(clips, meta.fps, video_only)
-    return _mux_audio(video_only, audio_tracks, out_path)
+    return _mux_audio(video_only, materials.voice_audio, materials.bgm_audio, out_path)

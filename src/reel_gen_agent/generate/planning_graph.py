@@ -89,25 +89,10 @@ def run_planning(
         if hooks.candidates:
             style.hook = hooks.candidates[0]
 
-    # 나레이션 스크립트: 기본 전달은 voiceover. LLM이 있으면 짧은 대사 스크립트를 생성한다.
     narration = NarrationSpec(
         delivery="voiceover",
         voice=VoiceSpec(from_character=True, type=(character.look or None)),
     )
-    if text_client is not None:
-        try:
-            tone_hint = ", ".join(style.tone) if style.tone else "authentic, upbeat"
-            script = text_client.complete(
-                f"Write a short, upbeat first-person narration voiceover script in English "
-                f"for a {meta.duration_sec:.0f}-second vertical beauty short about "
-                f"{product.name}. Tone: {tone_hint}. 2-3 short punchy sentences, natural UGC "
-                f"tone, no emojis, no stage directions. Return only the narration text.",
-                temperature=0.8,
-            )
-            if script.strip():
-                narration.lines = [NarrationLine(panel_index=0, text=script.strip())]
-        except Exception:
-            pass
 
     # 스토리보드/콘티는 항상 채운다(텍스트 패널). 레퍼런스 컷 수가 있으면 그 수에 맞춘다.
     storyboard = build_storyboard(
@@ -120,6 +105,14 @@ def run_planning(
         cut_count=cut_count,
     )
     narrative_arc = [p.beat for p in storyboard.panels if p.beat]
+
+    # 나레이션: 스토리보드 비트에 맞춰 패널별 짧은 대사를 생성한다(비트별 정렬 배치의 근거).
+    # LLM이 패널 수만큼 짧은 라인(비주얼-only 비트는 빈 문자열)을 내고, 각 라인을 그 패널에
+    # 매핑한다. execute가 각 라인을 TTS해 패널 t_start에 깔아 콘티에 맞물리게 한다.
+    if text_client is not None:
+        narration.lines = _narration_lines(
+            text_client, product, style, meta, [p.beat or "" for p in storyboard.panels]
+        )
 
     run_id = make_run_id(result.objective.goal)
     out_dir = create_run_dir(outputs_root, run_id)
@@ -146,3 +139,42 @@ def run_planning(
     )
 
     return write_profile(profile, out_dir, run_id)
+
+
+def _narration_lines(
+    text_client: TextClient,
+    product: ProductSpec,
+    style: StyleDimensions,
+    meta: InputMeta,
+    beats: list[str],
+) -> list[NarrationLine]:
+    """패널 비트에 맞춘 짧은 나레이션 라인을 생성한다(비주얼-only 비트는 제외).
+
+    LLM이 beats와 같은 길이의 JSON 배열(각 원소는 짧은 대사 또는 "")을 내면, 비어 있지 않은
+    라인만 그 패널 인덱스에 매핑한다. 실패하면 빈 목록(voice 없이 진행).
+    """
+    import json
+
+    from .hook import _extract_json
+
+    tone_hint = ", ".join(style.tone) if style.tone else "authentic, upbeat"
+    prompt = (
+        f"You are writing a first-person voiceover for a {meta.duration_sec:.0f}-second "
+        f"vertical beauty short about {product.name}. Tone: {tone_hint}, natural UGC, English.\n"
+        f"The video has {len(beats)} cuts with these beats in order: {beats}.\n"
+        "Write ONE short spoken line (3-8 words) per cut that matches that beat, or an empty "
+        "string for purely visual cuts with no voice. The lines should flow as one natural "
+        "narration across the video (hook first, call-to-action last).\n"
+        f'Return raw JSON only: {{"lines": ["...", "", "..."]}} with exactly {len(beats)} items.'
+    )
+    try:
+        raw = text_client.complete(prompt, temperature=0.7)
+        data = json.loads(_extract_json(raw))
+        arr = data.get("lines", []) if isinstance(data, dict) else []
+    except Exception:
+        return []
+    lines: list[NarrationLine] = []
+    for i, text in enumerate(arr[: len(beats)]):
+        if isinstance(text, str) and text.strip():
+            lines.append(NarrationLine(panel_index=i, text=text.strip()))
+    return lines
