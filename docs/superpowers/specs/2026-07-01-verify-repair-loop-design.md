@@ -133,4 +133,4 @@ conformance와 ffmpeg 호출은 모킹. 결정론 층만 실제로 검증한다.
 
 - [../../../specs/conformance-gate.md](../../../specs/conformance-gate.md) — verify 계약·체크 카탈로그
 - [../../../specs/product-design.md](../../../specs/product-design.md) — verify 노드의 소프트/하드 서술(이 스펙으로 갱신 대상)
-- [../../Retrospective.md](../../Retrospective.md) — "하드 게이트+repair 루프는 향후"로 미뤄둔 항목(이 스펙이 해소)
+- [../../../retro.md](../../../retro.md) — "하드 게이트+repair 루프는 향후"로 미뤄둔 항목(이 스펙이 해소)

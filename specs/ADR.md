@@ -6,7 +6,7 @@
 
 각 결정의 더 자세한 계약은 링크된 `specs/` 문서에, 배경 설명은 `docs/`에 있다. 숫자나
 인터페이스가 어긋나면 링크된 정본 문서를 따른다. 회고(무엇을 써 보고 어땠는지)는
-[../docs/Retrospective.md](../docs/Retrospective.md)에 따로 둔다.
+[../retro.md](../retro.md)에 따로 둔다.
 
 ## 레코드 형식
 
@@ -129,7 +129,7 @@ verify->repair 유한 루프는 설계에 있으나 아직 미구현(향후 exec
 
 **구현 현황(2026-07-01)**: 단독 CLI(`verify`/`evaluate`)는 하드/소프트 판정을 지금 한다.
 그래프 안에서는 verify가 소프트로 기록만 하고 진행하며, fail 시 결함 노드만 재생성하는 하드
-게이트+repair 유한 루프는 향후다([../docs/Retrospective.md](../docs/Retrospective.md)).
+게이트+repair 유한 루프는 향후다([../retro.md](../retro.md)).
 
 ## ADR-0007: 단계별 사람 확인 게이트는 두지 않는다
 
@@ -145,7 +145,7 @@ verify->repair 유한 루프는 설계에 있으나 아직 미구현(향후 exec
 ReelProfile과 대표이미지를 보여준 뒤 확인·수정 루프를 돌려 확인하면 production으로 넘어간다.
 
 **결과**: run은 무중단, chat은 확인·수정 루프로 갈린다. 단계별 HITL 게이트 일반화는 향후
-과제로 미룬다(재고려 시 배경·설계는 [../docs/Retrospective.md](../docs/Retrospective.md) 3절).
+과제로 미룬다(재고려 시 배경·설계는 [../retro.md](../retro.md) 3절).
 
 ## ADR-0008: 모델 비종속, ID는 .env로 주입(어댑터 뒤에 둠)
 
