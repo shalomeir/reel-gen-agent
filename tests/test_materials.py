@@ -77,6 +77,8 @@ def test_video_path_calls_backend_once_per_segment(tmp_path, monkeypatch):
     # 기본 나레이션(voiceover)이면 영상에서 말하는 느낌을 없앤다(립싱크 불일치 방지).
     assert "NOT talking" in fake.calls[0][2]
     assert fake.calls[0][3] is False  # generate_audio: 별도 TTS라 영상 오디오 끔
+    # Veo는 피부 광택을 더 세게 억제하는 지시문을 쓴다(Kling 등 기본과 분기).
+    assert "matte and natural" in fake.calls[0][2]
     # 편집단계 beat-cut 몽타주: 한 세그먼트를 패널 경계로 6컷으로 재분할한다.
     assert len(mats.shot_clips) == 6
     # 자막은 패널별로 6개, 구간도 타임라인에 매핑된다.

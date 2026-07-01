@@ -80,6 +80,31 @@ def _shot_subject(panel: StoryboardPanel, product_name: str) -> str:
     return "the beauty creator"
 
 
+# beat -> 화면 동작 묘사. beat "라벨 단어"(problem/cta 등)를 프롬프트에 그대로 넣으면 영상
+# 모델이 그 단어를 화면 자막으로 렌더해버린다. 그래서 라벨 대신 동작 문구로만 유도한다.
+_BEAT_ACTION: dict[str, str] = {
+    "hook": "an eye-catching opening beauty moment, engaging expression",
+    "problem": "thoughtfully checking her skin",
+    "discovery": "presenting the product to the camera",
+    "reveal": "presenting the product to the camera",
+    "use": "gently applying the product to her face",
+    "apply": "gently applying the product to her face",
+    "routine": "doing her skincare routine",
+    "reaction": "a delighted, pleased reaction",
+    "proof": "showing fresh, healthy-looking results with a happy expression",
+    "after": "showing fresh, healthy-looking results with a happy expression",
+    "result": "showing fresh, healthy-looking results with a happy expression",
+    "benefit": "showing fresh, healthy-looking results with a happy expression",
+    "demo": "demonstrating the product in use",
+    "cta": "smiling warmly and invitingly at the camera",
+}
+
+
+def _beat_action(beat: str) -> str:
+    """beat를 화면 동작 문구로 바꾼다(라벨 단어는 넣지 않는다)."""
+    return _BEAT_ACTION.get(beat, "a natural beauty b-roll moment")
+
+
 def _speech_directive(speaking: bool) -> str:
     """발화 지시문([ADR.md] ADR-0012). 나레이션(기본)이면 영상에서 말하는 느낌을 없애 립싱크
     불일치를 막고, 온카메라 발화가 필요할 때만 영상 모델이 립싱크로 직접 말하게 한다.
@@ -92,35 +117,59 @@ def _speech_directive(speaking: bool) -> str:
     )
 
 
+# 피부 질감 지시문. 백엔드마다 광택을 다루는 성향이 달라 분기한다.
+# - 기본(Kling 등): 자연스러운 피부 질감 요청(그대로 유지).
+# - Veo: 피부 광택을 과장하는 경향이 있어 더 강하게 무광·비유광으로 억제한다(피부 부분만).
+_SKIN_DIRECTIVE_BASE = (
+    "Natural realistic skin texture with visible pores; avoid excessive dewy sheen, greasy "
+    "highlights or plastic glossy skin."
+)
+_SKIN_DIRECTIVE_VEO = (
+    "Skin must look matte and natural with realistic pores and texture; strongly avoid any wet, "
+    "oily, dewy or glossy sheen, shiny highlights, greasy or plastic-looking skin. Keep the skin "
+    "finish understated, not shiny and not glowing."
+)
+
+
+def _skin_directive(video_model: str | None) -> str:
+    """영상 백엔드별 피부 지시문. Veo만 광택을 더 세게 억제한다(사용자 지시)."""
+    if (video_model or "").lower().startswith("veo"):
+        return _SKIN_DIRECTIVE_VEO
+    return _SKIN_DIRECTIVE_BASE
+
+
 def _multishot_prompt(
     seg_panels: list[StoryboardPanel],
     motions: list[str],
     product_name: str,
     style: str,
     speaking: bool,
+    skin_directive: str,
 ) -> str:
     """세그먼트 안 패널들을 샷 리스트 멀티샷 프롬프트로 편다([multishot-segments.md]).
 
     앵커 이미지 1장 + 이 프롬프트로 영상 모델이 세그먼트 내부의 여러 컷을 스스로 만든다.
     컷마다 shot_type, 피사체(제품 컷은 제품), beat 동작, 카메라 무빙(제품 컷은 제품 줌인)을
-    담아 컷 변화를 유도한다. 인물·제품 일관과 발화 여부(립싱크)는 명시적으로 요구한다.
+    담아 컷 변화를 유도한다. 인물·제품 일관, 피부 질감, 발화 여부(립싱크)를 명시적으로 요구한다.
     """
     lines = [
         f"Multishot sequence of {len(seg_panels)} quick vertical 9:16 shots for a beauty short.",
         "Keep the same person and the same product consistent across every shot.",
-        "Natural realistic skin texture with visible pores; avoid excessive dewy sheen, greasy "
-        "highlights or plastic glossy skin.",
+        skin_directive,
         _speech_directive(speaking),
+        # 자막은 편집단계에서 따로 올리므로, 영상 모델이 화면에 글자를 그리면 안 된다.
+        "Do not render any on-screen text, captions, subtitles, letters, words or watermarks; "
+        "clean footage with no text overlay.",
     ]
     if style:
         lines.append(style)
     for k, panel in enumerate(seg_panels):
         shot = (panel.shot_type or "medium shot").strip()
-        beat = (panel.beat or "").strip()
+        action = _beat_action((panel.beat or "").strip())
         directive = _MOTION_DIRECTIVE.get(motions[k], "")
-        beat_bit = f", {beat} beat" if beat else ""
         cam_bit = f". Camera: {directive}" if directive else ""
-        lines.append(f"Shot {k + 1}: {shot} of {_shot_subject(panel, product_name)}{beat_bit}{cam_bit}.")
+        subject = _shot_subject(panel, product_name)
+        lines.append(f"Shot {k + 1}: {shot} — {subject}, {action}{cam_bit}.")
     return "\n".join(lines)
 
 
@@ -201,6 +250,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
     # 온카메라 발화(integrated)일 때만 영상 모델이 립싱크로 말하고 음성도 직접 낸다. 기본
     # 나레이션(separate_tts/none)은 영상에서 말하는 느낌을 없애 립싱크 불일치를 막는다.
     speaking = plan.voice_strategy == "integrated"
+    skin_directive = _skin_directive(plan.video_model)  # Veo만 피부 광택을 더 세게 억제
 
     clips: list[str] = []
     subs: list[str] = []
@@ -225,7 +275,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
             try:
                 start_image = prev_last_frame or anchor.still_image
                 prompt = _multishot_prompt(
-                    [panels[i] for i in indices], motions, product_name, style, speaking
+                    [panels[i] for i in indices], motions, product_name, style, speaking,
+                    skin_directive,
                 )
                 veo.render_panel(
                     start_image, seg_dur, m.width, m.height, m.fps, seg_clip,

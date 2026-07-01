@@ -92,6 +92,8 @@ def _global_prompt(
         f"location: {environment.location}" if environment.location else "",
         f"lighting: {environment.lighting}" if environment.lighting else "",
         f"mood: {environment.mood}" if environment.mood else "",
+        # 자막은 편집단계에서 올리므로 이미지·영상에 글자가 찍히면 안 된다.
+        "no on-screen text, captions, letters or watermarks",
     ]
     return "; ".join(b for b in bits if b)
 
@@ -147,7 +149,9 @@ def build_storyboard(
     panels: list[StoryboardPanel] = []
     for i, beat in enumerate(beats):
         shot = shot_for(beat)
-        local = f"{beat} beat, {shot} of {product.name}"
+        # beat "라벨 단어"(problem/cta 등)를 프롬프트에 넣으면 이미지 모델이 그 단어를 화면
+        # 글자로 그려버린다. 라벨 대신 샷·피사체만 적는다.
+        local = f"{shot} of {product.name}"
         if beat == "use" and product.affordances:
             local += f" ({product.affordances[0]})"
         panels.append(
