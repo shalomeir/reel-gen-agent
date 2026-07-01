@@ -121,10 +121,16 @@ def _mux_audio(
     """영상에 나레이션 voice·BGM·효과음(SFX)을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
 
     최종 길이는 max(영상, voice)라 나레이션이 중간에 잘리지 않는다. 영상이 짧으면 마지막
-    프레임을 이어(tpad) 채우고, 끝에 0.5초 페이드아웃을 걸어 툭 끊기지 않게 한다. BGM은
-    발화(voice 또는 영상 네이티브 음성)가 있으면 아래로 덕킹해 발화가 들리게 한다. SFX는 각
-    컷 시작 시각에 지연 배치해 얹는다(배경음이 없으면 SFX가 오디오의 결을 만든다).
-    keep_video_audio면 영상의 네이티브 음성(온카메라 발화)을 발화 트랙으로 보존한다.
+    프레임을 이어(tpad) 채우고, 끝에 0.5초 페이드아웃을 걸어 툭 끊기지 않게 한다.
+
+    발화 판정은 '실제 나레이션(voice)'만으로 한다. 영상 네이티브 오디오(keep_video_audio)는
+    대개 씬 앰비언스일 뿐(Veo는 거의 무음을 낸다)이라, 이를 발화로 보면 나레이션이 없는
+    music_bed 영상에서 BGM이 근거 없이 덕킹돼 안 들린다. 그래서 네이티브 오디오는 낮은
+    앰비언스 레이어로만 섞고 BGM 덕킹을 트리거하지 않는다. 나레이션이 없으면 BGM이 주인공이다.
+
+    SFX는 소스 레벨이 제각각(클리핑까지)이라 그대로 얹으면 특정 컷(예: 첫 훅 riser)이 튄다.
+    각 SFX를 loudnorm으로 레벨을 고르게 맞추고 짧은 페이드인으로 어택을 눅여, BGM 아래
+    악센트로만 들리게 한다. 각자 컷 시작 시각에 지연 배치한다.
     """
     video_len = _duration(video_path)
     voice_len = _duration(voice) if voice else 0.0
@@ -132,18 +138,17 @@ def _mux_audio(
     fade = 0.5
     fade_start = max(0.0, final - fade)
     pad_v = max(0.0, final - video_len)
-    has_speech = bool(voice) or keep_video_audio
+    has_voiceover = bool(voice)  # 실제 나레이션만 발화로 본다(네이티브 앰비언스는 제외).
     sfx = sfx or []
 
     cmd = ["ffmpeg", "-y", "-i", video_path]
     chains = [f"[0:v]tpad=stop_mode=clone:stop_duration={pad_v:.3f}[v]"]
     labels: list[str] = []
-    # 영상 네이티브 오디오([0:a], Veo가 낸 씬 사운드). 별도 나레이션(voice)이 없으면 이게 곧
-    # 발화/메인 오디오(1.0), 있으면 나레이션 아래 깔리는 씬 효과음(0.5)으로 섞는다.
+    # 영상 네이티브 오디오([0:a], Veo가 낸 씬 사운드)는 낮은 앰비언스로만 깐다(주인공이 아니며
+    # BGM 덕킹도 트리거하지 않는다). Veo 네이티브가 사실상 무음이면 여기서도 조용히 묻힌다.
     if keep_video_audio:
-        native_vol = 0.5 if voice else 1.0
         chains.append(
-            f"[0:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume={native_vol}[a0]"
+            f"[0:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume=0.30[a0]"
         )
         labels.append("[a0]")
     idx = 1
@@ -154,22 +159,24 @@ def _mux_audio(
         idx += 1
     if bgm:
         cmd += ["-i", bgm]
-        # 발화가 있으면 BGM을 덕킹하되, 볼륨은 플랜(music.prominence -> bgm_gain)을 따른다.
-        # 발화가 없으면 BGM이 주인공이므로 거의 풀 볼륨으로 둔다(너무 은은해지지 않게).
+        # 나레이션이 있으면 BGM을 덕킹하되 볼륨은 플랜(music.prominence -> bgm_gain)을 따른다.
+        # 나레이션이 없으면 BGM이 주인공이므로 거의 풀 볼륨으로 둔다(music_bed에서 확실히 들리게).
         duck = bgm_gain if (bgm_gain is not None) else 0.45
-        vol = duck if has_speech else 0.95
+        vol = duck if has_voiceover else 0.95
         chains.append(
             f"[{idx}:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume={vol}[a{idx}]"
         )
         labels.append(f"[a{idx}]")
         idx += 1
-    # SFX: 배경음/발화가 있으면 살짝, SFX만 있으면 또렷하게. 각자 컷 시작에 지연 배치.
-    sfx_vol = 0.7 if (bgm or has_speech) else 0.95
+    # SFX: BGM/나레이션이 있으면 그 아래 악센트로 낮게, SFX만 있으면 또렷하게. loudnorm으로 소스별
+    # 들쭉날쭉한 레벨을 고르게 맞추고(핫한 훅 riser도 여기서 눌린다), 짧은 페이드인으로 어택을 눅인다.
+    sfx_vol = 0.5 if (bgm or has_voiceover) else 0.85
     for clip, start in sfx:
         cmd += ["-i", clip]
         delay_ms = int(max(0.0, start) * 1000)
         chains.append(
-            f"[{idx}:a]adelay={delay_ms}|{delay_ms},apad=whole_dur={final:.3f},"
+            f"[{idx}:a]afade=t=in:d=0.10,loudnorm=I=-24:TP=-3:LRA=11,aresample=44100,"
+            f"adelay={delay_ms}|{delay_ms},apad=whole_dur={final:.3f},"
             f"atrim=0:{final:.3f},volume={sfx_vol}[a{idx}]"
         )
         labels.append(f"[a{idx}]")

@@ -33,6 +33,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "typer>=0.12",
     "rich>=13.0",
+    "prompt-toolkit>=3.0",
     "tenacity>=8.2",
     "yt-dlp>=2025.1.15",
 ]

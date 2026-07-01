@@ -45,6 +45,10 @@
   **유사도를 비교하고 미달이면 재계획·재생성**한다(유사해질 때까지).
 - **`reel-gen plan <입력>` / `reel-gen execute <ReelProfile>`**: 같은 파이프라인을 두 구간으로
   나눠 실행한다. 둘은 `ReelProfile` 스키마로만 통신한다.
+- **`reel-gen chat`**: 대화형 챗 모드. 입력 없이 시작하면 "어떤 숏폼 영상을 만들까요?"로 열어
+  목적·제품·레퍼런스·바이브를 자연스럽게 물어 채운다(prompt_toolkit). 충분해지면 ReelProfile과
+  대표 이미지(key_visual)를 만들어 요약을 보여주고, **한 번 확인받은 뒤** production으로 간다.
+  단계별 HITL 게이트가 아니라 입력 수집 + 최종 확인 한 번이라, 결국 run으로 수렴한다.
 
 규칙:
 - 입력이 이미 **`ReelProfile` JSON이면 계획을 건너뛰고 바로 production**을 실행한다.
@@ -264,6 +268,10 @@ reel-gen run outputs/<run_id>/plan/ReelProfile-....json
 # 두 구간으로 나눠 실행 (ReelProfile 스키마로만 통신)
 reel-gen plan "..."                    # 입력 -> ReelProfile
 reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> 영상
+
+# 대화형 챗 모드: 물어보며 채우고, 요약+대표이미지 확인 후 생성
+reel-gen chat                          # 빈 상태에서 대화로 시작
+reel-gen chat "글로우 세럼 아침 루틴 릴"   # 시작 브리프를 주고 이어서 대화
 ```
 
 ### 템플릿 직행 실행 (`execute`)
@@ -296,6 +304,7 @@ reel-gen execute storyboard.json
 | `reel-gen run ... --max-iters <n>` | 레퍼런스가 있으면 생성물을 다시 분석해 유사도를 비교하고, 미달이면 축별 델타를 피드백으로 재계획·재생성(최대 n회). |
 | `reel-gen run <입력>` | 입력->ReelProfile->영상 일괄(확인 게이트 없음). ReelProfile 입력이면 바로 production, 목적 없으면 거절. |
 | `reel-gen run ... --max-iters <n>` | 레퍼런스 있으면 유사도 미달 시 피드백 재계획·재생성(최대 n회). |
+| `reel-gen chat` | 대화형 챗 모드. 필요한 걸 물어 채우고 ReelProfile+대표이미지 생성, 확인받고 production. |
 | `reel-gen plan <입력>` | 입력 -> `ReelProfile`(profile.json). |
 | `reel-gen execute <ReelProfile.json>` | ReelProfile을 곧장 영상으로. 카탈로그 이미지 로컬 경로가 없으면 멈춤. |
 | `<입력>` (`run`/`plan`) | 텍스트 브리프, JSON 경로(generation_input 또는 ReelProfile), 또는 단일 에셋(이미지·영상·URL). |
@@ -404,6 +413,12 @@ one input; it builds a `ReelProfile` and pushes straight to production.
   falls short** (until similar).
 - **`reel-gen plan <input>` / `reel-gen execute <ReelProfile>`**: the same pipeline
   split into two stages that talk only through the `ReelProfile` schema.
+- **`reel-gen chat`**: interactive chat mode. Started with no input, it opens with
+  "what short-form video do you want to make?" and naturally asks for the purpose,
+  product, reference, and vibe (prompt_toolkit). Once it has enough, it builds the
+  `ReelProfile` and a key visual, shows a summary, and after **one confirmation**
+  runs production. It is conversational intake plus a single confirm (not per-stage
+  HITL), so it converges to `run`.
 
 Rules:
 - If the input is already a **`ReelProfile` JSON, it skips planning and renders
@@ -589,6 +604,10 @@ reel-gen run outputs/<run_id>/plan/ReelProfile-....json
 # split into two stages (they talk only through the ReelProfile schema)
 reel-gen plan "..."                    # input -> ReelProfile
 reel-gen execute outputs/<run_id>/plan/ReelProfile-....json   # ReelProfile -> video
+
+# interactive chat: it asks what it needs, shows a summary + key visual, then confirms
+reel-gen chat                          # start from an empty conversation
+reel-gen chat "glow serum morning routine reel"   # seed a brief, then keep chatting
 ```
 
 ### Render a template directly (`execute`)
@@ -622,6 +641,7 @@ missing, since the video cannot be built without them.
 | `reel-gen verify <video>` | Conformance integrity/fit check (`ConformanceReport` JSON, exit≠0 on fail). |
 | `reel-gen run <input>` | input->ReelProfile->video in one go (no confirm gates). A ReelProfile input renders directly; rejected if no purpose. |
 | `reel-gen run ... --max-iters <n>` | With a reference, re-plan/re-generate on similarity shortfall (up to n). |
+| `reel-gen chat` | Interactive chat mode: asks what it needs, builds ReelProfile + key visual, confirms once, then produces. |
 | `reel-gen plan <input>` | input -> `ReelProfile` (profile.json). |
 | `reel-gen execute <ReelProfile.json>` | Render a ReelProfile straight to video. Stops if catalog image local paths are missing. |
 | `<input>` (`run`/`plan`) | A text brief, a JSON path (generation_input or ReelProfile), or a single asset (image, video, URL). |

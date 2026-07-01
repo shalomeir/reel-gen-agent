@@ -407,6 +407,119 @@ def run(
         )
 
 
+def _open_file(path: str) -> None:
+    """로컬(맥)에서 파일을 기본 앱으로 연다(best-effort). 실패해도 조용히 넘어간다."""
+    import subprocess
+    import sys as _sys
+
+    try:
+        if _sys.platform == "darwin":
+            subprocess.run(["open", path], check=False)
+    except Exception:
+        pass
+
+
+def _print_plan_summary(profile_path: str) -> str | None:
+    """확정 전 ReelProfile 요약을 보여준다. key_visual 절대경로를 돌려준다(있으면)."""
+    from .generate.product import product_identity
+
+    profile = ReelProfile.model_validate_json(Path(profile_path).read_text(encoding="utf-8"))
+    plan_dir = Path(profile_path).parent
+    kv = profile.asset_bible.key_visual
+    kv_abs = str(plan_dir / kv) if kv else None
+    lines = [
+        "",
+        "──────── 생성할 영상 요약 ────────",
+        f"목적:   {profile.objective.goal[:90]}",
+        f"제품:   {product_identity(profile.product)[:90]}",
+        f"인물:   {(profile.character.look or '')[:80]}",
+        f"음악:   {profile.music.style or '-'} / {profile.music.mood or '-'} / {profile.music.tempo or '-'}",
+        f"컷수:   {len(profile.storyboard.panels)}컷, pacing={profile.style.pacing or '-'}",
+        f"자막:   {[p.subtitle_text for p in profile.storyboard.panels if p.subtitle_text][:6]}",
+        f"대표이미지(key_visual): {kv_abs or '없음'}",
+        "─────────────────────────────────",
+    ]
+    typer.echo("\n".join(lines), err=True)
+    return kv_abs
+
+
+@app.command()
+def chat(
+    seed: str = typer.Argument("", help="선택: 시작 브리프(비우면 대화로 시작)"),
+    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
+    no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
+    no_images: bool = typer.Option(False, "--no-images", help="이미지 생성 없이(폴백만)"),
+) -> None:
+    """대화형 챗 모드. 필요한 걸 물어 채우고, ReelProfile+대표이미지를 만든 뒤 확인받고 생성한다.
+
+    입력 없이 시작하면 "어떤 숏폼 영상을 만들까요?"로 열어 목적·제품·레퍼런스·바이브를 자연스럽게
+    물어본다. 충분해지면 ReelProfile과 key_visual을 만들어 요약을 보여주고, confirm하면 production을
+    돌려 결과 폴더를 안내한다. 텍스트 LLM 키가 필요하다.
+    """
+    from prompt_toolkit import PromptSession
+
+    from .generate.chat_intake import OPENING, ChatState, next_turn
+
+    text = make_text_client()
+    if text is None:
+        typer.echo("chat 모드는 텍스트 LLM 키가 필요합니다(GEMINI_API_KEY 등).", err=True)
+        raise typer.Exit(code=2)
+
+    session: PromptSession = PromptSession()
+    state = ChatState()
+    typer.echo("리엘젠 챗 모드입니다. 만들고 싶은 숏폼 영상을 자유롭게 말씀해 주세요. (Ctrl-D로 종료)")
+
+    def _ask(prompt_text: str) -> str:
+        try:
+            return session.prompt(prompt_text).strip()
+        except (EOFError, KeyboardInterrupt):
+            typer.echo("\n종료합니다.", err=True)
+            raise typer.Exit(code=0) from None
+
+    if seed.strip():
+        state.add_user(seed.strip())
+    else:
+        typer.echo(f"\n🤖 {OPENING}")
+        state.add_user(_ask("나 > "))
+
+    # 대화 루프: 충분해질 때까지 한 번에 하나씩 물어 브리프를 모은다(상한 가드).
+    brief = ""
+    for _ in range(8):
+        decision = next_turn(state, text)
+        if decision.ready and decision.brief:
+            brief = decision.brief
+            break
+        question = decision.question or "조금 더 자세히 말씀해 주시겠어요?"
+        state.add_assistant(question)
+        typer.echo(f"\n🤖 {question}")
+        state.add_user(_ask("나 > "))
+    if not brief:
+        brief = state.transcript()  # 상한 도달 시 대화 전체를 브리프로
+
+    ok, reason = validate_purpose(brief, text_client=text)
+    if not ok:
+        typer.echo(f"\n거절: {reason}", err=True)
+        raise typer.Exit(code=2)
+
+    typer.echo("\n🤖 좋아요, 기획을 정리하고 대표 이미지를 만드는 중입니다...", err=True)
+    img = None if no_images else _make_image_client()
+    path = run_planning(brief, outputs, text_client=text, image_client=img)
+    kv_abs = _print_plan_summary(str(path))
+    if kv_abs and Path(kv_abs).exists():
+        _open_file(kv_abs)  # 대표 이미지를 열어 미리 보여준다(맥)
+
+    confirm = _ask("\n이대로 영상을 생성할까요? (y/n) > ").lower()
+    if confirm not in ("y", "yes", "네", "응", "ㅇ", "예"):
+        typer.echo(f"취소했습니다. ReelProfile은 저장돼 있습니다: {path}", err=True)
+        raise typer.Exit(code=0)
+
+    typer.echo("\n🤖 영상 생성 중입니다(수 분 소요)...", err=True)
+    manifest = run_production(str(path), use_vlm=not no_vlm)
+    out_dir = Path(manifest.final_video).parent if manifest.final_video else path.parent
+    typer.echo(f"\n✅ 완료! 결과 폴더: {out_dir}", err=True)
+    typer.echo(f"영상: {manifest.final_video}", err=True)
+
+
 @app.command()
 def generate(
     input_json: str = typer.Argument(..., help="generation_input.json 경로"),
