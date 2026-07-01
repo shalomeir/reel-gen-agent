@@ -59,11 +59,15 @@ def _fallback_still(panel, character_image: str | None, product_image: str | Non
     return product_image
 
 
-# key_visual이 refs에 있을 때 덧붙이는 지시. 합성/복제가 아니라 조명·색·분위기(바이브)를
-# 맞추라고 명시해, 전 컷 스틸이 대표 프레임과 같은 결로 이어지게 한다(사용자 지시).
+# key_visual(인물이 드러난 대표 프레임)을 '정체성 base'로 쓴다. i2v는 세그먼트마다 앵커 스틸에서
+# 독립 시작하므로, 앵커들이 같은 사람이 아니면 세그먼트 간 인물이 갈린다(흑인·백인 섞임). 그래서
+# key_visual과 '같은 사람·같은 룩'을 유지하고 이 컷의 샷/동작만 바꾸라고 못 박는다 — 즉 모든
+# 앵커가 하나의 key_visual을 살짝 변형한 것이 되어 인물이 일관된다(사용자 지시: veo i2v에서도 필수).
 _KEY_VISUAL_VIBE = (
-    "Match the overall lighting, color grade and mood/vibe of the provided key reference frame "
-    "(use it for atmosphere and consistency, not to copy its exact composition)."
+    "Use the provided key reference frame as the identity and style base: keep the SAME person "
+    "(same face, ethnicity, skin tone, hair, age), the same styling and the same lighting/color "
+    "mood as that frame. Change ONLY the camera framing and the action for this specific cut. "
+    "The creator's face must be clearly visible."
 )
 
 # 캐릭터 레퍼런스가 있을 때, 컷마다 같은 사람을 유지하도록 못 박는다. 스틸은 컷별 영상의 시작

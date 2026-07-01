@@ -62,3 +62,26 @@ def test_still_prompt_locks_character_and_passes_ref(tmp_path):
     call = client.calls[0]
     assert str(char) in call["refs"]  # 캐릭터 참조가 제품 컷에도 들어간다
     assert "SAME individual" in call["prompt"]  # 같은 사람 유지 지시
+
+
+def test_key_visual_used_as_identity_base(tmp_path):
+    # i2v 세그먼트 간 인물 일관성: 모든 앵커 스틸이 key_visual(인물 대표 프레임)을 정체성 base로
+    # 삼아 '같은 사람, 샷만 변형'으로 생성돼야 한다(veo i2v 포함).
+    char = tmp_path / "char.png"
+    Image.new("RGB", (64, 64), (200, 180, 170)).save(char)
+    kv = tmp_path / "key_visual.png"
+    Image.new("RGB", (64, 114), (210, 190, 180)).save(kv)
+    profile = ReelProfile(
+        objective=Objective(goal="g"),
+        product=ProductSpec(name="P"),
+        storyboard=Storyboard(panels=[StoryboardPanel(index=4, subject_lock=True)]),
+    )
+    client = _CapturingImageClient()
+    ensure_panel_stills(
+        profile, str(tmp_path / "out"), client, str(char), None,
+        anchor_indices={4}, key_visual=str(kv),
+    )
+    call = client.calls[0]
+    assert str(kv) in call["refs"]  # key_visual이 참조로 들어간다
+    assert "identity and style base" in call["prompt"]  # 정체성 base로 사용
+    assert "face must be clearly visible" in call["prompt"]  # 인물이 잘 드러나야 함
