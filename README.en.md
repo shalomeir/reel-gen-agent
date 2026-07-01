@@ -21,15 +21,17 @@ an mp4 with no timeline editor and no render farm.
 Same system, different inputs. Two vertical shorts made by swapping only the
 product and the reference.
 
+Click a poster to open the video.
+
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>Sandal sneakers</b><br/>Nike Air Max Isla women's sandal</p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample4_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample4_from_kling_i2v/final.mp4"><b>Sandal sneakers</b></a><br/>Nike Air Max Isla women's sandal</p>
     </td>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>Linen shirt pick</b><br/>Lightweight open-collar summer linen shirt</p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample5_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample5_from_kling_i2v/final.mp4"><b>Linen shirt pick</b></a><br/>Lightweight open-collar summer linen shirt</p>
     </td>
   </tr>
 </table>
@@ -207,17 +209,17 @@ public-rate estimate, not an actual bill; the run report prints the per-model
 estimate.
 
 Same input, swapping only the video backend. Veo 3.1 Fast on the left, Kling o3
-Pro on the right.
+Pro on the right. Click a poster to open the video.
 
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/final.mp4" controls muted></video>
-      <p align="center"><b>Veo 3.1 Fast</b></p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_veo/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_veo/final.mp4"><b>Veo 3.1 Fast</b></a></p>
     </td>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>Kling o3 Pro</b></p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_kling_i2v/final.mp4"><b>Kling o3 Pro</b></a></p>
     </td>
   </tr>
 </table>

@@ -22,15 +22,17 @@ PLAN 과정에서는 스타일을 코드에 박지 않고 주어진 레퍼런스
 
 같은 시스템, 다른 입력. 제품과 레퍼런스만 바꿔 뽑은 세로 숏폼 두 편이다.
 
+영상 미리보기(포스터)를 누르면 재생 페이지로 이동한다.
+
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>샌들형 운동화</b><br/>나이키 에어맥스 아일라 여성 샌들</p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample4_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample4_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample4_from_kling_i2v/final.mp4"><b>샌들형 운동화</b></a><br/>나이키 에어맥스 아일라 여성 샌들</p>
     </td>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>린넨 셔츠 추천</b><br/>여름 오픈카라 린넨 셔츠</p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample5_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample5_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample5_from_kling_i2v/final.mp4"><b>린넨 셔츠 추천</b></a><br/>여름 오픈카라 린넨 셔츠</p>
     </td>
   </tr>
 </table>
@@ -192,16 +194,17 @@ reel-gen rerun outputs/<run_id>/plan/ReelProfile-<run_id>.json
 비디오 생성 모델 (Veo 또는 Kling) 별로 금액차이는 크지 않다.
 
 같은 입력을 백엔드만 바꿔 생성한 결과다. 왼쪽 Veo 3.1 Fast, 오른쪽 Kling o3 Pro.
+포스터를 누르면 재생 페이지로 이동한다.
 
 <table>
   <tr>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/final.mp4" controls muted></video>
-      <p align="center"><b>Veo 3.1 Fast</b></p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_veo/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_veo/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_veo/final.mp4"><b>Veo 3.1 Fast</b></a></p>
     </td>
-    <td width="50%" valign="top">
-      <video src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/final.mp4" controls muted></video>
-      <p align="center"><b>Kling o3 Pro</b></p>
+    <td width="50%" align="center" valign="top">
+      <a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_kling_i2v/final.mp4"><img src="https://github.com/shalomeir/reel-gen-agent/raw/main/demo/results/sample3_from_kling_i2v/poster.jpg" width="270"></a>
+      <p><a href="https://github.com/shalomeir/reel-gen-agent/blob/main/demo/results/sample3_from_kling_i2v/final.mp4"><b>Kling o3 Pro</b></a></p>
     </td>
   </tr>
 </table>
