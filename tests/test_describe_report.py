@@ -30,6 +30,37 @@ def test_upload_kit_has_title_and_outline(tmp_path):
     assert out.read_text(encoding="utf-8").strip()
 
 
+def test_upload_kit_does_not_leak_user_command(tmp_path):
+    # 업로드 제목·본문은 시청자용 카피다. chat에서 친 지시문(goal/key_message)이 새면 안 된다.
+    from reel_gen_agent.generate.schema import HookCandidate, StyleDimensions
+
+    profile = ReelProfile(
+        objective=Objective(goal="영상 더 밝게 만들고 자막 키워줘", key_message="자막 크게 넣어"),
+        product=ProductSpec(name="Glow Serum"),
+        style=StyleDimensions(
+            hook=HookCandidate(
+                hook_type="H1",
+                headline="Want this morning glow?",
+                bottom_caption="My glass skin secret",
+            )
+        ),
+        storyboard=Storyboard(
+            panels=[StoryboardPanel(index=0, t_start=0, t_end=2, subtitle_text="jelly to mist")]
+        ),
+    )
+    kit = build_upload_kit(profile)
+    out = tmp_path / "upload.md"
+    render_upload_md(kit, str(out))
+    text = out.read_text(encoding="utf-8")
+    # 유저 지시문은 어디에도 나오면 안 된다.
+    assert "영상 더 밝게" not in text
+    assert "자막 키워" not in text
+    assert "자막 크게" not in text
+    # 제목은 훅 헤드라인, 본문엔 제품명이 들어간다.
+    assert kit.title == "Want this morning glow?"
+    assert "Glow Serum" in kit.caption
+
+
 def test_final_report_md_puts_user_input_first_and_prompts_last(tmp_path):
     profile = _profile()
     manifest = RunManifest(
