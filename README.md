@@ -359,6 +359,22 @@ reel-gen execute outputs/<run_id>/plan/ReelProfile-....json
 | `reel-gen rerun <ReelProfile.json>` | 같은 목적·제품·모델을 유지한 채 레퍼런스를 무시하고 style부터 새로 뽑아 서사·음악을 다시 굴려 새 run 폴더에 재전개. |
 | `<입력>` (`run`/`plan`) | 텍스트 브리프, JSON 경로(generation_input 또는 ReelProfile), 또는 단일 에셋(이미지·영상·URL). |
 
+### 생성 시간과 비용
+
+한 편을 뽑는 데 걸리는 시간은 단계별로 이 정도다(대략치, 모델·네트워크에 따라 달라진다).
+
+- **레퍼런스 분석**: 레퍼런스를 넣으면 분석에 약 30초.
+- **plan (기획)**: 제품 카탈로그와 캐릭터를 잡고 전체 영상 기획을 마쳐 `ReelProfile`을
+  만드는 데 약 2분.
+- **execute (생성·조립)**: 컷별 영상을 생성하고 이어 붙여 완성하는 데 약 6분.
+
+그래서 넉넉히 잡아 **한 편에 10분 정도는 기다린다고 보면 된다.**
+
+비용은 15초 분량 숏폼 기준 대략치다. 포맷(해상도, 오디오 네이티브 여부)에 따라 조금
+차이가 있지만, 영상 모델이 Veo 3.1이든 Kling O3든 비슷한 수준이고 **한 편에 대략 $2~$3**가
+나온다. 스틸 이미지, BGM(Lyria), 나레이션(TTS)까지 합친 값이며, 실제 청구가 아니라 공개
+단가 기준 예상치다. 회차 리포트에 모델별 예상 비용이 함께 나온다.
+
 ## 동작 방식
 
 두 계층이 하나의 프로파일을 만든다.
@@ -755,6 +771,24 @@ video cannot be built without them.
 | `reel-gen execute <ReelProfile.json>` | Render a ReelProfile straight to video. Stops if catalog image local paths are missing. |
 | `reel-gen rerun <ReelProfile.json>` | Keeps the same objective, product, and model, ignores the reference and regenerates style first, then re-rolls the narrative and music from a new hook into a new run folder. |
 | `<input>` (`run`/`plan`) | A text brief, a JSON path (generation_input or ReelProfile), or a single asset (image, video, URL). |
+
+### Generation time and cost
+
+Roughly how long one reel takes, stage by stage (approximate; varies with model
+and network).
+
+- **Reference analysis**: about 30s once you pass a reference.
+- **plan**: about 2min to lock the product catalog and character and finish the
+  full plan into a `ReelProfile`.
+- **execute**: about 6min to generate the per-cut video and assemble it.
+
+So budget **about 10 minutes for one reel**.
+
+Cost is a rough figure for a 15-second short. It varies a little by format
+(resolution, native audio), but whether the video model is Veo 3.1 or Kling O3
+the total lands around **$2–$3 per reel** — stills, BGM (Lyria), and narration
+(TTS) included. It is a public-rate estimate, not an actual bill; the run report
+prints the per-model estimate alongside.
 
 ## How it works
 
