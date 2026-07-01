@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
+from reel_gen_agent.generate.conformance import ConformanceReport
 from reel_gen_agent.generate.production_graph import run_production
 from reel_gen_agent.generate.schema import (
     InputMeta,
@@ -44,9 +45,9 @@ def test_skeleton_runs_end_to_end(tmp_path):
         patch("reel_gen_agent.generate.execute_graph.evaluate_video") as mock_eval,
         patch("reel_gen_agent.generate.execute_graph.verify_conformance") as mock_verify,
     ):
-        mock_verify.return_value = type(
-            "R", (), {"passed": True, "model_dump": lambda self: {"passed": True}}
-        )()
+        # 통과하는 ConformanceReport(checks=[])로 verify를 모킹한다: verify 노드가 repair
+        # 판단을 위해 report.checks를 읽으므로 실제 계약을 지키는 객체를 돌려준다.
+        mock_verify.return_value = ConformanceReport(checks=[], passed=True)
         mock_eval.return_value = type("E", (), {"model_dump": lambda self: {"gated_score": 70}})()
         manifest = run_production(profile_path, use_vlm=False)
     assert (d / "final.mp4").exists()

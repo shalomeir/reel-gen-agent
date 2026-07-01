@@ -633,6 +633,8 @@ class FinalReport(BaseModel):
     bgm_source: BgmReport = Field(default_factory=BgmReport)
     conformance: dict = Field(default_factory=dict)  # pass 여부와 체크 요약
     rubric: dict = Field(default_factory=dict)  # gated/flat과 D1~D7
+    # verify repair 요약: 되돌린 횟수와 진행 시점에 남은 fail 코드(증거 보존).
+    repair: dict = Field(default_factory=dict)
     viral_prediction: str = ""  # 바이럴 효과 예측(LLM)
     cost: CostReport | None = None  # 예상 비용(모델별 내역 + 합계)
     report_md: str | None = None  # 렌더된 마크다운 경로

@@ -103,12 +103,14 @@
   넘어간다. 남은 것은 그래프 내부에서 후크 후보를 고르고 노드 중간 산출물(asset_bible·
   storyboard)을 확인/수정하는 세밀한 in-graph 게이트다. 지금 plan/run 경로는 후크 0번 후보를
   자동 채택한다.
-- **verify 하드 pass/fail + `repair_router` 유한 루프.** conformance를 하드 게이트로 걸고,
-  fail 시 결함 카테고리를 대상 노드로 매핑해(약한 샷 -> 영상 재생성, 자막 위치 -> 재조립,
-  볼륨 -> 오디오 remux) 전체가 아닌 해당 노드만 다시 돌려 합치는 루프를 계획했다. 지금
-  `verify` 노드는 소프트로 기록만 하고 무조건 다음으로 진행한다. `repair_count` 상한을 둔
-  자동 리페어 루프는 붙이지 않았다. (verify/evaluate는 단독 CLI로는 이미 하드/소프트 판정을
-  한다. 미룬 것은 그래프 안 자동 루프다.)
+- **verify 하드 게이트 + repair 유한 루프(loudness 착지, 나머지 축은 향후).** conformance를
+  하드 게이트로 걸고, fail 시 결함 카테고리를 대상 노드로 매핑해 전체가 아닌 해당 노드만 다시
+  돌려 합치는 루프를 계획했다. **이 골격은 구현됐다**: `verify` 노드가 조건 엣지로 `assemble`
+  또는 `describe`로 갈리고, 교정 파라미터를 실어 최대 3회 되돌린다(설계·구현:
+  superpowers/specs/2026-07-01-verify-repair-loop-design.md). 다만 결정론 노드는 그냥 재실행하면
+  같은 fail이 반복되므로, 실패에서 뽑은 교정값을 주입하는 축부터 넣었다 -> **loudness 하나**
+  (볼륨이 범위 밖이면 loudnorm 목표를 경계 안으로 밀어 remux). 약한 샷 -> 영상 재생성(비결정
+  재생성, 캐시 바이패스 필요)과 자막 위치 등 다른 축 교정은 같은 틀에 향후 얹는다.
 - **오디오 fan-out을 LangGraph `Send` API로.** 원래는 `Send` 팬아웃을 상정했으나, 지금은
   `visuals` 뒤 `voice`/`bgm`/`sfx`를 정적 엣지 병렬로 돌린다(fan-in은 `assemble`). 병렬화
   자체는 됐고, 동적 팬아웃이 필요할 만큼 재료 수가 늘면 `Send`로 바꾼다.
@@ -191,8 +193,12 @@
   선택으로 받는다. 레퍼런스처럼 템플릿/매니페스트가 없으면 intrinsic 체크만 돌고 나머지는
   skip한다. 잘 만든 레퍼런스는 모두 PASS여야 한다(회귀 기준선).
 - **출력**: `ConformanceReport`(JSON). 단독 CLI에서는 fail이 하나라도 있으면 exit code가
-  0이 아니다. execute 그래프에서는 현재 소프트로 기록만 하고 다음 노드로 진행한다(fail 시
-  결함 노드만 재생성하는 하드 게이트+repair 루프는 향후, 3절). `--no-vlm`이면 결정론 체크만 돈다.
+  0이 아니다(repair 없음). execute 그래프에서는 하드 게이트로 동작한다: 교정 가능한 fail이면
+  교정 파라미터를 실어 문제 노드로 되돌려 재생성하고(최대 3회), 통과하거나 소진하면 다음으로
+  진행하며 미해결 fail을 report에 남긴다. 이번 범위의 교정은 loudness 하나이고(생성물에 조금
+  더 타이트한 loudness 밴드를 걸어 게이트를 살린다), visuals 등 다른 축은 같은 틀에 향후
+  추가한다(설계: ../docs/superpowers/specs/2026-07-01-verify-repair-loop-design.md).
+  `--no-vlm`이면 결정론 체크만 돈다.
 
 ### evaluate (Rubric, 소프트 0~100)
 

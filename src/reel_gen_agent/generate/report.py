@@ -24,6 +24,7 @@ def build_final_report(
     manifest: RunManifest,
     conformance: dict,
     rubric: dict,
+    repair: dict | None = None,
 ) -> FinalReport:
     echo = UserInputEcho(
         objective=profile.objective.goal,
@@ -44,6 +45,7 @@ def build_final_report(
         bgm_source=bgm,
         conformance=conformance,
         rubric=rubric,
+        repair=repair or {},
         cost=cost,
     )
 
@@ -95,6 +97,9 @@ def render_report_md(report: FinalReport, out_path: str) -> str:
         f"## BGM\n- {report.bgm_source.kind}",
         "",
         f"## 평가\n- conformance: {report.conformance}\n- rubric: {report.rubric}",
+        "",
+        f"## verify 교정(repair)\n- 되돌린 횟수: {report.repair.get('attempts', 0)}\n"
+        f"- 미해결 fail: {report.repair.get('unresolved') or '없음'}",
         "",
         "## 바이럴 예측",
         report.viral_prediction or "(미작성)",

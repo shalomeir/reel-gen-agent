@@ -62,11 +62,11 @@
 ### 영상 단계 뒤 흐름
 
 영상 단계 뒤에 **verify**(conformance)가 먼저 돌고, 이어 **evaluate**(rubric, 소프트 0~100점
-+ 기대 효과 서술)가 돈다. 단독 CLI `verify`는 하드 pass/fail(fail이면 exit≠0)이지만, 그래프
-안에서는 현재 verify가 소프트로 기록만 하고 다음으로 진행한다. fail 시 문제 노드만 다시 돌려
-통과할 때까지 반복하는 하드 게이트+repair 유한 루프는 향후 과제다
-([../docs/Retrospective.md](../docs/Retrospective.md)). 자세한 동작은 아래 "분석·검증·평가
-명령"과 [testing-strategy.md](testing-strategy.md)에 있다.
++ 기대 효과 서술)가 돈다. 단독 CLI `verify`는 하드 pass/fail(fail이면 exit≠0)이고, 그래프
+안에서도 verify는 하드 게이트다: 교정 가능한 fail이면 교정 파라미터를 실어 문제 노드로 되돌려
+재생성하고(최대 3회), 통과하거나 소진하면 다음으로 진행하며 미해결 fail을 report에 남긴다.
+이번 범위의 교정은 loudness 하나이고, visuals 등 다른 축은 같은 틀에 향후 추가한다. 자세한
+동작은 아래 "분석·검증·평가·비교 명령"과 [testing-strategy.md](testing-strategy.md)에 있다.
 
 ## 입력 형식
 
@@ -164,10 +164,13 @@ reel-gen verify ./outputs/run/final.mp4 --input gen.json --storyboard board.json
 
 영상이 테크니컬하게 온전히 완성됐는지 본다. 역할:
 
-- **생성 그래프의 "영상 결과물 확인" 노드**. 현재 그래프 안에서는 소프트로 기록만 하고
-  진행한다. fail 시 문제 노드만 다시 돌려 통과할 때까지 반복하는 하드 게이트+repair 유한
-  루프는 향후 과제다([../docs/Retrospective.md](../docs/Retrospective.md)).
-- 별도 CLI(`reel-gen verify`)로 떼어 돌리면 하드 pass/fail이다(fail이면 exit≠0).
+- **생성 그래프의 "영상 결과물 확인" 하드 게이트**. 교정 가능한 fail이면 교정 파라미터를
+  실어 문제 노드로 되돌려 재생성하고(최대 3회), 통과하거나 소진하면 다음(describe)으로
+  진행하며 미해결 fail을 report에 남긴다. 이번 범위의 교정은 loudness 하나다(생성물에 조금
+  더 타이트한 loudness 밴드를 걸어 게이트를 살린다). visuals 등 다른 축 교정은 같은 틀에
+  향후 추가한다. 설계는
+  [../docs/superpowers/specs/2026-07-01-verify-repair-loop-design.md](../docs/superpowers/specs/2026-07-01-verify-repair-loop-design.md).
+- 별도 CLI(`reel-gen verify`)로 떼어 돌리면 하드 pass/fail이다(fail이면 exit≠0, repair 없음).
 
 계약과 체크 카탈로그는 [conformance-gate.md](conformance-gate.md).
 

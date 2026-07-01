@@ -117,6 +117,7 @@ def _mux_audio(
     keep_video_audio: bool = False,
     bgm_gain: float | None = None,
     sfx: list[tuple[str, float]] | None = None,
+    loudness_target: float | None = None,
 ) -> str:
     """영상에 나레이션 voice·BGM·효과음(SFX)을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
 
@@ -186,7 +187,8 @@ def _mux_audio(
     # 합친 뒤 loudnorm으로 전체 레벨을 목표에 맞춘다(회차마다 체감 볼륨 일정, 클리핑 방지).
     # 나레이션이 있으면 발화가 또렷하도록 -16 LUFS, 순수 음악 베드는 더 조용하게 -20 LUFS로
     # 둔다(음악만 크게 깔리면 시끄럽게 들린다는 피드백). TP -2dB로 인터샘플 클리핑 여유도 준다.
-    target_i = -16 if has_voiceover else -20
+    # loudness_target이 주어지면(verify repair 교정) 그 목표로 정규화하고, 없으면 기본 규칙.
+    target_i = loudness_target if loudness_target is not None else (-16 if has_voiceover else -20)
     norm = f"[amx]loudnorm=I={target_i}:TP=-2:LRA=11[nrm]"
     fade_f = f"[nrm]afade=t=out:st={fade_start:.3f}:d={fade}[aout]"
     filter_complex = ";".join([*chains, mix, norm, fade_f])
@@ -211,7 +213,12 @@ def _mux_audio(
     return out_path
 
 
-def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
+def assemble(
+    materials: Materials,
+    meta: InputMeta,
+    out_path: str,
+    loudness_target: float | None = None,
+) -> str:
     if not materials.shot_clips:
         raise ValueError("assemble: shot_clips is empty")
 
@@ -234,7 +241,10 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
     sfx = list(zip(materials.sfx_audio, materials.sfx_starts, strict=False))
     if not materials.bgm_audio and not materials.voice_audio and not sfx:
         if materials.native_audio:
-            return _mux_audio(video_only, None, None, out_path, keep_video_audio=True)
+            return _mux_audio(
+                video_only, None, None, out_path, keep_video_audio=True,
+                loudness_target=loudness_target,
+            )
         return _concat([video_only], meta.fps, out_path)
     return _mux_audio(
         video_only,
@@ -244,4 +254,5 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
         keep_video_audio=materials.native_audio,
         bgm_gain=materials.bgm_gain,
         sfx=sfx,
+        loudness_target=loudness_target,
     )
