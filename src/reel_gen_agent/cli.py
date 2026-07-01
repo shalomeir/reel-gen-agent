@@ -260,6 +260,37 @@ def execute(
     typer.echo(f"영상: {manifest.final_video}", err=True)
 
 
+def _make_image_client():
+    """가용하면 실제 Nano Banana 이미지 클라이언트를, 자격이 없으면 None을 돌려준다."""
+    from .analysis.gemini_client import select_backend
+    from .generate.image_client import NanoBananaImageClient
+
+    return NanoBananaImageClient() if select_backend() is not None else None
+
+
+@app.command()
+def run(
+    brief: str = typer.Argument(..., help="영상 목적/브리프 또는 입력"),
+    outputs: str = typer.Option("outputs", help="출력 루트 디렉터리"),
+    no_vlm: bool = typer.Option(False, "--no-vlm", help="rubric 채점을 건너뛴다."),
+    no_llm: bool = typer.Option(False, "--no-llm", help="텍스트 LLM 없이 결정론 콘티만"),
+    no_images: bool = typer.Option(False, "--no-images", help="이미지 생성 없이(폴백만)"),
+) -> None:
+    """plan -> execute를 한 번에 돌린다(런 모드, 게이트 자동 통과).
+
+    실 텍스트 LLM(Gemini 3.1 Pro)과 이미지(Nano Banana)로 ReelProfile을 만들고 곧장
+    영상까지 생성한다. 키가 없으면 각각 자동으로 결정론/폴백 경로로 내려간다.
+    """
+    text = None if no_llm else make_text_client()
+    img = None if no_images else _make_image_client()
+    path = run_planning(
+        brief, outputs, gate=GateConfig(mode="run"), text_client=text, image_client=img
+    )
+    typer.echo(f"ReelProfile: {path}", err=True)
+    manifest = run_production(str(path), use_vlm=not no_vlm)
+    typer.echo(f"영상: {manifest.final_video}", err=True)
+
+
 @app.command()
 def generate(
     input_json: str = typer.Argument(..., help="generation_input.json 경로"),

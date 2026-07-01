@@ -23,14 +23,50 @@ def _default_font(size: int) -> Any:
         return ImageFont.load_default()
 
 
+def _wrap(text: str, font: Any, max_width: int, measure) -> list[str]:
+    """단어 단위로 max_width 안에 들어오도록 줄바꿈한다. 한 단어가 넘치면 그대로 둔다."""
+    words = text.split()
+    lines: list[str] = []
+    cur = ""
+    for word in words:
+        cand = f"{cur} {word}".strip()
+        if measure(cand, font)[0] <= max_width or not cur:
+            cur = cand
+        else:
+            lines.append(cur)
+            cur = word
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def render_subtitle_png(text: str, width: int, height: int, out_path: str) -> str:
+    """자막을 투명 PNG로 렌더한다. 폭을 넘기면 여러 줄로 접고 하단에 중앙 정렬한다."""
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     if text:
         font = _default_font(max(28, width // 18))
+        margin = int(width * 0.06)
+        max_width = width - 2 * margin
+        # 밝은 배경에서도 글자가 묻히지 않도록 얇은 외곽선을 두른다(그림자 아님, 작은 반경).
+        stroke_w = max(2, font.size // 16 if hasattr(font, "size") else 2)
         with Pilmoji(img) as p:
-            tw, th = p.getsize(text, font=font)
-            x = max(0, (width - tw) // 2)
-            y = int(height * 0.78)
-            p.text((x, y), text, fill=(255, 255, 255, 255), font=font)
+            lines = _wrap(text, font, max_width, p.getsize)
+            line_h = max(p.getsize(ln or "A", font=font)[1] for ln in lines)
+            gap = int(line_h * 0.25)
+            block_h = len(lines) * line_h + (len(lines) - 1) * gap
+            # 블록 하단이 화면 하단 안전 영역(약 0.86 지점)에 닿도록 배치한다.
+            y = int(height * 0.86) - block_h
+            for line in lines:
+                tw, _ = p.getsize(line, font=font)
+                x = max(margin, (width - tw) // 2)
+                p.text(
+                    (x, y),
+                    line,
+                    fill=(255, 255, 255, 255),
+                    font=font,
+                    stroke_width=stroke_w,
+                    stroke_fill=(0, 0, 0, 200),
+                )
+                y += line_h + gap
     img.save(out_path)
     return out_path

@@ -7,12 +7,21 @@ bpm을 맞춰 만든다. voice는 voiceover일 때만 별도 생성(on_camera는
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .audio import bpm_for_cuts, synth_music_bed
 from .backends.ken_burns import KenBurnsBackend
 from .schema import Materials, ProductionPlan, ReelProfile
 from .subtitles import render_subtitle_png
+
+
+def _music_bpm(tempo: str | None) -> int | None:
+    """MusicSpec.tempo 문자열("136 bpm")에서 bpm 정수를 뽑는다. 없으면 None."""
+    if not tempo:
+        return None
+    m = re.search(r"(\d{2,3})", tempo)
+    return int(m.group(1)) if m else None
 
 
 def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) -> Materials:
@@ -38,8 +47,8 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
 
     bgm_audio: str | None = None
     if plan.bgm != "none" and total_dur > 0:
-        # 컷 주기로 목표 bpm을 잡아 BGM에 정렬한다(키 없으면 합성 베드로 대체).
-        bpm = bpm_for_cuts(profile.storyboard.panels)
+        # BGM bpm: MusicSpec.tempo(예: 레퍼런스 "136 bpm")가 있으면 우선, 없으면 컷 주기로 산정.
+        bpm = _music_bpm(profile.music.tempo) or bpm_for_cuts(profile.storyboard.panels)
         bgm_audio = synth_music_bed(total_dur, bpm, str(panels_dir / "bgm.wav"))
 
     return Materials(shot_clips=clips, subtitle_pngs=subs, bgm_audio=bgm_audio)

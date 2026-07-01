@@ -1,0 +1,83 @@
+"""asset_bible 노드: 캐릭터·제품 에셋 이미지를 나노바나나로 생성한다.
+
+캐릭터는 **정면샷**으로 만든다(멀티샷을 이어붙일 때 얼굴 일관성의 근거, specs/trd.md
+"기본 제작 포맷"). 제품은 카탈로그 히어로 샷. 이 두 이미지가 execute의 컷별 스틸 생성에서
+reference·폴백으로 쓰인다. 이미지 클라이언트가 없거나 실패하면 에셋 없이 진행한다.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from .image_client import ImageClient
+from .schema import (
+    AssetBible,
+    CharacterProfile,
+    EnvironmentSpec,
+    ModelSpec,
+    ProductProfile,
+    ProductSpec,
+)
+
+
+def _character_prompt(character: ModelSpec, environment: EnvironmentSpec) -> str:
+    look = character.look or "a naturally pretty early-20s woman, effortless natural look"
+    age = character.age or "early 20s"
+    gender = character.gender or "female"
+    loc = environment.location or "the creator's own bedroom, indoor"
+    return (
+        f"Photorealistic vertical 9:16 front-facing upper-body portrait of {look}, "
+        f"{age} {gender}, looking straight at the camera, natural soft indoor lighting, "
+        f"{loc} in the background, authentic UGC selfie aesthetic, high skin detail, "
+        "clean and bright. A fictional person, not a real or identifiable individual."
+    )
+
+
+def _product_prompt(product: ProductSpec) -> str:
+    packaging = product.packaging_desc or "as described"
+    return (
+        f"Studio e-commerce catalog photo of {product.name}. Packaging: {packaging}. "
+        "Clean seamless off-white background, soft even studio lighting, single hero "
+        "product centered, subtle reflection, sharp focus, high detail, no text overlay, "
+        "no hands, no human, vertical 9:16 framing, photorealistic."
+    )
+
+
+def build_asset_bible(
+    character: ModelSpec,
+    product: ProductSpec,
+    environment: EnvironmentSpec,
+    image_client: ImageClient | None,
+    out_dir: str,
+) -> AssetBible:
+    """캐릭터 정면샷 + 제품 히어로샷을 만들어 AssetBible을 채운다(상대 파일명으로 기록).
+
+    이미지 경로는 run 폴더 기준 상대명(character.png/product.png)으로 저장해 ReelProfile을
+    이식 가능하게 둔다. execute가 폴더 기준으로 절대경로를 해소한다.
+    """
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    char_prompt = _character_prompt(character, environment)
+    prod_prompt = _product_prompt(product)
+
+    char_rel: str | None = None
+    prod_rel: str | None = None
+    if image_client is not None:
+        try:
+            image_client.generate(char_prompt, [], str(out / "character.png"))
+            char_rel = "character.png"
+        except Exception:
+            char_rel = None
+        try:
+            image_client.generate(prod_prompt, [], str(out / "product.png"))
+            prod_rel = "product.png"
+        except Exception:
+            prod_rel = None
+
+    return AssetBible(
+        character=CharacterProfile(
+            name=character.name, prompt_used=char_prompt, key_shot_image=char_rel
+        ),
+        product=ProductProfile(name=product.name, prompt_used=prod_prompt, hero_image=prod_rel),
+        environment=environment,
+    )

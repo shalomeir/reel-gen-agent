@@ -9,21 +9,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .asset_bible import build_asset_bible
 from .gates import GateConfig
 from .image_client import ImageClient
 from .intake import intake
 from .profile_assembly import assemble_profile, write_profile
+from .reference_seed import seed_from_reference
 from .run_paths import create_run_dir, make_run_id
 from .schema import (
     EnvironmentSpec,
     HookRequest,
     InputMeta,
     ModelSpec,
+    MusicSpec,
     ProductSpec,
     Provenance,
     StyleDimensions,
 )
-from .storyboard import build_storyboard, generate_panel_images, needs_panel_images
+from .storyboard import build_storyboard
 from .text_client import TextClient
 
 
@@ -54,12 +57,26 @@ def run_planning(
     )
     meta = InputMeta()
     style = StyleDimensions()
+    music = MusicSpec()
+    cut_count: int | None = None
     provenance = Provenance(
         style_source="reference" if result.reference_ref else "llm",
         reference_ref=result.reference_ref,
     )
 
-    if text_client is not None:
+    # 레퍼런스가 있으면 최대한 레퍼런스에서 베이스라인을 시딩한다(스타일/메타/음악/컷수/후크).
+    ref = result.reference_ref
+    if ref and Path(ref).exists():
+        try:
+            seed = seed_from_reference(ref, use_gemini=text_client is not None)
+            meta, style, music = seed.meta, seed.style, seed.music
+            cut_count = seed.cut_count or None
+            provenance.seeds = seed.seeds
+        except Exception:
+            pass  # 시딩 실패 시 기본값으로 진행(파이프라인은 끝까지 돈다).
+
+    # 후크: 레퍼런스 후크가 없고 LLM이 있으면 생성한다(레퍼런스 후크는 시딩에서 이미 채워짐).
+    if style.hook is None and text_client is not None:
         from .hook import generate_hooks
 
         hooks = generate_hooks(
@@ -69,7 +86,7 @@ def run_planning(
         if hooks.candidates:
             style.hook = hooks.candidates[0]
 
-    # 스토리보드/콘티는 항상 채운다(텍스트 패널). 컷별 이미지는 복잡한 멀티컷일 때만.
+    # 스토리보드/콘티는 항상 채운다(텍스트 패널). 레퍼런스 컷 수가 있으면 그 수에 맞춘다.
     storyboard = build_storyboard(
         meta=meta,
         style=style,
@@ -77,20 +94,16 @@ def run_planning(
         character=character,
         environment=environment,
         category=None,  # 카테고리 추론은 concept 노드(추후)가 채운다
+        cut_count=cut_count,
     )
     narrative_arc = [p.beat for p in storyboard.panels if p.beat]
 
     run_id = make_run_id(result.objective.goal)
     out_dir = create_run_dir(outputs_root, run_id)
 
-    if image_client is not None and needs_panel_images(storyboard):
-        generate_panel_images(
-            storyboard,
-            character_image=None,
-            product_image=None,
-            image_client=image_client,
-            out_dir=str(out_dir),
-        )
+    # asset_bible: 캐릭터 정면샷 + 제품 이미지를 생성한다(image_client 있을 때). 이 에셋이
+    # execute의 컷별 스틸 생성에서 reference·폴백으로 쓰인다. 없으면 빈 에셋으로 둔다.
+    asset_bible = build_asset_bible(character, product, environment, image_client, str(out_dir))
 
     profile = assemble_profile(
         {
@@ -99,7 +112,9 @@ def run_planning(
             "character": character,
             "style": style,
             "narrative_arc": narrative_arc,
+            "asset_bible": asset_bible,
             "storyboard": storyboard,
+            "music": music,
             "provenance": provenance,
         }
     )
