@@ -20,14 +20,23 @@ from .text_client import TextClient
 # 인물 중복(얼굴 2개) 버그 방지. 셀피/포트레이트 스틸과 영상 시작 프레임에 붙인다.
 SOLO_PERSON = "Exactly ONE person in the frame, solo — no second person and no duplicate faces."
 
+
+class ProductGroundingError(ValueError):
+    """제품을 실제 소스(URL 스크래핑·이미지·사용자 서술)로 확보하지 못했을 때. 시스템이 임의로
+    제품을 추정하면 안 되므로(사용자 지시: 하드코딩·추정 금지), 이 예외를 올려 chat은 다시 묻고
+    run은 실패하게 한다."""
+
 _PROMPT = (
-    "Analyze the advertised product for a short-form product ad and fill its spec so the SAME "
-    "product can be rendered consistently across many cuts. Report the product truthfully as WHATEVER "
-    "it actually is - it may be a cosmetic, but it may just as well be apparel, a bag, shoes, "
-    "eyewear, an accessory, a supplement, a device or a home item. Do NOT assume it is a beauty "
-    "cosmetic or nudge it toward skincare/makeup. Infer sensible, realistic details from the "
-    "name/brief. Use the user's product name. Do NOT invent or copy a brand name or on-package "
-    "text.\n"
+    "Extract the advertised product's spec for a short-form product ad so the SAME product can be "
+    "rendered consistently across many cuts. Report the product truthfully as WHATEVER it actually "
+    "is - it may be a cosmetic, but it may just as well be apparel, a bag, shoes, eyewear, an "
+    "accessory, a supplement, a device or a home item. Do NOT assume it is a beauty cosmetic or "
+    "nudge it toward skincare/makeup.\n"
+    "CRITICAL: fill ONLY details that are explicitly stated in the brief / source page text below "
+    "(or the reference product, if given). Do NOT invent, guess or estimate a category, form, "
+    "packaging, colors or features that are not actually stated or shown - leave any such unknown "
+    "field as \"\" or []. Use the user's product name exactly as given. Do NOT invent or copy a "
+    "brand name or on-package text.\n"
     "Product name/brief: {name}\nExtra brief: {brief}\n{web}{ref}\n"
     'Output raw JSON only (no markdown, no prose): '
     '{{"name": str, "category": str, "form": str, "packaging_desc": str, '

@@ -106,6 +106,15 @@ def intake(raw: str) -> IntakeResult:
             if tok.lower().endswith(_VIDEO_EXT):
                 ref_src = tok
                 break
+    # 라벨이 없으면 미디어 종류로 추정한다(specs/product-design.md 판별 규칙):
+    # 비영상 URL은 제품 판매 페이지로 본다(제품 URL→제품). 라벨 없는 맨 URL이 조용히 버려져
+    # 제품이 일반 뷰티제품으로 흐르던 문제를 막는다. 이미 레퍼런스로 잡힌 토큰은 제외한다.
+    if product_src is None:
+        for tok in _URL.findall(raw):
+            if tok == ref_src or tok.lower().endswith(_VIDEO_EXT):
+                continue
+            product_src = tok
+            break
     product = AssetInput(kind="product", source=product_src, present=product_src is not None)
     character = AssetInput(
         kind="character", source=character_src, present=character_src is not None
