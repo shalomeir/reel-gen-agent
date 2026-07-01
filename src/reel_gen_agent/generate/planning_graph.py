@@ -62,6 +62,7 @@ def run_planning(
     style = StyleDimensions()
     music = MusicSpec()
     cut_count: int | None = None
+    delivery = "voiceover"  # 기본은 나레이션. 레퍼런스가 온카메라 발화면 시딩이 바꾼다.
     provenance = Provenance(
         style_source="reference" if result.reference_ref else "llm",
         reference_ref=result.reference_ref,
@@ -74,23 +75,43 @@ def run_planning(
             seed = seed_from_reference(ref, use_gemini=text_client is not None)
             meta, style, music = seed.meta, seed.style, seed.music
             cut_count = seed.cut_count or None
+            delivery = seed.delivery  # 레퍼런스 발화 방식(온카메라/나레이션/무음)을 따른다
             provenance.seeds = seed.seeds
         except Exception:
             pass  # 시딩 실패 시 기본값으로 진행(파이프라인은 끝까지 돈다).
 
-    # 후크: 레퍼런스 후크가 없고 LLM이 있으면 생성한다(레퍼런스 후크는 시딩에서 이미 채워짐).
-    if style.hook is None and text_client is not None:
+    # 후크: 유형·문구는 LLM이 제품·목적·톤에 맞춰 유연하게 고른다(하드코딩 X, temperature로
+    # 다양성). 레퍼런스가 있으면 그 첫 3초 시각 컨셉(visual_direction)·문구·윈도를 LLM이 고른
+    # 후크에 얹어, "유형은 LLM 선택 + 비주얼은 레퍼런스"로 합친다. LLM이 없으면 레퍼런스 후크를
+    # 그대로 쓰고, 둘 다 없으면 후크 없이 둔다(하드코딩 유형 강제 안 함).
+    ref_hook = style.hook  # 레퍼런스 시딩 후크(있으면). 유형은 아래서 LLM이 다시 고른다.
+    if text_client is not None:
         from .hook import generate_hooks
 
-        hooks = generate_hooks(
-            HookRequest(product=product, tone=style.tone, duration_sec=meta.duration_sec, count=2),
-            text_client,
-        )
-        if hooks.candidates:
-            style.hook = hooks.candidates[0]
+        try:
+            hooks = generate_hooks(
+                HookRequest(
+                    product=product, tone=style.tone, duration_sec=meta.duration_sec, count=2
+                ),
+                text_client,
+            )
+        except Exception:
+            hooks = None  # LLM 후크 실패 -> 레퍼런스 후크(또는 None) 유지
+        if hooks and hooks.candidates:
+            chosen = hooks.candidates[0]
+            if ref_hook is not None:
+                # 레퍼런스의 첫 3초 비주얼·문구·윈도를 얹는다(유형은 LLM이 고른 것을 유지).
+                if ref_hook.visual_direction:
+                    chosen.visual_direction = ref_hook.visual_direction
+                if ref_hook.headline:
+                    chosen.headline = ref_hook.headline
+                if ref_hook.bottom_caption:
+                    chosen.bottom_caption = ref_hook.bottom_caption
+                chosen.window_sec = ref_hook.window_sec
+            style.hook = chosen
 
     narration = NarrationSpec(
-        delivery="voiceover",
+        delivery=delivery,
         voice=VoiceSpec(from_character=True, type=(character.look or None)),
     )
 

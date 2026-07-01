@@ -216,19 +216,22 @@ def _beat_cut_zoom(cut_index: int, product_lock: bool) -> float:
 
 
 def _extract_subcut(
-    seg_clip: str, start: float, dur: float, zoom: float, w: int, h: int, fps: int, out: str
+    seg_clip: str, start: float, dur: float, zoom: float, w: int, h: int, fps: int, out: str,
+    keep_audio: bool = False,
 ) -> str:
     """세그먼트 클립의 [start, start+dur] 구간을 줌 프레이밍으로 잘라 서브컷을 만든다.
 
     입력 영상(Veo)은 이미 움직이므로 정지 위험이 없다. 컷마다 zoom을 달리해 중앙 punch-in을
-    주면, 인접 서브컷의 경계 프레임이 확 달라져 fast_montage 컷 리듬이 살아난다.
+    주면, 인접 서브컷의 경계 프레임이 확 달라져 fast_montage 컷 리듬이 살아난다. 온카메라
+    발화(integrated)면 연속 시간 슬라이스라 네이티브 음성을 보존한다(concat하면 원음 그대로).
     """
     vf = f"scale=iw*{zoom}:ih*{zoom},crop={w}:{h},setsar=1"
     cmd = [
         "ffmpeg", "-y", "-i", seg_clip, "-ss", f"{start:.3f}", "-t", f"{dur:.3f}",
-        "-vf", vf, "-r", str(fps), "-an",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", out,
+        "-vf", vf, "-r", str(fps),
     ]
+    cmd += (["-c:a", "aac"] if keep_audio else ["-an"])
+    cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", out]
     subprocess.run(cmd, check=True, capture_output=True)
     return out
 
@@ -305,7 +308,10 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
             if made:
                 zoom = _beat_cut_zoom(cut_index, p.product_lock)
                 sub_clip = str(panels_dir / f"clip_{seg_pos}_{i}.mp4")
-                _extract_subcut(seg_clip, local, d, zoom, m.width, m.height, m.fps, sub_clip)
+                _extract_subcut(
+                    seg_clip, local, d, zoom, m.width, m.height, m.fps, sub_clip,
+                    keep_audio=speaking,
+                )
                 clips.append(sub_clip)
                 cut_index += 1
             # 자막: 계획된 패널 구간에 시간 기반으로 건다(모델 내부 컷과 무관).
@@ -338,6 +344,7 @@ def build_materials(profile: ReelProfile, plan: ProductionPlan, out_dir: str) ->
         subtitle_spans=spans,
         bgm_audio=bgm_audio,
         voice_audio=voice_audio,
+        native_audio=speaking,  # 온카메라 발화면 클립의 네이티브 음성을 보존한다
     )
 
 

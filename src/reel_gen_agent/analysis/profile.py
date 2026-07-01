@@ -57,6 +57,9 @@ class Voice(BaseModel):
     """보이스(나레이션/대사). 없으면 present=False."""
 
     present: bool = False
+    # 화면 속 인물이 카메라를 보고 직접 말하는가(입 움직임=발화). True면 생성 시 온카메라
+    # 립싱크(영상 모델 네이티브 음성) 경로로 재현하고, False면 화면 밖 나레이션(voiceover)로 본다.
+    on_camera: bool = False
     tone: str | None = None  # 목소리 톤 묘사
     pace: str | None = None  # slow / medium / fast
 

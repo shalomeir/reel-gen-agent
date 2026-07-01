@@ -13,4 +13,11 @@ _MATRIX: dict[str, ModelCapability] = {
 
 
 def capability_for(model_id: str) -> ModelCapability:
+    mid = (model_id or "").lower()
+    # Veo 3.1은 네이티브 오디오(발화 포함)를 낸다 -> 온카메라 발화가 가능하다.
+    if mid.startswith("veo"):
+        return ModelCapability(model_id=model_id, lane="vertex", integrated_voice=True)
+    # Kling O3(fal)도 네이티브 발화·립싱크가 가능하다.
+    if mid.startswith("kling"):
+        return ModelCapability(model_id=model_id, lane="fal", integrated_voice=True)
     return _MATRIX.get(model_id, ModelCapability(model_id=model_id, lane="vertex"))

@@ -113,13 +113,16 @@ def resolve_plan(profile: ReelProfile, env: dict[str, str]) -> ProductionPlan:
     if delivery == "none":
         voice_strategy = "none"
     elif delivery == "on_camera":
-        # on_camera 멀티컷 음성 일관은 fal 레인(Kling O3 Pro)만 가능하다.
-        kling_multicut = cap.integrated_voice and (n == 1 or cap.lane == "fal")
-        if kling_multicut:
+        # 온카메라 발화: 영상 모델이 네이티브 음성·립싱크를 내면 integrated로 간다(별도 TTS 없음).
+        # 세그먼트당 1회 호출이라 세그먼트 안에서는 음색이 일관된다. 세그먼트가 여러 개면 Veo는
+        # 컷 사이 음색이 살짝 달라질 수 있고(멀티세그 일관은 fal Kling이 낫다), 기록만 남긴다.
+        if cap.integrated_voice:
             voice_strategy = "integrated"
+            if len(segments) > 1 and cap.lane != "fal":
+                fallbacks.append("on_camera_multiseg_voice_may_drift")
         else:
             voice_strategy = "separate_tts"
-            fallbacks.append("on_camera_multicut_needs_kling->voiceover")
+            fallbacks.append("on_camera_no_integrated_voice->voiceover")
     else:  # voiceover (기본)
         voice_strategy = "separate_tts"
 

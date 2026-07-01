@@ -109,12 +109,19 @@ def _duration(path: str) -> float:
         return 0.0
 
 
-def _mux_audio(video_path: str, voice: str | None, bgm: str | None, out_path: str) -> str:
+def _mux_audio(
+    video_path: str,
+    voice: str | None,
+    bgm: str | None,
+    out_path: str,
+    keep_video_audio: bool = False,
+) -> str:
     """영상에 나레이션 voice와 BGM을 입힌다. 오디오가 잘리거나 툭 끊기지 않게 마감한다.
 
     최종 길이는 max(영상, voice)라 나레이션이 중간에 잘리지 않는다. 영상이 짧으면 마지막
     프레임을 이어(tpad) 채우고, 끝에 0.5초 페이드아웃을 걸어 툭 끊기지 않게 한다. BGM은
-    voice가 있으면 아래로 덕킹해 나레이션이 들리게 한다.
+    발화(voice 또는 영상 네이티브 음성)가 있으면 아래로 덕킹해 발화가 들리게 한다.
+    keep_video_audio면 영상의 네이티브 음성(온카메라 발화)을 발화 트랙으로 보존한다.
     """
     video_len = _duration(video_path)
     voice_len = _duration(voice) if voice else 0.0
@@ -122,10 +129,15 @@ def _mux_audio(video_path: str, voice: str | None, bgm: str | None, out_path: st
     fade = 0.5
     fade_start = max(0.0, final - fade)
     pad_v = max(0.0, final - video_len)
+    has_speech = bool(voice) or keep_video_audio
 
     cmd = ["ffmpeg", "-y", "-i", video_path]
     chains = [f"[0:v]tpad=stop_mode=clone:stop_duration={pad_v:.3f}[v]"]
     labels: list[str] = []
+    # 온카메라 발화: 영상 자체 오디오([0:a])를 발화 트랙으로 쓴다.
+    if keep_video_audio and not voice:
+        chains.append(f"[0:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume=1.0[a0]")
+        labels.append("[a0]")
     idx = 1
     if voice:
         cmd += ["-i", voice]
@@ -134,7 +146,7 @@ def _mux_audio(video_path: str, voice: str | None, bgm: str | None, out_path: st
         idx += 1
     if bgm:
         cmd += ["-i", bgm]
-        vol = 0.28 if voice else 0.85  # voice가 있으면 BGM을 아래로 덕킹
+        vol = 0.28 if has_speech else 0.85  # 발화가 있으면 BGM을 아래로 덕킹
         chains.append(
             f"[{idx}:a]apad=whole_dur={final:.3f},atrim=0:{final:.3f},volume={vol}[a{idx}]"
         )
@@ -183,7 +195,13 @@ def assemble(materials: Materials, meta: InputMeta, out_path: str) -> str:
         _overlay_subtitles_timed(video_only, subs, spans, meta.fps, subbed)
         video_only = subbed
 
-    # 3) 오디오가 없으면 그대로, 있으면 voice/BGM을 입혀 마감한다.
+    # 3) 오디오가 없으면 그대로, 있으면 voice/BGM/네이티브 음성을 입혀 마감한다.
+    #    온카메라 발화(native_audio)는 클립에 음성이 있으므로 BGM이 없어도 그대로 살린다.
     if not materials.bgm_audio and not materials.voice_audio:
+        if materials.native_audio:
+            return _mux_audio(video_only, None, None, out_path, keep_video_audio=True)
         return _concat([video_only], meta.fps, out_path)
-    return _mux_audio(video_only, materials.voice_audio, materials.bgm_audio, out_path)
+    return _mux_audio(
+        video_only, materials.voice_audio, materials.bgm_audio, out_path,
+        keep_video_audio=materials.native_audio,
+    )

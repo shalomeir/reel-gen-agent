@@ -476,6 +476,9 @@ class Materials(BaseModel):
     subtitle_pngs: list[str] = Field(default_factory=list)  # 패널별 자막 PNG(투명)
     # subtitle_pngs와 평행한 [start, end] 초 구간. 최종 타임라인에 시간 기반으로 덮는다.
     subtitle_spans: list[list[float]] = Field(default_factory=list)
+    # 클립에 영상 모델 네이티브 음성(온카메라 발화)이 들어 있는가. True면 assemble이 그 오디오를
+    # 보존해 BGM과 믹스한다(별도 voice 없음). 기본 나레이션 경로는 False.
+    native_audio: bool = False
 
 
 # --- 실행 매니페스트 (conformance 게이트가 노드/머지 무결성을 검증하는 계약) -----

@@ -16,6 +16,8 @@ _BASE_PROMPT = """\
 You are a short-form video analyst for a vertical product-ad generation harness.
 Fill the structured schema, focusing on perceptual qualities a numeric pipeline cannot capture:
 - voice: is there narration/dialogue? If so, describe the vocal tone and pace. If only BGM, present=false.
+  Also set voice.on_camera=true only if the visible person is talking to the camera (mouth clearly
+  moving in sync with the speech, a talking-head); set on_camera=false for off-screen voiceover over b-roll.
 - music_dynamics: "build" if the audio energy clearly rises toward a payoff, else "flat".
 - music_beat_synced: do the cuts land on musical beats, or follow meaning/action?
 - subtitle: transcribe on-screen caption text, and describe font_style, color, position

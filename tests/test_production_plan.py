@@ -48,10 +48,30 @@ def test_delivery_none_means_no_voice():
     assert plan.voice_strategy == "none"
 
 
-def test_on_camera_multicut_without_kling_downgrades_to_voiceover():
+def test_on_camera_without_integrated_voice_downgrades_to_voiceover():
+    # ken_burns(폴백)는 네이티브 발화가 없으므로 on_camera여도 별도 TTS로 내려간다.
     plan = resolve_plan(_profile(delivery="on_camera", panels=3), env={})
     assert plan.voice_strategy == "separate_tts"
     assert any("on_camera" in f for f in plan.fallbacks_applied)
+
+
+def test_on_camera_with_veo_uses_integrated_native_voice():
+    # 영상 모델(Veo)이 네이티브 발화를 내면 on_camera는 integrated로 간다(별도 TTS 없음).
+    env = {"GOOGLE_CLOUD_PROJECT": "proj"}
+    plan = resolve_plan(_profile(delivery="on_camera", panels=1), env=env)
+    assert plan.video_model.startswith("veo")
+    assert plan.voice_strategy == "integrated"
+
+
+def test_on_camera_veo_multisegment_notes_voice_drift():
+    # 여러 세그먼트면 Veo는 컷 사이 음색이 흔들릴 수 있어 기록을 남긴다(그래도 integrated).
+    env = {"GOOGLE_CLOUD_PROJECT": "proj"}
+    # _profile 패널은 길이 0.5초 -> 20개면 10초라 Veo 8초 상한에서 2세그먼트로 나뉜다.
+    beats = ["hook"] * 20
+    plan = resolve_plan(_profile(panels=20, beats=beats, delivery="on_camera"), env=env)
+    assert plan.voice_strategy == "integrated"
+    assert len(plan.segments) > 1
+    assert any("voice_may_drift" in f for f in plan.fallbacks_applied)
 
 
 def _timed_panels(n, dur=1.0):
