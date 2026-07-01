@@ -52,9 +52,9 @@ def test_paid_path_prices_each_backend():
     assert cost.as_of == PRICING_AS_OF
     # 스틸 2장 x $0.12 히어로
     assert lines["패널 스틸"].subtotal_usd == 0.24
-    # 영상 3.5초 x $0.15 (veo fast)
+    # 영상 3.5초 x $0.10 (veo fast, 오디오 없음 = separate_tts)
     assert lines["영상 클립"].model == "veo-3.1-fast-generate-001"
-    assert lines["영상 클립"].subtotal_usd == round(3.5 * 0.15, 4)
+    assert lines["영상 클립"].subtotal_usd == round(3.5 * 0.10, 4)
     # BGM은 클립당 정액: 3.5초 영상 -> 1클립 x $0.04 (lyria, 초당 아님)
     assert lines["BGM"].model == "lyria-002"
     assert lines["BGM"].unit == "클립"
@@ -100,9 +100,25 @@ def test_kling_reference_to_video_is_priced_by_partial_match():
     plan = ProductionPlan(video_model="fal-ai/kling-video/o3/pro/reference-to-video", bgm="none")
     manifest = RunManifest(panel_segments=["c0.mp4"])
 
+    # 기본 voice_strategy=none -> 오디오 없음 -> Kling O3 Pro audio_off $0.112/s.
     cost = estimate_cost(profile, plan, manifest, {}, {}, {})
     video = next(ln for ln in cost.lines if ln.label == "영상 클립")
-    assert video.subtotal_usd == round(3.5 * 0.28, 4)
+    assert video.subtotal_usd == round(3.5 * 0.112, 4)
+
+
+def test_video_audio_on_uses_higher_rate():
+    # 온카메라 발화(integrated) -> 영상 모델이 네이티브 오디오 -> audio_on 요율.
+    profile = _paid_profile()
+    plan = ProductionPlan(
+        video_model="fal-ai/kling-video/o3/pro/reference-to-video",
+        voice_strategy="integrated",
+        bgm="none",
+    )
+    manifest = RunManifest(panel_segments=["c0.mp4"])
+
+    cost = estimate_cost(profile, plan, manifest, {}, {}, {})
+    video = next(ln for ln in cost.lines if ln.label == "영상 클립")
+    assert video.subtotal_usd == round(3.5 * 0.14, 4)  # Kling O3 Pro audio_on
 
 
 def test_multishot_counts_all_panel_seconds_not_just_stills():
@@ -128,7 +144,7 @@ def test_multishot_counts_all_panel_seconds_not_just_stills():
     total_sec = round(sum(max(0.5, p.t_end - p.t_start) for p in panels), 4)
     assert total_sec == 10.7  # 2.38이 아니라 전체 길이
     assert lines["영상 클립"].quantity == 10.7
-    assert lines["영상 클립"].subtotal_usd == round(10.7 * 0.10, 4)
+    assert lines["영상 클립"].subtotal_usd == round(10.7 * 0.03, 4)  # veo lite 오디오 없음
     # BGM은 초가 아니라 클립 수: 10.7초 -> 1클립(≤30초). 영상 초로 곱하지 않는다.
     assert lines["BGM"].unit == "클립"
     assert lines["BGM"].quantity == 1

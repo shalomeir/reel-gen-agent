@@ -20,15 +20,8 @@ PRICING_AS_OF = "2026-07-01"
 
 # 모델 ID -> (단위, USD 단가). 값은 공개 근사치이며 실제 청구와 다를 수 있다.
 # 단위: "sec"(초), "image"(장), "1k_chars"(1k자), "clip"(클립), "call"(호출).
+# 초당 영상 단가는 오디오 on/off로 갈리므로 여기 두지 않고 VIDEO_PRICING에서 따로 다룬다.
 PRICING: dict[str, tuple[str, float]] = {
-    # image-to-video (초당)
-    "veo-3.1-fast-generate-001": ("sec", 0.15),
-    "veo-3.1-generate-001": ("sec", 0.40),
-    "veo-3.1-lite-generate-001": ("sec", 0.10),
-    "fal-ai/kling-video/o3/pro/reference-to-video": ("sec", 0.28),
-    "fal-ai/kling-video/o3/standard/reference-to-video": ("sec", 0.14),
-    "fal-ai/kling-video/o3/pro/image-to-video": ("sec", 0.28),
-    "fal-ai/kling-video/o3/standard/image-to-video": ("sec", 0.14),
     # 이미지 (장당)
     "gemini-3.1-pro-image-preview": ("image", 0.12),
     "gemini-3.1-flash-image-preview": ("image", 0.039),
@@ -40,6 +33,18 @@ PRICING: dict[str, tuple[str, float]] = {
     "elevenlabs-sfx": ("clip", 0.08),
     # VLM 분석 (호출당)
     "gemini-2.5-flash": ("call", 0.02),
+}
+
+# 초당 영상 단가 (audio_off, audio_on) USD. 오디오 네이티브 생성 여부로 요율이 오른다.
+# 근거(2026-07 확인): fal.ai Kling O3는 티어(해상도)가 단가를 가르고 모드(i2v/ref2v)는 무관
+# 하다 — Standard(720p) 0.084/0.112, Pro(1080p) 0.112/0.14. Veo 3.1은 tier별로 fast
+# 0.10/0.15, quality 0.20/0.40, lite 0.03/0.05.
+VIDEO_PRICING: dict[str, tuple[float, float]] = {
+    "veo-fast": (0.10, 0.15),
+    "veo-quality": (0.20, 0.40),
+    "veo-lite": (0.03, 0.05),
+    "kling-o3-standard": (0.084, 0.112),
+    "kling-o3-pro": (0.112, 0.14),
 }
 
 # 로컬 합성이라 과금 대상이 아닌 백엔드.
@@ -55,22 +60,38 @@ _UNIT_LABEL = {
 }
 
 
+def _video_rate(model: str, audio_on: bool) -> tuple[str, float] | None:
+    """초당 영상 단가를 오디오 여부로 고른다. 영상 모델이 아니면 None.
+
+    Kling은 티어(pro/standard)로, Veo는 tier(lite/fast/quality)로 요율을 가른다. 오디오
+    네이티브 생성을 켜면 audio_on 요율을, 끄면 audio_off 요율을 쓴다.
+    """
+    low = model.lower()
+    if "kling" in low:
+        off, on = VIDEO_PRICING["kling-o3-pro" if "pro" in low else "kling-o3-standard"]
+    elif "veo" in low:
+        if "lite" in low:
+            off, on = VIDEO_PRICING["veo-lite"]
+        elif "fast" in low:
+            off, on = VIDEO_PRICING["veo-fast"]
+        else:
+            off, on = VIDEO_PRICING["veo-quality"]
+    else:
+        return None
+    return ("sec", on if audio_on else off)
+
+
 def _lookup(model: str) -> tuple[str, float] | None:
-    """모델 단가를 찾는다. 정확 매칭 우선, 없으면 계열(kling/veo/lyria/gemini) 부분 매칭.
+    """비영상 모델 단가를 찾는다. 정확 매칭 우선, 없으면 계열(lyria/gemini/tts) 부분 매칭.
 
     버전 문자열이 바뀌어도(예: lyria-002 -> lyria-3-pro-preview) 계열 단가로 잡히게 한다.
+    영상(kling/veo)은 오디오 여부로 갈리므로 `_video_rate`로 넘긴다(여기선 audio_off 기준).
     """
     if model in PRICING:
         return PRICING[model]
     low = model.lower()
-    if "kling" in low:
-        tier = "pro" if "pro" in low else "standard"
-        mode = "reference-to-video" if "reference" in low else "image-to-video"
-        return PRICING.get(f"fal-ai/kling-video/o3/{tier}/{mode}")
-    if "veo" in low:
-        if "lite" in low:
-            return ("sec", 0.10)
-        return ("sec", 0.15) if "fast" in low else ("sec", 0.40)
+    if "kling" in low or "veo" in low:
+        return _video_rate(model, audio_on=False)
     if "lyria" in low:
         return ("clip", 0.04)
     if "tts" in low:
@@ -87,9 +108,7 @@ def _video_seconds(profile: ReelProfile) -> float:
     그래서 still_image 유무로 초를 세면 실제 생성 초를 크게 과소집계한다(예: 9패널 10.7초를
     스틸 2장만 세어 2.38초로 계산). 조립 영상 길이와 맞도록 모든 패널 길이를 합한다.
     """
-    return sum(
-        max(0.5, (p.t_end or 0.0) - (p.t_start or 0.0)) for p in profile.storyboard.panels
-    )
+    return sum(max(0.5, (p.t_end or 0.0) - (p.t_start or 0.0)) for p in profile.storyboard.panels)
 
 
 def _still_count(profile: ReelProfile) -> int:
@@ -110,9 +129,7 @@ def _bgm_model(plan: ProductionPlan | None, env: dict) -> str:
     if not plan or plan.bgm != "gen":
         return "synth" if (plan and plan.bgm != "none") else "none"
     has_lyria = (
-        env.get("GOOGLE_CLOUD_PROJECT")
-        or env.get("GEMINI_API_KEY")
-        or env.get("GOOGLE_API_KEY")
+        env.get("GOOGLE_CLOUD_PROJECT") or env.get("GEMINI_API_KEY") or env.get("GOOGLE_API_KEY")
     )
     if env.get("REEL_BGM", "").lower() == "synth" or not has_lyria:
         return "synth"
@@ -126,11 +143,20 @@ def _tts_model(plan: ProductionPlan | None, env: dict) -> str:
     return env.get("GEMINI_TTS_MODEL") or "gemini-3.1-flash-tts-preview"
 
 
-def _line(label: str, model: str, quantity: float, note: str | None = None) -> CostLine | None:
-    """모델 단가를 조회해 CostLine을 만든다. 사용량 0이면 None(라인 생략)."""
+def _line(
+    label: str,
+    model: str,
+    quantity: float,
+    note: str | None = None,
+    audio_on: bool = False,
+) -> CostLine | None:
+    """모델 단가를 조회해 CostLine을 만든다. 사용량 0이면 None(라인 생략).
+
+    영상 모델은 오디오 네이티브 생성 여부(audio_on)로 요율이 갈린다.
+    """
     if quantity <= 0:
         return None
-    priced = _lookup(model)
+    priced = _video_rate(model, audio_on) or _lookup(model)
     unit_code, unit_price = priced if priced else ("건", 0.0)
     qty = quantity / 1000.0 if unit_code == "1k_chars" else quantity
     return CostLine(
@@ -171,12 +197,19 @@ def estimate_cost(
         lines.append(line)
 
     # 영상 클립: 로컬(ken_burns)이면 라인 생략, 아니면 초당 단가.
+    # 온카메라 발화(integrated)만 영상 모델이 네이티브 오디오를 내므로 audio_on 요율을 쓴다.
+    # 기본 나레이션(voiceover=separate_tts)은 오디오를 끄고 생성하므로 audio_off 요율.
     video_model = _effective_video_model(plan, env)
+    video_audio_on = bool(plan and plan.voice_strategy == "integrated")
     video_seconds = _video_seconds(profile)
     n_clips = len(manifest.panel_segments)
     if video_model not in LOCAL_BACKENDS and video_seconds > 0:
-        note = f"{n_clips}개 클립" if n_clips else None
-        line = _line("영상 클립", video_model, video_seconds, note=note)
+        parts = [f"{n_clips}개 클립"] if n_clips else []
+        parts.append("오디오 포함" if video_audio_on else "오디오 없음")
+        video_note = ", ".join(parts)
+        line = _line(
+            "영상 클립", video_model, video_seconds, note=video_note, audio_on=video_audio_on
+        )
         if line:
             lines.append(line)
 
