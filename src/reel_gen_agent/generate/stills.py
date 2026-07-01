@@ -86,12 +86,16 @@ def ensure_panel_stills(
     product_image: str | None,
     anchor_indices: set[int] | None = None,
     key_visual: str | None = None,
+    hero: bool = True,
 ) -> int:
     """still_image가 없는 패널을 채운다. 채운(또는 폴백한) 패널 수를 반환한다.
 
     anchor_indices가 주어지면 그 패널만 채운다(멀티샷 세그먼트 경로: 세그먼트당 앵커 1장만
     생성해 컷마다 이미지를 만들지 않는다). None이면 전 패널을 채운다(ken_burns 폴백).
     key_visual이 있으면 캐릭터·제품과 함께 모든 컷 생성의 레퍼런스로 넣어 바이브(조명·색)를 맞춘다.
+
+    hero=True면 컷 start 스틸을 4K Pro로 만든다(영상 모델 reference로 주입되므로 고품질 필요).
+    ken_burns는 로컬 팬/줌 베이스라 4K Pro가 낭비이므로 hero=False(Flash)로 부른다.
     """
     panels = profile.storyboard.panels
     missing = [
@@ -121,8 +125,8 @@ def ensure_panel_stills(
         generated = False
         if image_client is not None:
             try:
-                # 컷 start 스틸은 영상 생성 reference로 주입되므로 히어로(4K Pro)로 만든다.
-                panel.still_image = image_client.generate(prompt, refs, out, hero=True)
+                # i2v면 컷 start가 영상 reference라 히어로(4K Pro), ken_burns면 로컬 베이스라 Flash.
+                panel.still_image = image_client.generate(prompt, refs, out, hero=hero)
                 generated = True
             except Exception:
                 generated = False

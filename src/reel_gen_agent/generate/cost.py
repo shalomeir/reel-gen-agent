@@ -22,8 +22,9 @@ PRICING_AS_OF = "2026-07-01"
 # 단위: "sec"(초), "image"(장), "1k_chars"(1k자), "clip"(클립), "call"(호출).
 # 초당 영상 단가는 오디오 on/off로 갈리므로 여기 두지 않고 VIDEO_PRICING에서 따로 다룬다.
 PRICING: dict[str, tuple[str, float]] = {
-    # 이미지 (장당)
-    "gemini-3.1-pro-image-preview": ("image", 0.12),
+    # 이미지 (장당). 히어로 스틸/에셋은 Pro 모델을 4K(HERO_IMAGE_SIZE)로 뽑으므로 4K 요율
+    # ($0.24/장, 2026-07 확인)을 쓴다. 코드가 히어로를 항상 4K로 생성하니 그 티어가 정본이다.
+    "gemini-3.1-pro-image-preview": ("image", 0.24),
     "gemini-3.1-flash-image-preview": ("image", 0.039),
     # BGM (클립당). Lyria는 초당이 아니라 생성 1회(30초 단위 클립) 정액으로 과금한다.
     "lyria-002": ("clip", 0.04),
@@ -46,6 +47,18 @@ VIDEO_PRICING: dict[str, tuple[float, float]] = {
     "kling-o3-standard": (0.084, 0.112),
     "kling-o3-pro": (0.112, 0.14),
 }
+
+# 기획 텍스트 LLM 토큰 단가 (USD per 1M) (input, output). 컨셉/훅/스토리보드/대사/톤 생성에 쓴다.
+TEXT_TOKEN_PRICING: dict[str, tuple[float, float]] = {
+    "gemini-3.1-pro-preview": (2.0, 12.0),
+    "gemini-3.1-pro": (2.0, 12.0),
+    "claude-opus-4-8": (5.0, 25.0),
+}
+# 한 회차 기획에 드는 대략적 토큰(관측 불가라 휴리스틱): intake/캐릭터/환경/음악/톤 + 훅·
+# 스토리보드 핑퐁(각 최대 2회) + 대사 = 약 10회 호출. 컨텍스트가 실려 입력이 크고 출력은 작다.
+LLM_EST_CALLS = 10
+LLM_EST_INPUT_TOKENS = 20_000
+LLM_EST_OUTPUT_TOKENS = 8_000
 
 # 로컬 합성이라 과금 대상이 아닌 백엔드.
 LOCAL_BACKENDS = {"ken_burns", "synth", "none", "", None}
@@ -97,7 +110,7 @@ def _lookup(model: str) -> tuple[str, float] | None:
     if "tts" in low:
         return ("1k_chars", 0.01)
     if "image" in low and "gemini" in low:
-        return ("image", 0.12) if "pro" in low else ("image", 0.039)
+        return ("image", 0.24) if "pro" in low else ("image", 0.039)
     return None
 
 
@@ -113,6 +126,68 @@ def _video_seconds(profile: ReelProfile) -> float:
 
 def _still_count(profile: ReelProfile) -> int:
     return sum(1 for p in profile.storyboard.panels if p.still_image)
+
+
+def _asset_image_count(profile: ReelProfile) -> int:
+    """생성된 에셋 비블 이미지 수(캐릭터/제품/패키지/키비주얼/환경). 전부 히어로(4K)로 만든다.
+
+    패널 스틸과 별개로 plan 단계에서 만들어지는데 예전엔 비용에서 통째로 빠졌다. 실제로 파일이
+    생긴 필드만 센다(사용자 제공 에셋이 아니라 생성된 것만 근사).
+    """
+    ab = profile.asset_bible
+    n = 0
+    char = ab.character
+    if char.sheet_image:
+        n += 1
+    if char.key_shot_image:
+        n += 1
+    n += sum(1 for v in char.views if v.image)
+    if ab.product.hero_image:
+        n += 1
+    if ab.product.sheet_image:
+        n += 1
+    n += sum(1 for v in ab.product.views if v.image)
+    if ab.key_visual:
+        n += 1
+    if ab.environment.needs_image and ab.environment.reference_image:
+        n += 1
+    return n
+
+
+def _text_key_present(env: dict) -> bool:
+    """기획 텍스트 LLM을 돌릴 자격이 있는지(Gemini/Vertex/Claude 중 하나)."""
+    return bool(
+        env.get("GEMINI_API_KEY")
+        or env.get("GOOGLE_API_KEY")
+        or env.get("GOOGLE_CLOUD_PROJECT")
+        or env.get("ANTHROPIC_API_KEY")
+    )
+
+
+def _llm_line(env: dict) -> CostLine:
+    """기획 텍스트 LLM(컨셉/훅/스토리보드/대사/톤)의 회차 예상 비용. 관측 불가라 휴리스틱."""
+    model = env.get("GEMINI_TEXT_MODEL") or "gemini-3.1-pro-preview"
+    prices = TEXT_TOKEN_PRICING.get(model)
+    if prices is None:
+        low = model.lower()
+        prices = (5.0, 25.0) if ("claude" in low or "opus" in low) else (2.0, 12.0)
+    in_price, out_price = prices
+    subtotal = round(
+        LLM_EST_INPUT_TOKENS / 1_000_000 * in_price + LLM_EST_OUTPUT_TOKENS / 1_000_000 * out_price,
+        4,
+    )
+    return CostLine(
+        label="기획 LLM",
+        model=model,
+        unit="회차",
+        quantity=1,
+        unit_price_usd=subtotal,
+        subtotal_usd=subtotal,
+        note=(
+            f"추정: 약 {LLM_EST_CALLS}회 호출(입력~{LLM_EST_INPUT_TOKENS // 1000}k/"
+            f"출력~{LLM_EST_OUTPUT_TOKENS // 1000}k 토큰)"
+        ),
+    )
 
 
 def _effective_video_model(plan: ProductionPlan | None, env: dict) -> str:
@@ -184,22 +259,34 @@ def estimate_cost(
     caveats: list[str] = [
         f"단가는 공개 근사치(기준일 {PRICING_AS_OF})이며 실제 청구와 다를 수 있음",
         "ken_burns/합성 BGM 등 로컬 폴백은 $0으로 계산",
-        "기획·카피 텍스트 LLM(컨셉/훅/스토리보드/대사)은 별도 planning 단계라 미포함",
+        "기획 LLM은 회차 휴리스틱 추정치(실제 토큰 사용량 관측 아님)",
+        "이미지는 히어로 4K 요율. 스틸(세그먼트/컷당 1장)과 에셋(캐릭터·제품·패키지·키비주얼) 모두 집계",
         "SFX는 플랜이 켰을 때만 집계(컷 sfx 큐 기준). Kling O3는 배선되면 자동 반영",
-        "이미지 수는 스틸 있는 패널 기준 추정(사용자 제공 스틸이 섞일 수 있음)",
+        "재계획·재생성(run --max-iters) 반복 시 스틸/영상 비용은 회차당으로 곱해짐(1회 기준 추정)",
     ]
 
-    # 패널 스틸(이미지): 히어로 모델로 생성(ai-model-records §3).
-    still_count = _still_count(profile)
+    # 패널 스틸 + 에셋 이미지. 에셋(캐릭터/제품/패키지/키비주얼)은 항상 히어로 4K. 패널 스틸은
+    # i2v면 영상 reference라 히어로 4K, ken_burns면 로컬 팬/줌 베이스라 Flash로 뽑는다(비용 절감).
     hero_image = env.get("GEMINI_IMAGE_MODEL_HERO") or "gemini-3.1-pro-image-preview"
-    line = _line("패널 스틸", hero_image, still_count, note="스틸 있는 패널 수 기준")
+    flash_image = env.get("GEMINI_IMAGE_MODEL") or "gemini-3.1-flash-image-preview"
+    video_model = _effective_video_model(plan, env)
+    is_ken_burns = video_model == "ken_burns"
+    still_model = flash_image if is_ken_burns else hero_image
+    still_note = "컷당 1장(Flash, 켄번스 베이스)" if is_ken_burns else "세그먼트당 1장(히어로 4K)"
+    still_count = _still_count(profile)
+    line = _line("패널 스틸", still_model, still_count, note=still_note)
+    if line:
+        lines.append(line)
+    asset_count = _asset_image_count(profile)
+    line = _line(
+        "에셋 이미지", hero_image, asset_count, note="캐릭터·제품·패키지·키비주얼(히어로 4K)"
+    )
     if line:
         lines.append(line)
 
     # 영상 클립: 로컬(ken_burns)이면 라인 생략, 아니면 초당 단가.
     # 온카메라 발화(integrated)만 영상 모델이 네이티브 오디오를 내므로 audio_on 요율을 쓴다.
     # 기본 나레이션(voiceover=separate_tts)은 오디오를 끄고 생성하므로 audio_off 요율.
-    video_model = _effective_video_model(plan, env)
     video_audio_on = bool(plan and plan.voice_strategy == "integrated")
     video_seconds = _video_seconds(profile)
     n_clips = len(manifest.panel_segments)
@@ -243,6 +330,10 @@ def estimate_cost(
         line = _line("품질 평가", vlm_model, 2, note="conformance + rubric")
         if line:
             lines.append(line)
+
+    # 기획 텍스트 LLM(컨셉/훅/스토리보드/대사/톤). 텍스트 LLM 자격이 있을 때만 회차 추정치로 넣는다.
+    if _text_key_present(env):
+        lines.append(_llm_line(env))
 
     if plan and plan.fallbacks_applied:
         caveats.append("적용된 폴백: " + ", ".join(plan.fallbacks_applied))

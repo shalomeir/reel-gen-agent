@@ -1,9 +1,13 @@
 from reel_gen_agent.generate.cost import PRICING_AS_OF, estimate_cost
 from reel_gen_agent.generate.schema import (
+    AssetBible,
+    AssetView,
+    CharacterProfile,
     NarrationLine,
     NarrationSpec,
     Objective,
     ProductionPlan,
+    ProductProfile,
     ProductSpec,
     ReelProfile,
     RunManifest,
@@ -50,8 +54,8 @@ def test_paid_path_prices_each_backend():
     lines = _lines_by_label(cost)
 
     assert cost.as_of == PRICING_AS_OF
-    # 스틸 2장 x $0.12 히어로
-    assert lines["패널 스틸"].subtotal_usd == 0.24
+    # 스틸 2장 x $0.24 히어로(4K)
+    assert lines["패널 스틸"].subtotal_usd == 0.48
     # 영상 3.5초 x $0.10 (veo fast, 오디오 없음 = separate_tts)
     assert lines["영상 클립"].model == "veo-3.1-fast-generate-001"
     assert lines["영상 클립"].subtotal_usd == round(3.5 * 0.10, 4)
@@ -81,8 +85,8 @@ def test_local_fallback_costs_nothing():
     assert "BGM" not in labels
     assert "나레이션" not in labels
     assert "품질 평가" not in labels
-    # 스틸만 남는다(패널에 still_image가 있으므로).
-    assert cost.total_usd == 0.24
+    # 스틸만 남는다(패널에 still_image가 있으므로). ken_burns라 Flash 2장 x $0.039.
+    assert cost.total_usd == round(2 * 0.039, 4)
 
 
 def test_reel_video_override_forces_ken_burns():
@@ -151,6 +155,70 @@ def test_multishot_counts_all_panel_seconds_not_just_stills():
     assert lines["BGM"].subtotal_usd == 0.04
     # 스틸(이미지)은 실제 생성 장수(2장)와 맞게 유지된다.
     assert lines["패널 스틸"].quantity == 2
+
+
+def test_ken_burns_stills_use_flash_but_i2v_uses_hero_4k():
+    profile = _paid_profile()  # 패널 2개 모두 still_image 있음 -> still_count=2
+    manifest = RunManifest(panel_segments=["c0.mp4"])
+
+    kb = estimate_cost(
+        profile,
+        ProductionPlan(video_model="ken_burns", voice_strategy="none", bgm="none"),
+        manifest,
+        {},
+        {},
+        {},
+    )
+    kb_still = next(ln for ln in kb.lines if ln.label == "패널 스틸")
+    assert kb_still.model == "gemini-3.1-flash-image-preview"
+    assert kb_still.subtotal_usd == round(2 * 0.039, 4)
+
+    i2v = estimate_cost(
+        profile,
+        ProductionPlan(video_model="veo-3.1-fast-generate-001", voice_strategy="none", bgm="none"),
+        manifest,
+        {},
+        {},
+        {},
+    )
+    i2v_still = next(ln for ln in i2v.lines if ln.label == "패널 스틸")
+    assert i2v_still.model == "gemini-3.1-pro-image-preview"
+    assert i2v_still.subtotal_usd == round(2 * 0.24, 4)
+
+
+def test_asset_images_are_counted_at_hero_4k_rate():
+    # 캐릭터 + 제품 히어로 + 패키지 뷰 + 키비주얼 = 4장, 전부 히어로 4K $0.24.
+    profile = _paid_profile()
+    profile.asset_bible = AssetBible(
+        character=CharacterProfile(key_shot_image="character.png"),
+        product=ProductProfile(
+            hero_image="product.png",
+            views=[AssetView(name="packaging", image="product_packaging.png")],
+        ),
+        key_visual="key_visual.png",
+    )
+    plan = ProductionPlan(video_model="ken_burns", voice_strategy="none", bgm="none")
+    manifest = RunManifest(panel_segments=["c0.mp4"])
+
+    cost = estimate_cost(profile, plan, manifest, {}, {}, {})
+    asset = next(ln for ln in cost.lines if ln.label == "에셋 이미지")
+    assert asset.quantity == 4
+    assert asset.subtotal_usd == round(4 * 0.24, 4)
+
+
+def test_planning_llm_is_estimated_when_text_key_present():
+    profile = _paid_profile()
+    plan = ProductionPlan(video_model="ken_burns", voice_strategy="none", bgm="none")
+    manifest = RunManifest(panel_segments=["c0.mp4"])
+
+    # 텍스트 자격 있음 -> 기획 LLM 추정 라인 존재. gemini-3.1-pro $2/$12, 20k/8k 토큰.
+    with_key = estimate_cost(profile, plan, manifest, {}, {}, {"GEMINI_API_KEY": "k"})
+    llm = next(ln for ln in with_key.lines if ln.label == "기획 LLM")
+    assert llm.subtotal_usd == round(20_000 / 1e6 * 2.0 + 8_000 / 1e6 * 12.0, 4)
+
+    # 자격 없음 -> 라인 없음.
+    without_key = estimate_cost(profile, plan, manifest, {}, {}, {})
+    assert not any(ln.label == "기획 LLM" for ln in without_key.lines)
 
 
 def test_bgm_over_30s_uses_two_clips():

@@ -115,6 +115,11 @@ def _stills_node(state: ExecState) -> dict:
             except Exception:
                 client = None
         kv_img = _resolve_asset(profile.asset_bible.key_visual, base_dir)
+        # i2v 앵커 스틸은 영상 모델 reference라 4K Pro(hero), ken_burns는 로컬 팬/줌 베이스라 Flash.
+        is_ken_burns = (
+            plan.video_model == "ken_burns"
+            or os.environ.get("REEL_VIDEO", "").lower() == "ken_burns"
+        )
         filled = ensure_panel_stills(
             profile,
             str(state["exec_dir"]),
@@ -123,6 +128,7 @@ def _stills_node(state: ExecState) -> dict:
             prod_img,
             anchor_indices=anchor_indices,
             key_visual=kv_img,
+            hero=not is_ken_burns,
         )
         state["manifest"].nodes.append(NodeRun(name="stills", artifacts=[]))
         if filled == 0:
